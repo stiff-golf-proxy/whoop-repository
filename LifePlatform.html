@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stuart Harris · Life</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#eef4f3; --paper2:#e2ecec; --card:#fbfdfd; --card2:#eef4f3;
+  --ink:#15302f; --ink-soft:#3f5957; --ink-faint:#6f8a88;
+  --line:#d2e2e0; --line2:#b6cecb;
+  /* --terra is the PRIMARY accent across the app: repointed to a deep teal-blue */
+  --terra:#0e7c86; --terra-deep:#075e66; --terra-soft:#6fc0c5;
+  /* --sage is the SECONDARY accent: a strong forest green */
+  --sage:#2f8f5b; --sage-deep:#1f6e44; --gold:#16957d; --plum:#3a7ca5;
+  --sky:#2f80b5; --rose:#c2554e;
+  --good:#2f8f5b; --warn:#c79a3e; --bad:#c2554e;
+  --disp:'Libre Franklin',system-ui,sans-serif; --serif:'Libre Franklin',system-ui,sans-serif; --mono:'Spline Sans Mono',monospace;
+  --shadow:0 1px 2px rgba(12,60,58,.05), 0 8px 24px rgba(14,90,95,.10);
+  --shadow-lg:0 4px 12px rgba(12,60,58,.08), 0 20px 50px rgba(14,90,95,.16);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:16px;line-height:1.55;letter-spacing:.1px;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(1200px 600px at 100% 0%, rgba(14,124,134,.12), transparent 55%),
+    radial-gradient(900px 700px at 0% 100%, rgba(47,143,91,.11), transparent 52%),
+    radial-gradient(700px 500px at 50% 120%, rgba(47,128,181,.06), transparent 60%);
+  min-height:100vh;
+}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track{background:var(--paper)}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px;border:3px solid var(--paper)}
+
+.wrap{max-width:1200px;margin:0 auto;padding:0 28px 100px}
+
+/* ---- top bar ---- */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:26px 0 22px;gap:20px;flex-wrap:wrap}
+.greet{display:flex;flex-direction:column;gap:2px}
+.greet .hi{font-family:var(--disp);font-weight:700;font-size:26px;letter-spacing:-.3px;line-height:1.05}
+.greet .date{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);letter-spacing:.5px}
+.top-actions{display:flex;gap:9px}
+.btn{font-family:var(--serif);font-size:14px;cursor:pointer;border:1px solid var(--line2);
+  background:var(--card);color:var(--ink-soft);padding:9px 15px;border-radius:11px;transition:.18s;
+  display:inline-flex;align-items:center;gap:7px}
+.btn:hover{border-color:var(--terra);color:var(--terra);transform:translateY(-1px);box-shadow:var(--shadow)}
+.btn.primary{background:var(--terra);border-color:var(--terra);color:#fff}
+.btn.primary:hover{background:var(--terra-deep);color:#fff}
+.btn svg{width:15px;height:15px}
+
+/* ---- nav ---- */
+.nav{display:flex;gap:6px;margin-bottom:30px;flex-wrap:wrap}
+.nav button{font-family:var(--disp);font-weight:500;font-size:16px;color:var(--ink-faint);
+  background:none;border:none;cursor:pointer;padding:9px 17px;border-radius:30px;transition:.18s;
+  display:inline-flex;align-items:center;gap:8px}
+.nav button .ic{width:17px;height:17px;opacity:.65}
+.nav button:hover{color:var(--ink-soft);background:var(--paper2)}
+.nav button.active{color:#fff;background:linear-gradient(135deg,var(--terra),var(--sage-deep));box-shadow:0 4px 14px rgba(14,90,95,.28)}
+.nav button.active .ic{opacity:1}
+
+/* ---- cards ---- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);position:relative}
+.card-pad{padding:24px 26px}
+.kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-faint)}
+.h-sec{font-family:var(--disp);font-weight:700;font-size:23px;letter-spacing:-.3px;margin:6px 0 18px;display:flex;align-items:baseline;gap:12px}
+.h-sec .sub{font-family:var(--serif);font-size:14px;color:var(--ink-faint);font-style:italic;letter-spacing:0}
+
+.grid{display:grid;gap:18px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+
+.pane{display:none}
+.pane.active{display:block;animation:fade .35s ease}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---- stat tiles ---- */
+.tile{padding:20px 22px}
+.tile .lbl{font-family:var(--mono);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink-faint)}
+.tile .num{font-family:var(--disp);font-weight:700;font-size:33px;letter-spacing:-.6px;margin-top:9px;line-height:1}
+.tile .num small{font-size:16px;color:var(--ink-faint);font-weight:500}
+.tile .foot{font-family:var(--serif);font-size:13px;color:var(--ink-soft);margin-top:8px;font-style:italic}
+.accent-bar{height:3px;border-radius:3px;margin-bottom:16px;width:38px}
+
+.coach{background:linear-gradient(135deg,var(--card),var(--card));border-left:3px solid var(--terra);
+  padding:18px 22px;border-radius:0 14px 14px 0;margin-bottom:22px}
+.coach .q{font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--terra);margin-bottom:7px}
+.coach p{font-family:var(--serif);font-size:15.5px;line-height:1.6;color:var(--ink-soft)}
+.coach p b{color:var(--ink);font-weight:600}
+
+/* progress ring + bars */
+.ring-wrap{display:flex;align-items:center;gap:24px}
+.donut{display:flex;flex-direction:column;gap:9px}
+.dlin{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:14px}
+.dot{width:11px;height:11px;border-radius:3px;flex:none}
+.dlin .v{margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--ink-soft)}
+
+table.clean{width:100%;border-collapse:collapse;font-family:var(--serif);font-size:14.5px}
+table.clean th{text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;
+  color:var(--ink-faint);padding:9px 12px;border-bottom:1.5px solid var(--line2);font-weight:400}
+table.clean th.r,table.clean td.r{text-align:right}
+table.clean td{padding:11px 12px;border-bottom:1px solid var(--line)}
+table.clean tr:last-child td{border-bottom:none}
+table.clean tr:hover td{background:var(--paper2)}
+.mono{font-family:var(--mono);font-size:13px}
+
+/* sliders */
+.slider-row{margin-bottom:18px}
+.slider-row label{display:flex;justify-content:space-between;font-family:var(--serif);font-size:14px;color:var(--ink-soft);margin-bottom:8px}
+.slider-row label b{font-family:var(--mono);font-size:13px;color:var(--terra);font-weight:500}
+input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:5px;background:var(--line2);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+  background:var(--terra);cursor:pointer;border:3px solid var(--card);box-shadow:0 2px 7px rgba(14,90,95,.45)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--terra);cursor:pointer;border:3px solid var(--card)}
+
+.big-income{text-align:center;padding:30px 20px}
+.big-income .pre{font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:15px}
+.big-income .amt{font-family:var(--disp);font-weight:700;font-size:56px;letter-spacing:-1.5px;color:var(--terra-deep);line-height:1;margin:8px 0}
+.big-income .post{font-family:var(--mono);font-size:12px;color:var(--ink-faint);letter-spacing:.5px}
+
+/* chart */
+.chart-box{width:100%}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;font-family:var(--serif);font-size:13px;color:var(--ink-soft)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+
+/* health markers */
+.marker-card{padding:18px 20px;cursor:default}
+.marker-card .mk-name{font-family:var(--disp);font-weight:600;font-size:18px}
+.marker-card .mk-range{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:2px}
+.marker-card .mk-latest{display:flex;align-items:baseline;gap:8px;margin:14px 0 4px}
+.marker-card .mk-val{font-family:var(--disp);font-weight:700;font-size:29px;letter-spacing:-.6px}
+.status-pill{font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;padding:3px 9px;border-radius:20px}
+
+/* drop zone */
+.dz{border:2px dashed var(--line2);border-radius:14px;padding:34px 20px;text-align:center;cursor:pointer;transition:.18s}
+.dz:hover{border-color:var(--terra);background:rgba(14,124,134,.05)}
+.dz .dz-t{font-family:var(--disp);font-weight:600;font-size:17px}
+.dz .dz-s{font-family:var(--serif);font-style:italic;font-size:13px;color:var(--ink-faint);margin-top:6px}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(44,38,34,.55);backdrop-filter:blur(5px);z-index:60;
+  display:none;align-items:flex-start;justify-content:center;padding:44px 20px;overflow-y:auto}
+.overlay.show{display:flex;animation:fade .25s}
+.modal{background:var(--card);border:1px solid var(--line2);border-radius:20px;width:100%;max-width:760px;
+  box-shadow:var(--shadow-lg);animation:rise .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(18px);opacity:0}to{transform:none;opacity:1}}
+.modal-head{padding:24px 28px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start}
+.modal-head h2{font-family:var(--disp);font-weight:600;font-size:24px;letter-spacing:-.4px}
+.modal-head .ms{font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:14px;margin-top:3px}
+.modal-body{padding:24px 28px}
+.x{cursor:pointer;border:none;background:none;color:var(--ink-faint);padding:4px;line-height:0}
+.x:hover{color:var(--terra)}
+.field{margin-bottom:15px}
+.field label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
+.field input,.field select{width:100%;background:var(--paper);border:1px solid var(--line2);border-radius:10px;
+  padding:11px 13px;font-family:var(--serif);font-size:15px;color:var(--ink);transition:.15s}
+.field input:focus,.field select:focus{outline:none;border-color:var(--terra);box-shadow:0 0 0 3px rgba(14,124,134,.16)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);z-index:100;
+  background:var(--ink);color:var(--paper);padding:13px 24px;border-radius:12px;font-family:var(--serif);font-size:14px;
+  box-shadow:var(--shadow-lg);transition:.3s;opacity:0}
+.toast.show{transform:translateX(-50%);opacity:1}
+.empty{text-align:center;padding:46px 20px;color:var(--ink-faint);font-family:var(--serif);font-style:italic}
+
+@media(max-width:860px){
+  .g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}
+  .ring-wrap{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="greet">
+      <div class="hi" id="greeting">Good day, Stuart</div>
+      <div class="date" id="todayStr"></div>
+    </div>
+    <div class="top-actions">
+      <button class="btn" onclick="exportData()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>Backup</button>
+      <button class="btn" onclick="document.getElementById('restoreFile').click()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14"/></svg>Restore</button>
+      <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restoreData(this)">
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="active" data-pane="home"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-8 9 8M5 9v11h14V9"/></svg>Today</button>
+    <button data-pane="wealth"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-5 4 3 8-9M16 6h5v5"/></svg>Wealth</button>
+    <button data-pane="retire"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Retirement</button>
+    <button data-pane="golf"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 18V4l7 3-7 3"/><circle cx="12" cy="20" r="1.5"/></svg>Golf</button>
+    <button data-pane="run"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 4a1.5 1.5 0 100 0M7 21l3-6 3 2 1 4M10 9l3-2 3 3 3 1M5 13l3-1"/></svg>Running</button>
+    <button data-pane="health"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg>Health</button>
+    <button data-pane="whoop"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>WHOOP</button>
+  </nav>
+
+  <section id="pane-home" class="pane active"></section>
+  <section id="pane-wealth" class="pane"></section>
+  <section id="pane-retire" class="pane"></section>
+  <section id="pane-golf" class="pane"></section>
+  <section id="pane-run" class="pane"></section>
+  <section id="pane-health" class="pane"></section>
+  <section id="pane-whoop" class="pane"></section>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const SEED = {"profile":{"name":"Stuart Harris","dob":"1972-02-28","targetRetirementAge":60,"targetRetirementDate":"2032-02-28","gggNormalRetirement":"2037-02-28","adviser":"Ryan Argue"},"finance":{"asOf":"2026-06-03","accounts":[{"id":"inn8","name":"INN8 Retirement Annuity","ref":"RA111592","type":"Retirement Annuity","provider":"INN8 / STANLIB","value":2661664.54,"asOf":"2026-06-02","ror":1.29,"rorPeriod":"week","holdings":[{"name":"New Road BCI Moderate Fund of Funds","value":1935325.99,"pct":72.71},{"name":"1NVEST S&P500 Info Tech Index Feeder","value":415599.57,"pct":15.61},{"name":"STANLIB Institutional Money Market","value":185370.86,"pct":6.96},{"name":"Ninety One Global Strategic Equity Feeder","value":125368.12,"pct":4.71}],"components":{"vested":0,"nonVested":2622951.71,"savings":38712.83,"retirement":0},"fees":{"tic":1.15,"advice":0.58}},{"id":"ggg","name":"Alexforbes GGG Pension","ref":"M20649898","type":"Employer Pension","provider":"Alexander Forbes","value":6629646.38,"asOf":"2026-05-08","memberContrib":7.5,"employerContrib":5.0,"pensionableSalary":3240000,"normalRetirement":"2037-02-28","holdings":[{"name":"Ninety One Balanced","value":3375106.29,"pct":50.9},{"name":"Allan Gray Life Global Balanced (RRF)","value":3254540.09,"pct":49.1}],"components":{"vested":0,"nonVested":5697048.34,"savings":335978.82,"retirement":596619.22},"withdrawalBenefit":6033027.16},{"id":"hbi","name":"Harris Billings Inc","ref":"31% stake","type":"Private Equity","provider":"Private holding","value":3100000.0,"asOf":"2026-06-03","note":"31% ownership; valuation user-provided"}]},"run":{"2005":{"1":{"run":17.0,"cycle":0},"2":{"run":54.0,"cycle":0},"3":{"run":48.0,"cycle":0},"4":{"run":32.0,"cycle":0},"6":{"run":4.0,"cycle":0},"7":{"run":4.0,"cycle":0},"8":{"run":0.0,"cycle":0},"12":{"run":0.0,"cycle":0}},"2006":{"1":{"run":50.0,"cycle":0},"2":{"run":0.0,"cycle":0},"3":{"run":0.0,"cycle":0},"4":{"run":0.0,"cycle":0},"6":{"run":30.0,"cycle":0},"7":{"run":63.0,"cycle":0},"8":{"run":54.0,"cycle":0},"12":{"run":145.0,"cycle":0}},"2007":{"1":{"run":304.0,"cycle":0},"2":{"run":205.7,"cycle":0},"3":{"run":229.0,"cycle":0},"4":{"run":82.9,"cycle":0},"6":{"run":107.9,"cycle":0},"7":{"run":0.0,"cycle":0},"8":{"run":99.9,"cycle":0},"12":{"run":163.9,"cycle":0}},"2008":{"1":{"run":199.0,"cycle":0},"2":{"run":161.0,"cycle":0},"3":{"run":139.7,"cycle":0},"4":{"run":125.0,"cycle":0},"6":{"run":0.0,"cycle":0},"7":{"run":0.0,"cycle":0},"8":{"run":0.0,"cycle":0},"12":{"run":0.0,"cycle":0}},"2011":{"1":{"run":49.0,"cycle":0},"2":{"run":78.0,"cycle":0},"3":{"run":21.0,"cycle":0},"4":{"run":12.0,"cycle":0},"6":{"run":0.0,"cycle":0},"7":{"run":63.0,"cycle":0},"8":{"run":104.0,"cycle":0},"12":{"run":77.0,"cycle":0}},"2012":{"1":{"run":110.0,"cycle":0},"2":{"run":130.0,"cycle":0},"3":{"run":38.0,"cycle":0},"6":{"run":7.0,"cycle":0},"7":{"run":0.0,"cycle":0},"8":{"run":0.0,"cycle":0},"12":{"run":0.0,"cycle":0}},"2013":{"1":{"run":31.0,"cycle":0},"2":{"run":0.0,"cycle":0},"3":{"run":0.0,"cycle":0},"4":{"run":0.0,"cycle":0},"6":{"run":23.0,"cycle":0},"7":{"run":30.0,"cycle":0},"8":{"run":42.0,"cycle":0},"12":{"run":0.0,"cycle":0}},"2014":{"1":{"run":31.0,"cycle":0},"2":{"run":22.0,"cycle":0},"3":{"run":99.0,"cycle":0},"4":{"run":62.0,"cycle":0},"6":{"run":47.0,"cycle":0},"7":{"run":109.0,"cycle":0},"8":{"run":80.0,"cycle":0},"12":{"run":8.0,"cycle":0}},"2015":{"1":{"run":43.0,"cycle":0},"2":{"run":47.0,"cycle":0},"3":{"run":53.0,"cycle":0},"4":{"run":92.0,"cycle":0},"6":{"run":27.0,"cycle":0},"7":{"run":71.0,"cycle":0},"8":{"run":52.0,"cycle":0},"12":{"run":85.77,"cycle":0}},"2016":{"1":{"run":37.0,"cycle":0},"2":{"run":0.0,"cycle":0},"3":{"run":5.0,"cycle":0},"4":{"run":76.0,"cycle":0},"6":{"run":48.0,"cycle":0},"7":{"run":42.0,"cycle":0},"8":{"run":85.0,"cycle":0},"12":{"run":100.0,"cycle":0}},"2017":{"1":{"run":30.0,"cycle":0},"2":{"run":88.0,"cycle":0},"3":{"run":100.0,"cycle":0},"4":{"run":100.0,"cycle":0},"6":{"run":5.0,"cycle":0},"7":{"run":44.6,"cycle":0},"8":{"run":70.0,"cycle":0},"12":{"run":22.0,"cycle":0}},"2018":{"1":{"run":1.9,"cycle":0},"2":{"run":14.32,"cycle":0},"4":{"run":4.54,"cycle":0},"6":{"run":10.0,"cycle":0},"7":{"run":12.59,"cycle":98.0},"12":{"run":0,"cycle":85.0}},"2019":{"1":{"run":0,"cycle":86.0},"2":{"run":0,"cycle":20.0},"3":{"run":37.34,"cycle":127.0},"4":{"run":33.35,"cycle":110.0},"6":{"run":101.74,"cycle":0},"7":{"run":29.21,"cycle":46.0},"8":{"run":16.42,"cycle":122.0},"12":{"run":15.07,"cycle":0}},"2020":{"1":{"run":86.92,"cycle":32.0},"2":{"run":96.87,"cycle":63.5},"3":{"run":26.24,"cycle":31.0},"4":{"run":0.0,"cycle":119.0},"6":{"run":9.34,"cycle":56.0},"7":{"run":34.72,"cycle":0},"8":{"run":22.36,"cycle":29.0},"12":{"run":0,"cycle":49.0}},"2021":{"1":{"run":0,"cycle":396.0},"2":{"run":4.37,"cycle":248.0},"3":{"run":0,"cycle":45.0},"4":{"run":0,"cycle":211.0},"6":{"run":0,"cycle":39.0},"7":{"run":0,"cycle":305.0},"8":{"run":10.35,"cycle":208.0},"12":{"run":48.87,"cycle":0}},"2022":{"1":{"run":80.8,"cycle":25.0},"2":{"run":58.7,"cycle":0},"3":{"run":56.87,"cycle":0},"4":{"run":23.19,"cycle":55.0},"6":{"run":18.62,"cycle":0},"7":{"run":53.42,"cycle":80.0},"8":{"run":41.97,"cycle":0},"12":{"run":62.0,"cycle":59.0}},"2023":{"1":{"run":25.0,"cycle":0},"2":{"run":10.0,"cycle":0},"3":{"run":15.0,"cycle":0},"4":{"run":48.0,"cycle":0},"6":{"run":16.0,"cycle":0},"7":{"run":37.0,"cycle":0},"8":{"run":68.0,"cycle":0},"12":{"run":25.0,"cycle":0}},"2024":{"1":{"run":0.0,"cycle":0},"2":{"run":11.0,"cycle":0},"3":{"run":11.0,"cycle":0},"4":{"run":6.0,"cycle":0},"6":{"run":76.0,"cycle":0},"7":{"run":43.0,"cycle":0}},"2010":{"12":{"run":27.0,"cycle":0}}},"blood":[{"date":"2018-08-16","marker":"ALT","value":29,"unit":"IU/L","low":null,"high":41},{"date":"2019-04-03","marker":"ALT","value":43,"unit":"IU/L","low":null,"high":41},{"date":"2021-01-21","marker":"ALT","value":38,"unit":"IU/L","low":null,"high":41},{"date":"2021-06-04","marker":"ALT","value":36,"unit":"IU/L","low":null,"high":41},{"date":"2023-05-04","marker":"ALT","value":58,"unit":"IU/L","low":null,"high":41},{"date":"2025-01-06","marker":"ALT","value":35,"unit":"IU/L","low":null,"high":41},{"date":"2025-07-25","marker":"ALT","value":34,"unit":"IU/L","low":null,"high":41},{"date":"2021-06-04","marker":"C-Reactive Protein","value":2.7,"unit":"mg/L","low":null,"high":5.0},{"date":"2023-05-04","marker":"C-Reactive Protein","value":5.2,"unit":"mg/L","low":null,"high":5.0},{"date":"2024-12-04","marker":"C-Reactive Protein","value":4.1,"unit":"mg/L","low":null,"high":5.0},{"date":"2025-01-06","marker":"C-Reactive Protein","value":3.0,"unit":"mg/L","low":null,"high":5.0},{"date":"2025-07-25","marker":"C-Reactive Protein","value":4.0,"unit":"mg/L","low":null,"high":5.0},{"date":"2017-11-16","marker":"Chol:HDL Ratio","value":5.2,"unit":"ratio","low":null,"high":4.1},{"date":"2018-08-16","marker":"Chol:HDL Ratio","value":5.8,"unit":"ratio","low":null,"high":4.1},{"date":"2019-04-03","marker":"Chol:HDL Ratio","value":3.2,"unit":"ratio","low":null,"high":4.1},{"date":"2021-01-21","marker":"Chol:HDL Ratio","value":5.6,"unit":"ratio","low":null,"high":4.1},{"date":"2023-05-04","marker":"Chol:HDL Ratio","value":6.3,"unit":"ratio","low":null,"high":4.1},{"date":"2025-01-06","marker":"Chol:HDL Ratio","value":5.2,"unit":"ratio","low":null,"high":4.1},{"date":"2025-07-25","marker":"Chol:HDL Ratio","value":5.7,"unit":"ratio","low":null,"high":4.1},{"date":"2025-11-22","marker":"Chol:HDL Ratio","value":5.5,"unit":"ratio","low":null,"high":4.1},{"date":"2017-11-16","marker":"Creatinine","value":96,"unit":"umol/L","low":64,"high":104},{"date":"2018-08-16","marker":"Creatinine","value":94,"unit":"umol/L","low":64,"high":104},{"date":"2019-04-03","marker":"Creatinine","value":90,"unit":"umol/L","low":64,"high":104},{"date":"2021-01-21","marker":"Creatinine","value":105,"unit":"umol/L","low":64,"high":104},{"date":"2023-05-04","marker":"Creatinine","value":93,"unit":"umol/L","low":64,"high":104},{"date":"2025-01-06","marker":"Creatinine","value":90,"unit":"umol/L","low":64,"high":104},{"date":"2025-07-25","marker":"Creatinine","value":102,"unit":"umol/L","low":64,"high":104},{"date":"2018-08-16","marker":"Fasting Glucose","value":5.4,"unit":"mmol/L","low":3.9,"high":5.5},{"date":"2019-04-03","marker":"Fasting Glucose","value":6.2,"unit":"mmol/L","low":3.9,"high":5.5},{"date":"2021-06-04","marker":"Fasting Glucose","value":5.1,"unit":"mmol/L","low":3.9,"high":5.5},{"date":"2025-07-25","marker":"Fasting Glucose","value":5.5,"unit":"mmol/L","low":3.9,"high":5.5},{"date":"2025-11-22","marker":"Fasting Glucose","value":5.5,"unit":"mmol/L","low":3.9,"high":5.5},{"date":"2021-06-04","marker":"Ferritin","value":223.0,"unit":"ng/mL","low":30,"high":400},{"date":"2024-12-04","marker":"Ferritin","value":173,"unit":"ng/mL","low":30,"high":400},{"date":"2019-04-03","marker":"Free Testosterone","value":377,"unit":"pmol/L","low":261,"high":619},{"date":"2021-01-21","marker":"Free Testosterone","value":334,"unit":"pmol/L","low":261,"high":619},{"date":"2024-12-04","marker":"Free Testosterone","value":298.7,"unit":"pmol/L","low":261,"high":619},{"date":"2025-07-25","marker":"Free Testosterone","value":410.7,"unit":"pmol/L","low":261,"high":619},{"date":"2018-08-16","marker":"GGT","value":33,"unit":"IU/L","low":null,"high":60},{"date":"2019-04-03","marker":"GGT","value":45,"unit":"IU/L","low":null,"high":60},{"date":"2021-01-21","marker":"GGT","value":46,"unit":"IU/L","low":null,"high":60},{"date":"2021-06-04","marker":"GGT","value":36,"unit":"IU/L","low":null,"high":60},{"date":"2024-12-04","marker":"GGT","value":41,"unit":"IU/L","low":null,"high":60},{"date":"2025-01-06","marker":"GGT","value":50,"unit":"IU/L","low":null,"high":60},{"date":"2025-07-25","marker":"GGT","value":83,"unit":"IU/L","low":null,"high":60},{"date":"2017-11-16","marker":"HDL Cholesterol","value":1.3,"unit":"mmol/L","low":1.0,"high":null},{"date":"2018-08-16","marker":"HDL Cholesterol","value":1.2,"unit":"mmol/L","low":1.0,"high":null},{"date":"2019-04-03","marker":"HDL Cholesterol","value":1.4,"unit":"mmol/L","low":1.0,"high":null},{"date":"2021-01-21","marker":"HDL Cholesterol","value":1.2,"unit":"mmol/L","low":1.0,"high":null},{"date":"2023-05-04","marker":"HDL Cholesterol","value":1.2,"unit":"mmol/L","low":1.0,"high":null},{"date":"2025-01-06","marker":"HDL Cholesterol","value":1.2,"unit":"mmol/L","low":1.0,"high":null},{"date":"2025-07-25","marker":"HDL Cholesterol","value":1.3,"unit":"mmol/L","low":1.0,"high":null},{"date":"2025-11-22","marker":"HDL Cholesterol","value":1.2,"unit":"mmol/L","low":1.0,"high":null},{"date":"2013-11-13","marker":"Haemoglobin","value":16.4,"unit":"g/dL","low":13.8,"high":18.8},{"date":"2017-11-16","marker":"Haemoglobin","value":15.5,"unit":"g/dL","low":13.8,"high":18.8},{"date":"2018-08-16","marker":"Haemoglobin","value":15.3,"unit":"g/dL","low":13.8,"high":18.8},{"date":"2019-04-03","marker":"Haemoglobin","value":15.9,"unit":"g/dL","low":13.8,"high":18.8},{"date":"2021-06-04","marker":"Haemoglobin","value":16.0,"unit":"g/dL","low":13.8,"high":18.8},{"date":"2024-12-04","marker":"Haemoglobin","value":15.2,"unit":"g/dL","low":13.8,"high":18.8},{"date":"2025-01-06","marker":"Haemoglobin","value":14.9,"unit":"g/dL","low":13.8,"high":18.8},{"date":"2025-07-25","marker":"Haemoglobin","value":15.6,"unit":"g/dL","low":13.8,"high":18.8},{"date":"2019-04-03","marker":"HbA1c","value":5.0,"unit":"%","low":null,"high":5.7},{"date":"2021-01-21","marker":"HbA1c","value":5.3,"unit":"%","low":null,"high":5.7},{"date":"2024-12-04","marker":"HbA1c","value":5.6,"unit":"%","low":null,"high":5.7},{"date":"2025-01-06","marker":"HbA1c","value":5.0,"unit":"%","low":null,"high":5.7},{"date":"2025-07-25","marker":"HbA1c","value":5.1,"unit":"%","low":null,"high":5.7},{"date":"2025-01-06","marker":"Homocysteine","value":10.8,"unit":"umol/L","low":5.5,"high":16.2},{"date":"2025-07-25","marker":"Homocysteine","value":7.6,"unit":"umol/L","low":5.5,"high":16.2},{"date":"2018-08-16","marker":"LDL Cholesterol","value":4.6,"unit":"mmol/L","low":null,"high":3.0},{"date":"2019-04-03","marker":"LDL Cholesterol","value":2.4,"unit":"mmol/L","low":null,"high":3.0},{"date":"2021-01-21","marker":"LDL Cholesterol","value":5.0,"unit":"mmol/L","low":null,"high":3.0},{"date":"2023-05-04","marker":"LDL Cholesterol","value":5.3,"unit":"mmol/L","low":null,"high":3.0},{"date":"2025-01-06","marker":"LDL Cholesterol","value":4.4,"unit":"mmol/L","low":null,"high":3.0},{"date":"2025-07-25","marker":"LDL Cholesterol","value":4.7,"unit":"mmol/L","low":null,"high":3.0},{"date":"2025-11-22","marker":"LDL Cholesterol","value":4.7,"unit":"mmol/L","low":null,"high":3.0},{"date":"2013-11-13","marker":"Lymphocytes (abs)","value":1.35,"unit":"x10^9/L","low":1.0,"high":4.0},{"date":"2017-11-16","marker":"Lymphocytes (abs)","value":1.48,"unit":"x10^9/L","low":1.0,"high":4.0},{"date":"2018-08-16","marker":"Lymphocytes (abs)","value":1.47,"unit":"x10^9/L","low":1.0,"high":4.0},{"date":"2019-04-03","marker":"Lymphocytes (abs)","value":1.39,"unit":"x10^9/L","low":1.0,"high":4.0},{"date":"2021-06-04","marker":"Lymphocytes (abs)","value":1.41,"unit":"x10^9/L","low":1.0,"high":4.0},{"date":"2024-12-04","marker":"Lymphocytes (abs)","value":1.59,"unit":"x10^9/L","low":1.0,"high":4.0},{"date":"2025-01-06","marker":"Lymphocytes (abs)","value":1.2,"unit":"x10^9/L","low":1.0,"high":4.0},{"date":"2025-07-25","marker":"Lymphocytes (abs)","value":1.17,"unit":"x10^9/L","low":1.0,"high":4.0},{"date":"2013-11-13","marker":"Neutrophils (abs)","value":1.32,"unit":"x10^9/L","low":2.0,"high":7.5},{"date":"2017-11-16","marker":"Neutrophils (abs)","value":1.24,"unit":"x10^9/L","low":2.0,"high":7.5},{"date":"2018-08-16","marker":"Neutrophils (abs)","value":2.64,"unit":"x10^9/L","low":2.0,"high":7.5},{"date":"2019-04-03","marker":"Neutrophils (abs)","value":1.57,"unit":"x10^9/L","low":2.0,"high":7.5},{"date":"2021-06-04","marker":"Neutrophils (abs)","value":1.28,"unit":"x10^9/L","low":2.0,"high":7.5},{"date":"2022-10-11","marker":"Neutrophils (abs)","value":1.01,"unit":"x10^9/L","low":2.0,"high":7.5},{"date":"2024-12-04","marker":"Neutrophils (abs)","value":1.53,"unit":"x10^9/L","low":2.0,"high":7.5},{"date":"2025-01-06","marker":"Neutrophils (abs)","value":1.35,"unit":"x10^9/L","low":2.0,"high":7.5},{"date":"2025-07-25","marker":"Neutrophils (abs)","value":1.67,"unit":"x10^9/L","low":2.0,"high":7.5},{"date":"2017-11-16","marker":"Non-HDL Cholesterol","value":5.4,"unit":"mmol/L","low":null,"high":3.8},{"date":"2018-08-16","marker":"Non-HDL Cholesterol","value":5.7,"unit":"mmol/L","low":null,"high":3.8},{"date":"2019-04-03","marker":"Non-HDL Cholesterol","value":3.1,"unit":"mmol/L","low":null,"high":3.8},{"date":"2021-01-21","marker":"Non-HDL Cholesterol","value":5.5,"unit":"mmol/L","low":null,"high":3.8},{"date":"2023-05-04","marker":"Non-HDL Cholesterol","value":6.4,"unit":"mmol/L","low":null,"high":3.8},{"date":"2025-01-06","marker":"Non-HDL Cholesterol","value":5.0,"unit":"mmol/L","low":null,"high":3.8},{"date":"2025-07-25","marker":"Non-HDL Cholesterol","value":6.1,"unit":"mmol/L","low":null,"high":3.8},{"date":"2025-11-22","marker":"Non-HDL Cholesterol","value":5.4,"unit":"mmol/L","low":null,"high":3.8},{"date":"2013-11-13","marker":"PSA","value":0.94,"unit":"ng/mL","low":0.0,"high":3.5},{"date":"2017-11-16","marker":"PSA","value":1.04,"unit":"ng/mL","low":0.0,"high":3.5},{"date":"2018-08-16","marker":"PSA","value":1.32,"unit":"ng/mL","low":0.0,"high":3.5},{"date":"2019-04-03","marker":"PSA","value":0.84,"unit":"ng/mL","low":0.0,"high":3.5},{"date":"2021-06-04","marker":"PSA","value":0.95,"unit":"ng/mL","low":0.0,"high":3.5},{"date":"2024-12-04","marker":"PSA","value":1.1,"unit":"ng/mL","low":0.0,"high":3.5},{"date":"2025-01-06","marker":"PSA","value":1.0,"unit":"ng/mL","low":0.0,"high":3.5},{"date":"2025-07-25","marker":"PSA","value":1.2,"unit":"ng/mL","low":0.0,"high":3.5},{"date":"2013-11-13","marker":"Platelets","value":258,"unit":"x10^9/L","low":150,"high":450},{"date":"2017-11-16","marker":"Platelets","value":234,"unit":"x10^9/L","low":150,"high":450},{"date":"2018-08-16","marker":"Platelets","value":239,"unit":"x10^9/L","low":150,"high":450},{"date":"2019-04-03","marker":"Platelets","value":246,"unit":"x10^9/L","low":150,"high":450},{"date":"2021-06-04","marker":"Platelets","value":261,"unit":"x10^9/L","low":150,"high":450},{"date":"2024-12-04","marker":"Platelets","value":241,"unit":"x10^9/L","low":150,"high":450},{"date":"2025-01-06","marker":"Platelets","value":240,"unit":"x10^9/L","low":150,"high":450},{"date":"2025-07-25","marker":"Platelets","value":257,"unit":"x10^9/L","low":150,"high":450},{"date":"2019-04-03","marker":"TSH","value":3.59,"unit":"mIU/L","low":0.35,"high":4.94},{"date":"2021-06-04","marker":"TSH","value":2.11,"unit":"mIU/L","low":0.35,"high":4.94},{"date":"2023-05-04","marker":"TSH","value":2.36,"unit":"mIU/L","low":0.35,"high":4.94},{"date":"2024-12-04","marker":"TSH","value":2.08,"unit":"mIU/L","low":0.35,"high":4.94},{"date":"2025-01-06","marker":"TSH","value":4.58,"unit":"mIU/L","low":0.35,"high":4.94},{"date":"2025-07-25","marker":"TSH","value":2.36,"unit":"mIU/L","low":0.35,"high":4.94},{"date":"2017-11-16","marker":"Total Cholesterol","value":6.7,"unit":"mmol/L","low":null,"high":5.0},{"date":"2018-08-16","marker":"Total Cholesterol","value":6.9,"unit":"mmol/L","low":null,"high":5.0},{"date":"2019-04-03","marker":"Total Cholesterol","value":4.5,"unit":"mmol/L","low":null,"high":5.0},{"date":"2021-01-21","marker":"Total Cholesterol","value":6.7,"unit":"mmol/L","low":null,"high":5.0},{"date":"2023-05-04","marker":"Total Cholesterol","value":7.6,"unit":"mmol/L","low":null,"high":5.0},{"date":"2025-01-06","marker":"Total Cholesterol","value":6.2,"unit":"mmol/L","low":null,"high":5.0},{"date":"2025-07-25","marker":"Total Cholesterol","value":7.4,"unit":"mmol/L","low":null,"high":5.0},{"date":"2025-11-22","marker":"Total Cholesterol","value":6.6,"unit":"mmol/L","low":null,"high":5.0},{"date":"2019-04-03","marker":"Total Testosterone","value":16.1,"unit":"nmol/L","low":7.6,"high":24.8},{"date":"2021-06-04","marker":"Total Testosterone","value":21.6,"unit":"nmol/L","low":7.6,"high":24.8},{"date":"2024-12-04","marker":"Total Testosterone","value":16.2,"unit":"nmol/L","low":7.6,"high":24.8},{"date":"2025-07-25","marker":"Total Testosterone","value":23.6,"unit":"nmol/L","low":7.6,"high":24.8},{"date":"2018-08-16","marker":"Triglycerides","value":1.7,"unit":"mmol/L","low":null,"high":1.7},{"date":"2019-04-03","marker":"Triglycerides","value":1.9,"unit":"mmol/L","low":null,"high":1.7},{"date":"2021-01-21","marker":"Triglycerides","value":1.4,"unit":"mmol/L","low":null,"high":1.7},{"date":"2023-05-04","marker":"Triglycerides","value":3.0,"unit":"mmol/L","low":null,"high":1.7},{"date":"2025-01-06","marker":"Triglycerides","value":1.66,"unit":"mmol/L","low":null,"high":1.7},{"date":"2025-07-25","marker":"Triglycerides","value":2.5,"unit":"mmol/L","low":null,"high":1.7},{"date":"2025-11-22","marker":"Triglycerides","value":1.33,"unit":"mmol/L","low":null,"high":1.7},{"date":"2021-01-21","marker":"Urate","value":0.39,"unit":"mmol/L","low":0.21,"high":0.42},{"date":"2021-06-04","marker":"Urate","value":0.42,"unit":"mmol/L","low":0.21,"high":0.42},{"date":"2023-05-04","marker":"Urate","value":0.54,"unit":"mmol/L","low":0.21,"high":0.42},{"date":"2025-01-06","marker":"Urate","value":0.41,"unit":"mmol/L","low":0.21,"high":0.42},{"date":"2021-06-04","marker":"Vitamin B12","value":417,"unit":"pmol/L","low":185,"high":706},{"date":"2023-05-04","marker":"Vitamin B12","value":361,"unit":"pmol/L","low":185,"high":706},{"date":"2024-12-04","marker":"Vitamin B12","value":313,"unit":"pmol/L","low":185,"high":706},{"date":"2025-07-25","marker":"Vitamin B12","value":435,"unit":"pmol/L","low":185,"high":706},{"date":"2020-03-10","marker":"Vitamin D","value":47.5,"unit":"ng/mL","low":30,"high":100},{"date":"2021-06-04","marker":"Vitamin D","value":32,"unit":"ng/mL","low":30,"high":100},{"date":"2023-05-04","marker":"Vitamin D","value":35,"unit":"ng/mL","low":30,"high":100},{"date":"2024-12-04","marker":"Vitamin D","value":34,"unit":"ng/mL","low":30,"high":100},{"date":"2025-01-06","marker":"Vitamin D","value":22,"unit":"ng/mL","low":30,"high":100},{"date":"2025-07-25","marker":"Vitamin D","value":75,"unit":"ng/mL","low":30,"high":100},{"date":"2013-11-13","marker":"White Cell Count","value":3.08,"unit":"x10^9/L","low":4.0,"high":11.0},{"date":"2017-11-16","marker":"White Cell Count","value":3.22,"unit":"x10^9/L","low":4.0,"high":11.0},{"date":"2018-08-16","marker":"White Cell Count","value":4.56,"unit":"x10^9/L","low":4.0,"high":11.0},{"date":"2019-04-03","marker":"White Cell Count","value":3.48,"unit":"x10^9/L","low":4.0,"high":11.0},{"date":"2021-06-04","marker":"White Cell Count","value":3.16,"unit":"x10^9/L","low":4.0,"high":11.0},{"date":"2024-12-04","marker":"White Cell Count","value":3.8,"unit":"x10^9/L","low":4.0,"high":11.0},{"date":"2025-01-06","marker":"White Cell Count","value":3.1,"unit":"x10^9/L","low":4.0,"high":11.0},{"date":"2025-07-25","marker":"White Cell Count","value":3.4,"unit":"x10^9/L","low":4.0,"high":11.0},{"date":"2018-08-16","marker":"eGFR","value":82,"unit":"mL/min/1.73m2","low":90,"high":null},{"date":"2019-04-03","marker":"eGFR","value":83,"unit":"mL/min/1.73m2","low":90,"high":null},{"date":"2021-01-21","marker":"eGFR","value":87,"unit":"mL/min/1.73m2","low":90,"high":null},{"date":"2021-06-04","marker":"eGFR","value":72,"unit":"mL/min/1.73m2","low":90,"high":null},{"date":"2025-01-06","marker":"eGFR","value":82,"unit":"mL/min/1.73m2","low":90,"high":null},{"date":"2025-07-25","marker":"eGFR","value":84,"unit":"mL/min/1.73m2","low":90,"high":null},{"date":"2025-11-22","marker":"eGFR","value":72,"unit":"mL/min/1.73m2","low":90,"high":null}],"version":1,"golf":{"shots":[{"date":"2026/06/02 16:38:12","club":"Pitching Wedge","clubSpeed":0.0,"attackAngle":0.0,"clubPath":0.0,"clubFace":0.17,"ballSpeed":99.77,"smash":null,"launchAngle":25.45,"launchDir":0.14,"backspin":6329.3,"sidespin":1743.38,"spinRate":6565.01,"apex":88.48,"carry":133.65,"carryDev":-13.63,"total":138.71,"totalDev":-14.98},{"date":"2026/06/02 16:38:31","club":"Pitching Wedge","clubSpeed":142.9,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":98.87,"smash":0.69,"launchAngle":26.24,"launchDir":1.56,"backspin":8422.78,"sidespin":66.15,"spinRate":8423.04,"apex":93.64,"carry":128.5,"carryDev":3.08,"total":132.17,"totalDev":3.19},{"date":"2026/06/02 16:38:52","club":"Pitching Wedge","clubSpeed":90.86,"attackAngle":-3.06,"clubPath":8.53,"clubFace":-3.22,"ballSpeed":95.23,"smash":1.05,"launchAngle":21.17,"launchDir":-1.58,"backspin":8663.09,"sidespin":-142.14,"spinRate":8664.26,"apex":66.73,"carry":121.36,"carryDev":-2.58,"total":126.44,"totalDev":-3.17},{"date":"2026/06/02 16:39:13","club":"Pitching Wedge","clubSpeed":80.17,"attackAngle":-1.28,"clubPath":-7.11,"clubFace":1.24,"ballSpeed":99.43,"smash":1.24,"launchAngle":27.48,"launchDir":0.13,"backspin":8319.75,"sidespin":228.03,"spinRate":8322.87,"apex":99.77,"carry":129.19,"carryDev":-1.21,"total":132.71,"totalDev":-1.43},{"date":"2026/06/02 16:39:33","club":"Pitching Wedge","clubSpeed":76.23,"attackAngle":0.73,"clubPath":-24.92,"clubFace":8.66,"ballSpeed":95.54,"smash":1.25,"launchAngle":25.97,"launchDir":4.0,"backspin":9006.39,"sidespin":-773.7,"spinRate":9039.56,"apex":85.96,"carry":122.05,"carryDev":12.79,"total":124.62,"totalDev":13.77},{"date":"2026/06/02 16:39:55","club":"Pitching Wedge","clubSpeed":null,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":100.15,"smash":null,"launchAngle":23.82,"launchDir":-2.91,"backspin":8685.92,"sidespin":1254.75,"spinRate":8776.08,"apex":86.06,"carry":130.79,"carryDev":-14.56,"total":134.1,"totalDev":-15.35},{"date":"2026/06/02 16:40:18","club":"Pitching Wedge","clubSpeed":117.77,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":100.37,"smash":0.85,"launchAngle":26.55,"launchDir":1.31,"backspin":7826.16,"sidespin":429.33,"spinRate":7837.93,"apex":97.54,"carry":132.16,"carryDev":0.02,"total":136.69,"totalDev":-0.55},{"date":"2026/06/02 16:40:40","club":"Pitching Wedge","clubSpeed":null,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":102.0,"smash":null,"launchAngle":24.97,"launchDir":-1.96,"backspin":7586.33,"sidespin":989.33,"spinRate":7650.57,"apex":93.67,"carry":136.01,"carryDev":-12.07,"total":140.13,"totalDev":-12.88},{"date":"2026/06/02 16:41:02","club":"Pitching Wedge","clubSpeed":89.9,"attackAngle":5.87,"clubPath":14.84,"clubFace":2.03,"ballSpeed":95.32,"smash":1.06,"launchAngle":25.26,"launchDir":3.53,"backspin":9297.38,"sidespin":-558.88,"spinRate":9314.16,"apex":83.04,"carry":121.29,"carryDev":10.45,"total":123.57,"totalDev":11.21},{"date":"2026/06/02 16:41:26","club":"Pitching Wedge","clubSpeed":null,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":100.46,"smash":null,"launchAngle":26.71,"launchDir":-0.72,"backspin":7836.46,"sidespin":32.83,"spinRate":7836.53,"apex":98.43,"carry":132.26,"carryDev":-1.9,"total":137.07,"totalDev":-2.41},{"date":"2026/06/02 16:41:48","club":"Pitching Wedge","clubSpeed":109.48,"attackAngle":-4.66,"clubPath":14.94,"clubFace":-3.42,"ballSpeed":100.86,"smash":0.92,"launchAngle":26.77,"launchDir":-0.94,"backspin":7004.22,"sidespin":631.27,"spinRate":7032.61,"apex":98.56,"carry":134.81,"carryDev":-7.21,"total":139.98,"totalDev":-8.18},{"date":"2026/06/02 16:42:15","club":"Pitching Wedge","clubSpeed":0.0,"attackAngle":0.0,"clubPath":0.0,"clubFace":0.35,"ballSpeed":101.13,"smash":null,"launchAngle":25.12,"launchDir":0.28,"backspin":8292.07,"sidespin":443.28,"spinRate":8303.91,"apex":93.6,"carry":133.0,"carryDev":-2.38,"total":138.0,"totalDev":-2.98},{"date":"2026/06/02 16:42:45","club":"Pitching Wedge","clubSpeed":65.72,"attackAngle":14.85,"clubPath":-12.97,"clubFace":5.16,"ballSpeed":98.07,"smash":1.49,"launchAngle":25.31,"launchDir":2.62,"backspin":8945.73,"sidespin":-181.14,"spinRate":8947.56,"apex":88.65,"carry":126.49,"carryDev":6.86,"total":130.06,"totalDev":7.35},{"date":"2026/06/02 16:43:11","club":"Pitching Wedge","clubSpeed":null,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":101.18,"smash":null,"launchAngle":26.16,"launchDir":-1.18,"backspin":6228.33,"sidespin":1708.55,"spinRate":6458.42,"apex":94.26,"carry":136.81,"carryDev":-17.39,"total":140.75,"totalDev":-22.3},{"date":"2026/06/02 16:43:32","club":"Pitching Wedge","clubSpeed":null,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":92.45,"smash":null,"launchAngle":18.94,"launchDir":-2.26,"backspin":8042.05,"sidespin":-632.92,"spinRate":8066.92,"apex":53.18,"carry":115.01,"carryDev":-1.38,"total":122.4,"totalDev":-2.89},{"date":"2026/06/02 16:43:56","club":"Pitching Wedge","clubSpeed":159.63,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":101.56,"smash":0.64,"launchAngle":25.45,"launchDir":1.1,"backspin":7960.69,"sidespin":954.89,"spinRate":8017.76,"apex":95.24,"carry":134.14,"carryDev":-4.26,"total":139.88,"totalDev":-5.43},{"date":"2026/06/02 16:44:21","club":"Pitching Wedge","clubSpeed":161.19,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":100.33,"smash":0.62,"launchAngle":27.44,"launchDir":2.06,"backspin":7647.8,"sidespin":-275.09,"spinRate":7652.75,"apex":100.98,"carry":132.09,"carryDev":6.74,"total":136.1,"totalDev":7.11},{"date":"2026/06/02 16:44:46","club":"Pitching Wedge","clubSpeed":83.42,"attackAngle":2.59,"clubPath":0.84,"clubFace":1.79,"ballSpeed":100.89,"smash":1.21,"launchAngle":27.38,"launchDir":1.57,"backspin":6623.83,"sidespin":789.84,"spinRate":6670.76,"apex":100.62,"carry":135.34,"carryDev":-2.82,"total":142.95,"totalDev":-3.86},{"date":"2026/06/02 16:45:12","club":"Pitching Wedge","clubSpeed":91.02,"attackAngle":-5.05,"clubPath":3.72,"clubFace":0.22,"ballSpeed":102.88,"smash":1.13,"launchAngle":25.35,"launchDir":0.65,"backspin":7115.35,"sidespin":1348.32,"spinRate":7241.97,"apex":96.19,"carry":138.17,"carryDev":-9.27,"total":142.72,"totalDev":-10.35},{"date":"2026/06/02 16:45:32","club":"Pitching Wedge","clubSpeed":95.32,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":99.5,"smash":1.04,"launchAngle":25.78,"launchDir":2.39,"backspin":8114.11,"sidespin":237.99,"spinRate":8117.6,"apex":92.78,"carry":130.34,"carryDev":3.84,"total":134.29,"totalDev":3.96},{"date":"2026/06/02 16:45:59","club":"Pitching Wedge","clubSpeed":null,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":94.89,"smash":null,"launchAngle":23.18,"launchDir":0.75,"backspin":8848.81,"sidespin":-234.81,"spinRate":8851.92,"apex":74.02,"carry":121.05,"carryDev":2.85,"total":125.39,"totalDev":3.05},{"date":"2026/06/02 16:49:49","club":"2 Iron","clubSpeed":97.58,"attackAngle":-1.35,"clubPath":1.06,"clubFace":3.39,"ballSpeed":130.7,"smash":1.34,"launchAngle":13.88,"launchDir":2.92,"backspin":3484.94,"sidespin":-545.73,"spinRate":3527.41,"apex":72.77,"carry":198.64,"carryDev":20.95,"total":216.72,"totalDev":23.76},{"date":"2026/06/02 16:50:14","club":"2 Iron","clubSpeed":98.22,"attackAngle":-2.74,"clubPath":-3.61,"clubFace":2.15,"ballSpeed":127.57,"smash":1.3,"launchAngle":14.23,"launchDir":1.32,"backspin":2945.29,"sidespin":-1022.2,"spinRate":3117.63,"apex":64.11,"carry":188.52,"carryDev":23.68,"total":210.22,"totalDev":28.53},{"date":"2026/06/02 16:50:35","club":"2 Iron","clubSpeed":101.56,"attackAngle":-2.86,"clubPath":-5.25,"clubFace":-6.37,"ballSpeed":132.07,"smash":1.3,"launchAngle":11.82,"launchDir":-5.89,"backspin":4323.55,"sidespin":281.86,"spinRate":4332.73,"apex":68.01,"carry":195.6,"carryDev":-24.99,"total":213.06,"totalDev":-27.62},{"date":"2026/06/02 16:50:51","club":"2 Iron","clubSpeed":99.86,"attackAngle":-1.55,"clubPath":-1.91,"clubFace":-2.07,"ballSpeed":135.96,"smash":1.36,"launchAngle":11.61,"launchDir":-1.94,"backspin":3938.36,"sidespin":160.25,"spinRate":3941.62,"apex":69.52,"carry":205.16,"carryDev":-10.1,"total":223.26,"totalDev":-11.25},{"date":"2026/06/02 16:51:07","club":"2 Iron","clubSpeed":99.63,"attackAngle":-1.37,"clubPath":-2.87,"clubFace":-0.04,"ballSpeed":130.75,"smash":1.31,"launchAngle":13.09,"launchDir":-0.4,"backspin":4557.76,"sidespin":-1275.12,"spinRate":4732.77,"apex":73.46,"carry":191.79,"carryDev":19.65,"total":207.82,"totalDev":22.92},{"date":"2026/06/02 16:51:33","club":"2 Iron","clubSpeed":96.39,"attackAngle":-1.72,"clubPath":-5.55,"clubFace":1.16,"ballSpeed":120.53,"smash":1.25,"launchAngle":14.52,"launchDir":0.26,"backspin":2318.43,"sidespin":-598.72,"spinRate":2394.49,"apex":52.4,"carry":171.49,"carryDev":11.21,"total":215.45,"totalDev":16.66},{"date":"2026/06/02 16:51:52","club":"2 Iron","clubSpeed":100.73,"attackAngle":-2.52,"clubPath":-1.87,"clubFace":-1.11,"ballSpeed":133.95,"smash":1.33,"launchAngle":12.06,"launchDir":-1.14,"backspin":4572.9,"sidespin":-871.5,"spinRate":4655.2,"apex":73.06,"carry":198.5,"carryDev":11.28,"total":214.83,"totalDev":13.36},{"date":"2026/06/02 16:52:16","club":"2 Iron","clubSpeed":101.38,"attackAngle":0.13,"clubPath":0.53,"clubFace":-3.16,"ballSpeed":124.87,"smash":1.23,"launchAngle":11.32,"launchDir":-2.53,"backspin":1957.96,"sidespin":672.65,"spinRate":2070.28,"apex":35.33,"carry":159.96,"carryDev":-17.02,"total":222.63,"totalDev":-27.48},{"date":"2026/06/02 16:52:37","club":"2 Iron","clubSpeed":102.12,"attackAngle":-3.7,"clubPath":1.02,"clubFace":-4.5,"ballSpeed":134.75,"smash":1.32,"launchAngle":11.53,"launchDir":-3.57,"backspin":3656.5,"sidespin":334.7,"spinRate":3671.79,"apex":64.63,"carry":201.78,"carryDev":-19.12,"total":222.03,"totalDev":-21.65},{"date":"2026/06/02 16:52:56","club":"2 Iron","clubSpeed":98.92,"attackAngle":-2.84,"clubPath":-1.32,"clubFace":-1.13,"ballSpeed":132.18,"smash":1.34,"launchAngle":11.11,"launchDir":-1.09,"backspin":4495.38,"sidespin":-447.91,"spinRate":4517.64,"apex":64.44,"carry":193.26,"carryDev":3.81,"total":210.83,"totalDev":4.79},{"date":"2026/06/02 16:53:12","club":"2 Iron","clubSpeed":99.83,"attackAngle":-3.06,"clubPath":-3.08,"clubFace":-2.89,"ballSpeed":134.69,"smash":1.35,"launchAngle":11.69,"launchDir":-2.76,"backspin":4320.58,"sidespin":-400.81,"spinRate":4339.13,"apex":70.9,"carry":201.23,"carryDev":-2.33,"total":218.33,"totalDev":-1.94},{"date":"2026/06/02 16:53:29","club":"2 Iron","clubSpeed":100.73,"attackAngle":-2.83,"clubPath":-3.2,"clubFace":0.81,"ballSpeed":134.08,"smash":1.33,"launchAngle":13.4,"launchDir":0.27,"backspin":3925.76,"sidespin":-1086.5,"spinRate":4073.34,"apex":76.71,"carry":202.23,"carryDev":21.93,"total":219.24,"totalDev":25.42},{"date":"2026/06/02 16:53:48","club":"2 Iron","clubSpeed":101.13,"attackAngle":-3.49,"clubPath":-2.81,"clubFace":-5.55,"ballSpeed":116.59,"smash":1.15,"launchAngle":11.01,"launchDir":-4.91,"backspin":1354.9,"sidespin":1117.69,"spinRate":1756.41,"apex":23.23,"carry":122.69,"carryDev":-20.86,"total":194.37,"totalDev":-39.02},{"date":"2026/06/02 16:54:03","club":"2 Iron","clubSpeed":108.67,"attackAngle":-2.24,"clubPath":5.65,"clubFace":-6.23,"ballSpeed":132.78,"smash":1.22,"launchAngle":10.34,"launchDir":-4.41,"backspin":3928.15,"sidespin":230.62,"spinRate":3934.91,"apex":56.46,"carry":192.72,"carryDev":-18.84,"total":221.99,"totalDev":-22.26},{"date":"2026/06/02 16:54:20","club":"2 Iron","clubSpeed":96.77,"attackAngle":-1.28,"clubPath":-1.16,"clubFace":0.26,"ballSpeed":129.29,"smash":1.34,"launchAngle":12.42,"launchDir":0.07,"backspin":4577.57,"sidespin":-1007.28,"spinRate":4687.08,"apex":67.98,"carry":188.12,"carryDev":16.2,"total":204.67,"totalDev":18.93},{"date":"2026/06/02 16:54:38","club":"2 Iron","clubSpeed":99.34,"attackAngle":-1.38,"clubPath":1.02,"clubFace":-0.66,"ballSpeed":133.68,"smash":1.35,"launchAngle":11.98,"launchDir":-0.42,"backspin":3974.5,"sidespin":2.77,"spinRate":3974.5,"apex":69.06,"carry":200.7,"carryDev":-1.52,"total":218.68,"totalDev":-1.65},{"date":"2026/06/02 16:54:58","club":"2 Iron","clubSpeed":99.14,"attackAngle":-1.64,"clubPath":-1.04,"clubFace":-1.93,"ballSpeed":135.07,"smash":1.36,"launchAngle":11.34,"launchDir":-1.72,"backspin":3468.15,"sidespin":517.08,"spinRate":3506.48,"apex":61.71,"carry":201.16,"carryDev":-16.24,"total":228.22,"totalDev":-19.72},{"date":"2026/06/02 16:55:18","club":"2 Iron","clubSpeed":101.36,"attackAngle":-2.44,"clubPath":-0.1,"clubFace":-1.29,"ballSpeed":133.5,"smash":1.32,"launchAngle":11.51,"launchDir":-1.07,"backspin":3847.57,"sidespin":227.91,"spinRate":3854.31,"apex":64.53,"carry":198.74,"carryDev":-8.01,"total":217.43,"totalDev":-9.14},{"club":"6 Iron","date":"2026/06/03 17:47:07","clubSpeed":91.87,"attackAngle":-2.91,"clubPath":-0.6,"clubFace":-1.63,"ballSpeed":119.43,"smash":1.3,"launchAngle":16.5,"launchDir":-1.41,"backspin":4207.12,"sidespin":221.96,"spinRate":4212.97,"apex":76.67,"carry":174.79,"carryDev":-7.68,"total":183.49,"totalDev":-8.95},{"club":"6 Iron","date":"2026/06/03 17:47:27","clubSpeed":96.14,"attackAngle":-2.22,"clubPath":5.38,"clubFace":-0.52,"ballSpeed":117.8,"smash":1.23,"launchAngle":17.37,"launchDir":0.24,"backspin":4304.72,"sidespin":-213.55,"spinRate":4310.01,"apex":79.33,"carry":171.75,"carryDev":3.87,"total":184.07,"totalDev":4.02},{"club":"6 Iron","date":"2026/06/03 17:47:49","clubSpeed":91.76,"attackAngle":-3.02,"clubPath":-0.97,"clubFace":-2.56,"ballSpeed":120.12,"smash":1.31,"launchAngle":16.21,"launchDir":-2.22,"backspin":5315.78,"sidespin":-43.61,"spinRate":5315.96,"apex":80.87,"carry":172.58,"carryDev":-6.11,"total":182.54,"totalDev":-7.76},{"club":"6 Iron","date":"2026/06/03 17:48:12","clubSpeed":93.48,"attackAngle":-4.15,"clubPath":-2.45,"clubFace":-2.29,"ballSpeed":119.97,"smash":1.28,"launchAngle":14.65,"launchDir":-2.19,"backspin":6018.97,"sidespin":-568.96,"spinRate":6045.8,"apex":73.79,"carry":167.66,"carryDev":0.19,"total":179.94,"totalDev":-0.73},{"club":"6 Iron","date":"2026/06/03 17:48:39","clubSpeed":89.07,"attackAngle":-0.1,"clubPath":-3.01,"clubFace":-0.71,"ballSpeed":114.96,"smash":1.29,"launchAngle":17.01,"launchDir":-0.96,"backspin":3331.04,"sidespin":183.32,"spinRate":3336.08,"apex":67.72,"carry":166.76,"carryDev":-5.63,"total":182.5,"totalDev":-9.71},{"club":"6 Iron","date":"2026/06/03 17:49:03","clubSpeed":91.31,"attackAngle":-3.45,"clubPath":-2.68,"clubFace":-3.11,"ballSpeed":113.44,"smash":1.24,"launchAngle":15.96,"launchDir":-2.89,"backspin":4061.26,"sidespin":380.33,"spinRate":4079.03,"apex":63.42,"carry":161.09,"carryDev":-13.17,"total":164.03,"totalDev":-13.75},{"club":"6 Iron","date":"2026/06/03 17:49:25","clubSpeed":91.98,"attackAngle":-3.16,"clubPath":-1.56,"clubFace":-0.32,"ballSpeed":122.27,"smash":1.33,"launchAngle":15.28,"launchDir":-0.46,"backspin":5329.87,"sidespin":133.98,"spinRate":5331.55,"apex":79.27,"carry":175.93,"carryDev":-3.23,"total":183.45,"totalDev":-3.58},{"club":"6 Iron","date":"2026/06/03 17:49:47","clubSpeed":93.86,"attackAngle":-2.11,"clubPath":2.62,"clubFace":-2.02,"ballSpeed":116.81,"smash":1.24,"launchAngle":15.34,"launchDir":-1.33,"backspin":5685.99,"sidespin":-186.64,"spinRate":5689.05,"apex":71.59,"carry":163.26,"carryDev":-1.65,"total":172.99,"totalDev":-3.01},{"club":"6 Iron","date":"2026/06/03 17:50:13","clubSpeed":90.28,"attackAngle":-2.71,"clubPath":-1.82,"clubFace":-2.55,"ballSpeed":119.68,"smash":1.33,"launchAngle":16.15,"launchDir":-2.32,"backspin":3643.9,"sidespin":320.72,"spinRate":3657.99,"apex":71.82,"carry":176.14,"carryDev":-12.36,"total":185.44,"totalDev":-13.94},{"club":"6 Iron","date":"2026/06/03 17:50:39","clubSpeed":90.86,"attackAngle":-2.87,"clubPath":-1.41,"clubFace":0.7,"ballSpeed":120.77,"smash":1.33,"launchAngle":16.39,"launchDir":0.4,"backspin":4015.44,"sidespin":110.76,"spinRate":4016.97,"apex":77.3,"carry":178.22,"carryDev":-0.54,"total":186.17,"totalDev":-0.74},{"club":"6 Iron","date":"2026/06/03 17:51:03","clubSpeed":92.39,"attackAngle":-4.62,"clubPath":-1.32,"clubFace":-1.48,"ballSpeed":121.51,"smash":1.32,"launchAngle":14.79,"launchDir":-1.38,"backspin":5511.9,"sidespin":-221.38,"spinRate":5516.34,"apex":75.72,"carry":172.79,"carryDev":-1.31,"total":182.43,"totalDev":-1.63},{"club":"6 Iron","date":"2026/06/03 17:51:24","clubSpeed":93.59,"attackAngle":-3.46,"clubPath":-1.69,"clubFace":-1.37,"ballSpeed":119.41,"smash":1.28,"launchAngle":17.18,"launchDir":-1.34,"backspin":5232.39,"sidespin":-850.27,"spinRate":5301.03,"apex":84.06,"carry":171.31,"carryDev":7.25,"total":183.37,"totalDev":7.8},{"club":"6 Iron","date":"2026/06/03 17:52:05","clubSpeed":91.74,"attackAngle":-3.23,"clubPath":1.16,"clubFace":2.39,"ballSpeed":119.79,"smash":1.31,"launchAngle":16.53,"launchDir":2.11,"backspin":4662.42,"sidespin":-45.57,"spinRate":4662.64,"apex":79.56,"carry":174.05,"carryDev":7.05,"total":185.03,"totalDev":7.14},{"club":"6 Iron","date":"2026/06/03 17:52:27","clubSpeed":92.47,"attackAngle":-4.0,"clubPath":-2.14,"clubFace":-2.99,"ballSpeed":121.49,"smash":1.31,"launchAngle":15.39,"launchDir":-2.72,"backspin":4716.73,"sidespin":135.05,"spinRate":4718.66,"apex":76.02,"carry":176.41,"carryDev":-10.34,"total":184.05,"totalDev":-11.47},{"club":"6 Iron","date":"2026/06/03 17:52:49","clubSpeed":91.13,"attackAngle":-3.31,"clubPath":0.02,"clubFace":-0.42,"ballSpeed":121.06,"smash":1.33,"launchAngle":15.36,"launchDir":-0.34,"backspin":5280.08,"sidespin":-29.49,"spinRate":5280.16,"apex":77.49,"carry":173.38,"carryDev":-0.64,"total":182.45,"totalDev":-0.96},{"club":"6 Iron","date":"2026/06/03 17:53:09","clubSpeed":92.39,"attackAngle":-1.65,"clubPath":-0.63,"clubFace":-1.27,"ballSpeed":120.01,"smash":1.3,"launchAngle":17.4,"launchDir":-1.12,"backspin":4117.22,"sidespin":-36.65,"spinRate":4117.38,"apex":82.45,"carry":177.87,"carryDev":-2.9,"total":185.16,"totalDev":-3.1},{"club":"6 Iron","date":"2026/06/03 17:54:16","clubSpeed":92.14,"attackAngle":-3.21,"clubPath":-0.85,"clubFace":-1.9,"ballSpeed":120.1,"smash":1.3,"launchAngle":16.06,"launchDir":-1.67,"backspin":4117.0,"sidespin":485.09,"spinRate":4145.48,"apex":74.48,"carry":175.66,"carryDev":-12.57,"total":184.3,"totalDev":-14.15},{"club":"6 Iron","date":"2026/06/03 17:54:50","clubSpeed":96.57,"attackAngle":-2.97,"clubPath":2.11,"clubFace":-1.73,"ballSpeed":122.74,"smash":1.27,"launchAngle":17.32,"launchDir":-1.15,"backspin":4125.54,"sidespin":-261.0,"spinRate":4133.79,"apex":86.71,"carry":184.07,"carryDev":0.73,"total":192.78,"totalDev":1.05},{"club":"6 Iron","date":"2026/06/03 17:55:13","clubSpeed":90.22,"attackAngle":-2.94,"clubPath":-3.36,"clubFace":-3.34,"ballSpeed":119.09,"smash":1.32,"launchAngle":17.11,"launchDir":-3.17,"backspin":3776.09,"sidespin":385.56,"spinRate":3795.72,"apex":77.13,"carry":176.46,"carryDev":-16.02,"total":185.33,"totalDev":-17.76},{"club":"6 Iron","date":"2026/06/03 17:55:35","clubSpeed":94.04,"attackAngle":-2.5,"clubPath":3.0,"clubFace":-0.25,"ballSpeed":123.32,"smash":1.31,"launchAngle":15.19,"launchDir":0.17,"backspin":4916.1,"sidespin":603.62,"spinRate":4953.02,"apex":78.35,"carry":178.97,"carryDev":-8.25,"total":186.07,"totalDev":-9.45},{"club":"5 Iron","date":"2026/06/04 16:42:32","clubSpeed":93.93,"attackAngle":-1.86,"clubPath":0.9,"clubFace":-2.2,"ballSpeed":124.46,"smash":1.33,"launchAngle":13.39,"launchDir":-1.7,"backspin":4743.88,"sidespin":865.53,"spinRate":4822.19,"apex":67.95,"carry":179.48,"carryDev":-17.88,"total":195.59,"totalDev":-20.52},{"club":"5 Iron","date":"2026/06/04 16:42:56","clubSpeed":93.21,"attackAngle":-2.29,"clubPath":2.53,"clubFace":5.22,"ballSpeed":121.44,"smash":1.3,"launchAngle":15.5,"launchDir":4.6,"backspin":4479.21,"sidespin":-312.43,"spinRate":4490.09,"apex":75.2,"carry":178.44,"carryDev":19.05,"total":193.92,"totalDev":21.06},{"club":"5 Iron","date":"2026/06/04 16:43:16","clubSpeed":91.87,"attackAngle":-2.07,"clubPath":0.03,"clubFace":2.89,"ballSpeed":123.26,"smash":1.34,"launchAngle":14.79,"launchDir":2.37,"backspin":4558.7,"sidespin":-80.37,"spinRate":4559.41,"apex":74.44,"carry":181.32,"carryDev":8.74,"total":196.93,"totalDev":9.59},{"club":"5 Iron","date":"2026/06/04 16:43:53","clubSpeed":93.44,"attackAngle":-1.18,"clubPath":2.9,"clubFace":1.85,"ballSpeed":120.93,"smash":1.29,"launchAngle":14.74,"launchDir":1.89,"backspin":2455.5,"sidespin":920.03,"spinRate":2622.2,"apex":54.63,"carry":172.08,"carryDev":-10.13,"total":208.12,"totalDev":-15.47},{"club":"5 Iron","date":"2026/06/04 16:44:29","clubSpeed":92.43,"attackAngle":-3.29,"clubPath":1.63,"clubFace":1.38,"ballSpeed":123.43,"smash":1.34,"launchAngle":12.84,"launchDir":1.33,"backspin":4343.98,"sidespin":75.07,"spinRate":4344.63,"apex":61.98,"carry":177.78,"carryDev":3.02,"total":195.39,"totalDev":3.22},{"club":"5 Iron","date":"2026/06/04 16:45:00","clubSpeed":92.86,"attackAngle":-2.28,"clubPath":2.25,"clubFace":-0.3,"ballSpeed":122.61,"smash":1.32,"launchAngle":13.34,"launchDir":0.03,"backspin":4313.0,"sidespin":405.42,"spinRate":4332.01,"apex":63.39,"carry":176.8,"carryDev":-5.92,"total":194.2,"totalDev":-7.05},{"club":"5 Iron","date":"2026/06/04 16:45:37","clubSpeed":95.43,"attackAngle":-2.35,"clubPath":3.24,"clubFace":3.57,"ballSpeed":123.77,"smash":1.3,"launchAngle":14.83,"launchDir":3.34,"backspin":3189.7,"sidespin":326.25,"spinRate":3206.34,"apex":66.7,"carry":184.9,"carryDev":4.76,"total":203.8,"totalDev":4.66},{"club":"5 Iron","date":"2026/06/04 16:46:25","clubSpeed":93.21,"attackAngle":-3.9,"clubPath":0.01,"clubFace":-0.6,"ballSpeed":122.94,"smash":1.32,"launchAngle":12.07,"launchDir":-0.49,"backspin":4401.75,"sidespin":1032.42,"spinRate":4521.2,"apex":55.77,"carry":172.05,"carryDev":-15.58,"total":191.73,"totalDev":-18.89},{"club":"5 Iron","date":"2026/06/04 16:46:57","clubSpeed":93.77,"attackAngle":-2.18,"clubPath":3.35,"clubFace":1.45,"ballSpeed":122.54,"smash":1.31,"launchAngle":14.09,"launchDir":1.61,"backspin":4120.52,"sidespin":560.05,"spinRate":4158.41,"apex":66.44,"carry":178.43,"carryDev":-3.67,"total":195.59,"totalDev":-4.8},{"club":"5 Iron","date":"2026/06/04 16:47:35","clubSpeed":96.3,"attackAngle":-1.87,"clubPath":3.73,"clubFace":1.12,"ballSpeed":124.96,"smash":1.3,"launchAngle":14.68,"launchDir":1.39,"backspin":3045.72,"sidespin":909.71,"spinRate":3178.68,"apex":64.83,"carry":184.59,"carryDev":-12.19,"total":203.65,"totalDev":-15.09},{"club":"5 Iron","date":"2026/06/04 16:48:07","clubSpeed":93.5,"attackAngle":-2.25,"clubPath":3.66,"clubFace":1.19,"ballSpeed":126.12,"smash":1.35,"launchAngle":13.53,"launchDir":1.43,"backspin":4108.15,"sidespin":687.47,"spinRate":4165.27,"apex":68.04,"carry":185.24,"carryDev":-6.68,"total":202.62,"totalDev":-8.29},{"club":"5 Iron","date":"2026/06/04 16:49:23","clubSpeed":93.28,"attackAngle":-2.32,"clubPath":2.07,"clubFace":-0.15,"ballSpeed":120.97,"smash":1.3,"launchAngle":12.99,"launchDir":0.13,"backspin":4761.42,"sidespin":137.16,"spinRate":4763.4,"apex":61.35,"carry":171.69,"carryDev":-1.44,"total":188.3,"totalDev":-1.75},{"club":"5 Iron","date":"2026/06/04 16:50:03","clubSpeed":94.38,"attackAngle":-2.89,"clubPath":1.81,"clubFace":0.91,"ballSpeed":122.49,"smash":1.3,"launchAngle":14.55,"launchDir":0.98,"backspin":3470.14,"sidespin":407.65,"spinRate":3494.0,"apex":65.19,"carry":180.66,"carryDev":-3.89,"total":199.29,"totalDev":-4.97},{"club":"5 Iron","date":"2026/06/04 16:50:37","clubSpeed":93.41,"attackAngle":-3.9,"clubPath":1.63,"clubFace":3.13,"ballSpeed":121.67,"smash":1.3,"launchAngle":12.66,"launchDir":2.77,"backspin":5121.93,"sidespin":-435.5,"spinRate":5140.41,"apex":61.81,"carry":171.61,"carryDev":13.9,"total":187.61,"totalDev":15.67},{"club":"5 Iron","date":"2026/06/04 16:51:08","clubSpeed":92.3,"attackAngle":-0.55,"clubPath":1.2,"clubFace":1.16,"ballSpeed":124.17,"smash":1.35,"launchAngle":14.57,"launchDir":1.1,"backspin":3131.33,"sidespin":1018.64,"spinRate":3292.85,"apex":63.45,"carry":181.8,"carryDev":-14.43,"total":200.85,"totalDev":-17.73},{"club":"5 Iron","date":"2026/06/04 16:51:42","clubSpeed":95.16,"attackAngle":-2.09,"clubPath":4.05,"clubFace":4.82,"ballSpeed":123.3,"smash":1.3,"launchAngle":16.04,"launchDir":4.47,"backspin":4510.18,"sidespin":-282.97,"spinRate":4519.05,"apex":81.76,"carry":183.58,"carryDev":18.82,"total":198.52,"totalDev":20.67},{"club":"5 Iron","date":"2026/06/04 16:52:17","clubSpeed":95.63,"attackAngle":-1.58,"clubPath":4.2,"clubFace":1.29,"ballSpeed":121.6,"smash":1.27,"launchAngle":13.56,"launchDir":1.59,"backspin":2543.57,"sidespin":1459.07,"spinRate":2932.34,"apex":47.83,"carry":164.49,"carryDev":-17.32,"total":211.42,"totalDev":-28.45},{"club":"5 Iron","date":"2026/06/04 16:52:46","clubSpeed":93.1,"attackAngle":-2.71,"clubPath":-0.31,"clubFace":1.76,"ballSpeed":121.17,"smash":1.3,"launchAngle":12.61,"launchDir":1.4,"backspin":4823.82,"sidespin":-105.26,"spinRate":4824.97,"apex":59.78,"carry":171.11,"carryDev":5.59,"total":187.95,"totalDev":6.26},{"club":"5 Iron","date":"2026/06/04 16:53:04","clubSpeed":95.32,"attackAngle":-2.76,"clubPath":3.28,"clubFace":1.71,"ballSpeed":123.26,"smash":1.29,"launchAngle":13.76,"launchDir":1.81,"backspin":5247.09,"sidespin":24.73,"spinRate":5247.15,"apex":71.46,"carry":177.58,"carryDev":5.28,"total":192.24,"totalDev":5.68},{"club":"5 Iron","date":"2026/06/04 16:53:26","clubSpeed":93.88,"attackAngle":-0.85,"clubPath":3.18,"clubFace":4.45,"ballSpeed":121.09,"smash":1.29,"launchAngle":15.74,"launchDir":4.05,"backspin":2911.09,"sidespin":450.66,"spinRate":2945.77,"apex":65.88,"carry":180.32,"carryDev":4.48,"total":199.66,"totalDev":4.12},{"club":"5 Iron","date":"2026/06/04 16:53:55","clubSpeed":95.43,"attackAngle":-1.89,"clubPath":2.8,"clubFace":1.94,"ballSpeed":127.06,"smash":1.33,"launchAngle":14.36,"launchDir":1.94,"backspin":4499.4,"sidespin":541.3,"spinRate":4531.84,"apex":77.26,"carry":188.8,"carryDev":-2.58,"total":204.4,"totalDev":-3.46},{"club":"9 Iron","date":"2026/06/04 17:04:44","clubSpeed":89.7,"attackAngle":-6.8,"clubPath":9.13,"clubFace":4.5,"ballSpeed":104.44,"smash":1.16,"launchAngle":20.81,"launchDir":4.84,"backspin":7435.72,"sidespin":782.84,"spinRate":7476.82,"apex":80.41,"carry":139.78,"carryDev":5.75,"total":145.21,"totalDev":6.32},{"club":"9 Iron","date":"2026/06/04 17:05:15","clubSpeed":114.42,"attackAngle":-4.61,"clubPath":21.57,"clubFace":3.48,"ballSpeed":103.84,"smash":0.91,"launchAngle":22.41,"launchDir":5.56,"backspin":7803.09,"sidespin":163.45,"spinRate":7804.8,"apex":87.11,"carry":139.36,"carryDev":12.26,"total":141.42,"totalDev":12.57},{"club":"9 Iron","date":"2026/06/04 17:05:40","clubSpeed":79.3,"attackAngle":-5.04,"clubPath":-14.76,"clubFace":3.89,"ballSpeed":101.47,"smash":1.28,"launchAngle":19.34,"launchDir":1.35,"backspin":7676.54,"sidespin":-336.51,"spinRate":7683.91,"apex":69.09,"carry":133.77,"carryDev":5.48,"total":135.83,"totalDev":6.2},{"club":"9 Iron","date":"2026/06/04 17:06:11","clubSpeed":111.89,"attackAngle":-6.17,"clubPath":15.15,"clubFace":-2.43,"ballSpeed":107.28,"smash":0.96,"launchAngle":21.7,"launchDir":-0.1,"backspin":7331.15,"sidespin":1522.21,"spinRate":7487.52,"apex":88.85,"carry":145.01,"carryDev":-12.95,"total":148.03,"totalDev":-13.93},{"club":"9 Iron","date":"2026/06/04 17:06:36","clubSpeed":137.26,"attackAngle":-3.31,"clubPath":29.27,"clubFace":-1.91,"ballSpeed":104.08,"smash":0.76,"launchAngle":21.14,"launchDir":2.09,"backspin":7202.49,"sidespin":1471.91,"spinRate":7351.35,"apex":80.09,"carry":139.11,"carryDev":-6.35,"total":148.4,"totalDev":-10.07},{"club":"9 Iron","date":"2026/06/04 17:07:09","clubSpeed":88.49,"attackAngle":-3.34,"clubPath":1.4,"clubFace":2.89,"ballSpeed":108.13,"smash":1.22,"launchAngle":21.28,"launchDir":2.55,"backspin":7628.86,"sidespin":840.89,"spinRate":7675.06,"apex":89.86,"carry":146.3,"carryDev":-0.48,"total":151.1,"totalDev":-0.42},{"club":"9 Iron","date":"2026/06/04 17:07:31","clubSpeed":117.3,"attackAngle":-3.69,"clubPath":21.17,"clubFace":-0.52,"ballSpeed":106.81,"smash":0.91,"launchAngle":21.65,"launchDir":2.22,"backspin":8222.16,"sidespin":-28.7,"spinRate":8222.21,"apex":90.09,"carry":142.97,"carryDev":5.76,"total":147.25,"totalDev":6.21},{"club":"9 Iron","date":"2026/06/04 17:08:04","clubSpeed":97.4,"attackAngle":-3.55,"clubPath":9.32,"clubFace":2.35,"ballSpeed":107.31,"smash":1.1,"launchAngle":22.4,"launchDir":3.1,"backspin":8188.38,"sidespin":138.64,"spinRate":8189.55,"apex":94.49,"carry":143.93,"carryDev":6.7,"total":147.96,"totalDev":7.11},{"club":"9 Iron","date":"2026/06/04 17:08:37","clubSpeed":112.94,"attackAngle":-5.06,"clubPath":17.85,"clubFace":-1.14,"ballSpeed":104.17,"smash":0.92,"launchAngle":19.72,"launchDir":1.3,"backspin":8106.11,"sidespin":271.74,"spinRate":8110.66,"apex":76.15,"carry":137.91,"carryDev":1.21,"total":143.65,"totalDev":1.3},{"club":"9 Iron","date":"2026/06/04 17:09:01","clubSpeed":158.73,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":108.25,"smash":0.68,"launchAngle":21.65,"launchDir":0.34,"backspin":7813.4,"sidespin":1177.48,"spinRate":7901.62,"apex":91.73,"carry":145.9,"carryDev":-8.76,"total":150.0,"totalDev":-9.6},{"club":"9 Iron","date":"2026/06/04 17:09:27","clubSpeed":78.49,"attackAngle":-1.41,"clubPath":-16.22,"clubFace":6.33,"ballSpeed":107.71,"smash":1.37,"launchAngle":24.55,"launchDir":3.17,"backspin":6899.87,"sidespin":298.84,"spinRate":6906.34,"apex":103.67,"carry":147.36,"carryDev":5.4,"total":151.79,"totalDev":5.5},{"club":"9 Iron","date":"2026/06/04 17:09:55","clubSpeed":118.78,"attackAngle":-2.51,"clubPath":18.12,"clubFace":-1.4,"ballSpeed":105.63,"smash":0.89,"launchAngle":24.37,"launchDir":1.12,"backspin":5563.42,"sidespin":892.11,"spinRate":5634.49,"apex":95.73,"carry":146.84,"carryDev":-6.34,"total":152.18,"totalDev":-7.18},{"club":"9 Iron","date":"2026/06/04 17:10:19","clubSpeed":77.4,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":106.28,"smash":1.37,"launchAngle":24.62,"launchDir":2.34,"backspin":5860.02,"sidespin":942.82,"spinRate":5935.38,"apex":98.75,"carry":147.18,"carryDev":-3.51,"total":152.11,"totalDev":-3.28},{"club":"9 Iron","date":"2026/06/04 17:10:46","clubSpeed":104.4,"attackAngle":-3.32,"clubPath":13.97,"clubFace":-0.97,"ballSpeed":106.88,"smash":1.02,"launchAngle":22.08,"launchDir":0.95,"backspin":7678.94,"sidespin":1380.28,"spinRate":7802.01,"apex":90.62,"carry":143.64,"carryDev":-8.7,"total":150.9,"totalDev":-11.15},{"club":"9 Iron","date":"2026/06/04 17:11:19","clubSpeed":93.3,"attackAngle":-3.33,"clubPath":7.62,"clubFace":-1.15,"ballSpeed":106.66,"smash":1.14,"launchAngle":20.58,"launchDir":0.01,"backspin":7894.9,"sidespin":1000.16,"spinRate":7958.0,"apex":83.96,"carry":142.84,"carryDev":-7.71,"total":150.06,"totalDev":-9.78},{"club":"9 Iron","date":"2026/06/04 17:11:42","clubSpeed":88.94,"attackAngle":-9.42,"clubPath":-20.72,"clubFace":7.54,"ballSpeed":107.98,"smash":1.21,"launchAngle":22.21,"launchDir":3.6,"backspin":8138.38,"sidespin":722.04,"spinRate":8170.35,"apex":94.69,"carry":145.0,"carryDev":3.37,"total":149.6,"totalDev":3.32},{"club":"9 Iron","date":"2026/06/04 17:12:10","clubSpeed":101.94,"attackAngle":null,"clubPath":null,"clubFace":null,"ballSpeed":109.65,"smash":1.08,"launchAngle":21.68,"launchDir":2.01,"backspin":7465.84,"sidespin":1421.48,"spinRate":7599.96,"apex":93.83,"carry":148.78,"carryDev":-7.12,"total":152.69,"totalDev":-7.8},{"club":"9 Iron","date":"2026/06/04 17:12:37","clubSpeed":113.37,"attackAngle":-2.52,"clubPath":19.19,"clubFace":-1.34,"ballSpeed":108.31,"smash":0.96,"launchAngle":22.04,"launchDir":1.3,"backspin":7657.55,"sidespin":679.38,"spinRate":7687.63,"apex":93.93,"carry":146.63,"carryDev":-2.39,"total":151.02,"totalDev":-2.34},{"club":"9 Iron","date":"2026/06/04 17:12:58","clubSpeed":111.8,"attackAngle":-5.98,"clubPath":15.7,"clubFace":2.35,"ballSpeed":107.91,"smash":0.97,"launchAngle":23.22,"launchDir":3.9,"backspin":7943.92,"sidespin":-373.24,"spinRate":7952.68,"apex":99.18,"carry":145.54,"carryDev":12.95,"total":151.04,"totalDev":15.11},{"club":"9 Iron","date":"2026/06/04 17:13:27","clubSpeed":77.4,"attackAngle":0.68,"clubPath":-16.63,"clubFace":8.09,"ballSpeed":106.75,"smash":1.38,"launchAngle":23.71,"launchDir":4.56,"backspin":8149.6,"sidespin":241.87,"spinRate":8153.19,"apex":99.28,"carry":142.89,"carryDev":9.48,"total":146.53,"totalDev":10.25},{"club":"9 Iron","date":"2026/06/04 17:14:00","clubSpeed":102.7,"attackAngle":-3.43,"clubPath":11.83,"clubFace":-3.41,"ballSpeed":106.16,"smash":1.03,"launchAngle":18.58,"launchDir":-1.32,"backspin":7654.78,"sidespin":406.53,"spinRate":7665.57,"apex":73.85,"carry":141.69,"carryDev":-6.37,"total":148.55,"totalDev":-7.65},{"club":"9 Iron","date":"2026/06/04 17:14:26","clubSpeed":133.14,"attackAngle":-5.03,"clubPath":24.79,"clubFace":-2.42,"ballSpeed":109.83,"smash":0.82,"launchAngle":21.48,"launchDir":1.12,"backspin":8019.59,"sidespin":814.6,"spinRate":8060.86,"apex":94.72,"carry":148.42,"carryDev":-3.89,"total":152.03,"totalDev":-3.85}],"rounds":[{"course":"Milnerton Golf Club","layout":null,"location":"Milnerton, Western Cape","date":"2026-05-10","format":"Stroke Play","holes":[5,5,5,4,3,3,4,4,4,6,3,6,6,4,5,6,5,5],"id":"seed_r0","total":83,"par":72},{"course":"George Golf Club","layout":null,"location":"George, Western Cape","date":"2026-05-17","format":"Stroke Play","holes":[4,6,3,4,4,3,5,5,5,4,4,5,4,4,3,4,4,4],"id":"seed_r1","total":75,"par":72},{"course":"Fancourt Hotel & Country Club","layout":"Outeniqua","location":"George, Western Cape","date":"2026-05-22","format":"Stroke Play","holes":[3,6,5,4,3,4,3,5,6,4,5,3,4,5,4,4,5,4],"id":"seed_r2","total":77,"par":72},{"course":"Fancourt Hotel & Country Club","layout":"Montagu","location":"George, Western Cape","date":"2026-05-24","format":"Stroke Play","holes":[4,5,5,5,3,6,5,3,5,4,4,4,4,3,5,5,4,4],"id":"seed_r3","total":78,"par":72},{"course":"Westlake Golf Club","layout":null,"location":"Cape Town, Western Cape","date":"2026-05-28","format":"Stroke Play","holes":[5,5,4,5,4,3,5,4,5,4,4,5,4,3,4,6,3,4],"id":"seed_r4","total":77,"par":72},{"course":"Westlake Golf Club","layout":null,"location":"Cape Town, Western Cape","date":"2026-05-31","format":"Stroke Play","holes":[6,4,5,6,4,4,5,4,5,4,5,4,5,4,3,4,4,5],"id":"seed_r5","total":81,"par":72}]}};
+const KEY = 'sh_life_v1';
+let DB = (()=>{ try{const r=localStorage.getItem(KEY); if(r)return JSON.parse(r);}catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
+/* Merge in any newly pre-loaded seed data this saved copy is missing, without
+   overwriting the user's own entries. Keyed by content so re-runs are safe. */
+(function mergeSeed(){
+  let changed=false;
+  DB.golf=DB.golf||{shots:[],rounds:[]};
+  const sig=s=>[s.club,s.date,s.carry,s.ballSpeed].join('|');
+  const have=new Set((DB.golf.shots||[]).map(sig));
+  (SEED.golf&&SEED.golf.shots||[]).forEach(s=>{ if(!have.has(sig(s))){ DB.golf.shots.push(s); changed=true; } });
+  if(changed){ try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){} }
+})();
+function save(){ try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){toast('Storage unavailable');} }
+
+/* Durable connection store — kept SEPARATE from the main data so a data
+   reset/restore never loses your proxy URL. This is what makes the WHOOP +
+   morning-report connection survive across sessions and Restore operations. */
+const CONN_KEY='sh_life_conn_v1';
+function loadConn(){ try{const r=localStorage.getItem(CONN_KEY); if(r)return JSON.parse(r);}catch(e){} return {proxyUrl:''}; }
+function saveConn(c){ try{localStorage.setItem(CONN_KEY,JSON.stringify(c));}catch(e){} }
+(function reconcileConn(){
+  // If DB has a proxyUrl but the durable store doesn't, copy it across (migration).
+  const c=loadConn();
+  if(DB.whoop&&DB.whoop.proxyUrl&&!c.proxyUrl){ c.proxyUrl=DB.whoop.proxyUrl; saveConn(c); }
+  // Always mirror the durable URL back into DB.whoop so the rest of the app sees it.
+  if(c.proxyUrl){ DB.whoop=DB.whoop||{}; DB.whoop.proxyUrl=c.proxyUrl; }
+})();
+
+/* ---- format helpers ---- */
+const ZAR = (n,dec=0)=> 'R'+(n==null?'—':(+n).toLocaleString('en-ZA',{minimumFractionDigits:dec,maximumFractionDigits:dec}));
+const ZARk = n => { if(n==null)return'—'; const a=Math.abs(n);
+  if(a>=1e6) return 'R'+(n/1e6).toFixed(2)+'m'; if(a>=1e3) return 'R'+(n/1e3).toFixed(0)+'k'; return 'R'+n.toFixed(0); };
+const num = (n,d=0)=> n==null?'—':(+n).toLocaleString('en-ZA',{minimumFractionDigits:d,maximumFractionDigits:d});
+const mean = a => a.length? a.reduce((s,x)=>s+x,0)/a.length : null;
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/* ---- age / dates ---- */
+function ageOn(dateStr){
+  const dob=new Date(DB.profile.dob), t=new Date(dateStr);
+  let a=t.getFullYear()-dob.getFullYear();
+  if(t.getMonth()<dob.getMonth()||(t.getMonth()===dob.getMonth()&&t.getDate()<dob.getDate())) a--;
+  return a;
+}
+function yearsBetween(a,b){ return (new Date(b)-new Date(a))/(365.25*24*3600*1000); }
+const TODAY = new Date().toISOString().slice(0,10);
+
+/* ---- finance derived ---- */
+function netWorth(){ return DB.finance.accounts.reduce((s,a)=>s+a.value,0); }
+function accountColor(id){ return ({inn8:'var(--sage)',ggg:'var(--terra)',hbi:'var(--gold)'})[id]||'var(--sky)'; }
+
+/* ---- color palette for series ---- */
+const PALETTE=['var(--terra)','var(--sage)','var(--gold)','var(--sky)','var(--plum)','var(--rose)','var(--sage-deep)','var(--terra-deep)'];
+
+/* ============ SVG CHART HELPERS ============ */
+function lineChart(series, opts={}){
+  // series: [{name,color,points:[{x,y}]}], x numeric
+  const W=opts.w||760, H=opts.h||260, pad={l:46,r:18,t:18,b:34};
+  const all=series.flatMap(s=>s.points);
+  if(!all.length) return '<div class="empty">No data yet</div>';
+  const xs=all.map(p=>p.x), ys=all.map(p=>p.y);
+  let minX=Math.min(...xs), maxX=Math.max(...xs);
+  let minY=opts.minY!=null?opts.minY:Math.min(...ys), maxY=Math.max(...ys);
+  if(opts.padY){ const r=(maxY-minY)||1; minY-=r*opts.padY; maxY+=r*opts.padY; if(opts.minY!=null)minY=opts.minY; }
+  if(minX===maxX){minX-=1;maxX+=1;}
+  const px=x=> pad.l+(x-minX)/(maxX-minX)*(W-pad.l-pad.r);
+  const py=y=> H-pad.b-(y-minY)/((maxY-minY)||1)*(H-pad.t-pad.b);
+  // gridlines
+  let grid='';
+  const ticks=opts.yTicks||4;
+  for(let i=0;i<=ticks;i++){ const v=minY+(maxY-minY)*i/ticks; const y=py(v);
+    grid+=`<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="var(--line)" stroke-width="1"/>
+    <text x="${pad.l-8}" y="${y+4}" text-anchor="end" font-family="var(--mono)" font-size="10" fill="var(--ink-faint)">${opts.yFmt?opts.yFmt(v):Math.round(v)}</text>`; }
+  // x labels
+  let xlab='';
+  const xticks=opts.xLabels|| series[0].points.map(p=>p.x);
+  const step=Math.ceil(xticks.length/ (opts.maxXLabels||8));
+  (opts.xLabels?xticks:series[0].points.map(p=>p.x)).forEach((xv,i)=>{
+    if(i%step) return; const x=px(typeof xv==='number'?xv:series[0].points[i].x);
+    xlab+=`<text x="${x}" y="${H-pad.b+18}" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--ink-faint)">${opts.xFmt?opts.xFmt(xv):xv}</text>`;
+  });
+  let paths='';
+  series.forEach(s=>{
+    if(!s.points.length)return;
+    const d=s.points.map((p,i)=>(i?'L':'M')+px(p.x)+' '+py(p.y)).join(' ');
+    if(opts.area){
+      const a=`M${px(s.points[0].x)} ${py(minY)} `+s.points.map(p=>'L'+px(p.x)+' '+py(p.y)).join(' ')+`L${px(s.points[s.points.length-1].x)} ${py(minY)} Z`;
+      paths+=`<path d="${a}" fill="${s.color}" opacity=".10"/>`;
+    }
+    paths+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`;
+    if(opts.dots!==false) paths+=s.points.map(p=>`<circle cx="${px(p.x)}" cy="${py(p.y)}" r="3.2" fill="${s.color}" stroke="var(--card)" stroke-width="1.5"/>`).join('');
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" preserveAspectRatio="xMidYMid meet">${grid}${paths}${xlab}</svg>`;
+}
+
+function barChart(items, opts={}){
+  // items:[{label,value,color}]
+  const W=opts.w||760,H=opts.h||240,pad={l:46,r:14,t:20,b:40};
+  if(!items.length)return '<div class="empty">No data yet</div>';
+  const max=opts.max||Math.max(...items.map(i=>i.value))||1;
+  const bw=(W-pad.l-pad.r)/items.length;
+  let grid='';for(let i=0;i<=4;i++){const v=max*i/4;const y=H-pad.b-(v/max)*(H-pad.t-pad.b);
+    grid+=`<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="var(--line)"/><text x="${pad.l-8}" y="${y+4}" text-anchor="end" font-family="var(--mono)" font-size="10" fill="var(--ink-faint)">${opts.yFmt?opts.yFmt(v):Math.round(v)}</text>`;}
+  let bars='';
+  items.forEach((it,i)=>{
+    const h=Math.max(2,(it.value/max)*(H-pad.t-pad.b));
+    const x=pad.l+i*bw+bw*0.16, y=H-pad.b-h, w=bw*0.68;
+    bars+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${it.color||'var(--terra)'}"/>`;
+    if(opts.showVal) bars+=`<text x="${x+w/2}" y="${y-6}" text-anchor="middle" font-family="var(--mono)" font-size="9.5" fill="var(--ink-soft)">${opts.valFmt?opts.valFmt(it.value):Math.round(it.value)}</text>`;
+    if(i%(opts.labStep||1)===0) bars+=`<text x="${x+w/2}" y="${H-pad.b+16}" text-anchor="middle" font-family="var(--mono)" font-size="9.5" fill="var(--ink-faint)">${it.label}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${grid}${bars}</svg>`;
+}
+
+function donut(items, size=130){
+  const tot=items.reduce((s,i)=>s+i.value,0)||1; const r=size/2, sw=size*0.22, cr=r-sw/2;
+  let a=-Math.PI/2,seg='';
+  items.forEach(it=>{
+    const frac=it.value/tot, a2=a+frac*2*Math.PI;
+    const x1=r+cr*Math.cos(a),y1=r+cr*Math.sin(a),x2=r+cr*Math.cos(a2),y2=r+cr*Math.sin(a2);
+    const large=frac>0.5?1:0;
+    seg+=`<path d="M${x1} ${y1} A${cr} ${cr} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${it.color}" stroke-width="${sw}"/>`;
+    a=a2;
+  });
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${seg}</svg>`;
+}
+/* ============ TODAY ============ */
+/* ============ MORNING REPORT (landing page) ============ */
+function morningCfg(){ DB.morning=DB.morning||{tasks:[],commute:{from:'Mount Prospect Drive, Constantia',to:'1 Bridgeway, Century City'},
+  currency:null, news:[], calendar:[], traffic:null, lastFetch:null}; return DB.morning; }
+function proxyBase(){
+  // If the platform is being SERVED FROM the proxy (e.g. hosted on Railway),
+  // use that same origin automatically — no manual URL entry needed.
+  try{ if(location && /^https?:/.test(location.protocol) && location.host && !/^(localhost|127\.|file)/.test(location.hostname)){
+    return location.origin.replace(/\/$/,'');
+  } }catch(e){}
+  const w=DB.whoop&&DB.whoop.proxyUrl; return w? w.replace(/\/$/,''):'';
+}
+
+function renderHome(){
+  const m=morningCfg();
+  const hour=new Date().getHours();
+  document.getElementById('greeting').textContent=(hour<12?'Good morning':hour<18?'Good afternoon':'Good evening')+', Stuart';
+  const dateline=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long'});
+
+  const P=document.getElementById('pane-home');
+  P.innerHTML=`
+   <div class="coach" id="mrBriefing"><div class="q">${dateline} · your morning report</div>
+     <p>${morningBriefing()}</p></div>
+   ${proxyBase()?'':`<div class="card card-pad" style="margin-bottom:18px;border-left:3px solid var(--gold);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+     <div style="flex:1;min-width:240px"><div style="font-family:var(--disp);font-weight:700;font-size:16px">Live feeds are offline</div>
+       <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);margin-top:3px">WHOOP recovery, drive time, calendar and news need your proxy. Reconnect once and it sticks — it's saved separately from your data.</div></div>
+     <button class="btn primary" onclick="openWhoopSettings()">Reconnect proxy</button>
+   </div>`}
+
+   <div class="grid g2" style="margin-bottom:18px">
+     ${cardReadiness()}
+     ${cardCommute()}
+   </div>
+   <div class="grid g2" style="margin-bottom:18px">
+     ${cardCalendar()}
+     ${cardTasks()}
+   </div>
+   <div class="grid g2" style="margin-bottom:8px">
+     ${cardNews()}
+     ${cardMarkets()}
+   </div>
+   <div style="text-align:right;margin-top:10px">
+     <button class="btn" onclick="refreshMorning()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>Refresh feeds</button>
+   </div>`;
+  // kick off live fetches (non-blocking; cards update in place)
+  fetchCurrency(); if(proxyBase()){ fetchNews(); fetchTraffic(); fetchCalendar(); }
+}
+
+/* ---- coach briefing weaves WHOOP + day together ---- */
+function morningBriefing(){
+  const w=DB.whoop||{}; const rec=(w.recovery||[]); const slp=(w.sleep||[]);
+  const lastRec=rec[rec.length-1], lastSlp=slp[slp.length-1];
+  const bits=[];
+  if(lastRec&&lastRec.recovery!=null){
+    const r=lastRec.recovery; const band=r>=67?'green':r>=34?'yellow':'red';
+    bits.push(band==='green'?`You're in the <b>green at ${Math.round(r)}%</b> — your body's ready for a hard session if you want one.`
+      :band==='yellow'?`Recovery's in the <b>yellow at ${Math.round(r)}%</b> — train, but keep it moderate and listen to the legs.`
+      :`Recovery's <b>red at ${Math.round(r)}%</b> — today is for rest or a gentle walk, not strain.`);
+  } else bits.push(`No WHOOP recovery in yet this morning${proxyBase()?' — try a refresh':' — connect your proxy in the WHOOP tab'}.`);
+  if(lastSlp&&lastSlp.performance!=null) bits.push(`You slept to <b>${Math.round(lastSlp.performance)}%</b> of need (${fmtDur(lastSlp.durationMs)}).`);
+  const cal=morningCfg().calendar||[];
+  if(cal.length) bits.push(`You've <b>${cal.length} thing${cal.length>1?'s':''}</b> on the calendar today.`);
+  const openTasks=(morningCfg().tasks||[]).filter(t=>!t.done).length;
+  if(openTasks) bits.push(`<b>${openTasks} task${openTasks>1?'s':''}</b> still open.`);
+  return bits.join(' ');
+}
+
+/* ---- WHOOP readiness card (recovery + sleep + strain target) ---- */
+function cardReadiness(){
+  const w=DB.whoop||{}; const rec=(w.recovery||[]); const slp=(w.sleep||[]); const cyc=(w.cycles||[]);
+  const lastRec=rec[rec.length-1], lastSlp=slp[slp.length-1];
+  if(!lastRec){
+    return `<div class="card card-pad"><div class="kicker">Readiness</div><div class="h-sec">WHOOP</div>
+      <div class="empty">No WHOOP data yet. <a onclick="go('whoop')" style="color:var(--terra);cursor:pointer;text-decoration:underline">Connect in the WHOOP tab →</a></div></div>`;
+  }
+  const r=lastRec.recovery; const col=r==null?'var(--ink-faint)':r>=67?'var(--good)':r>=34?'var(--warn)':'var(--bad)';
+  // suggested strain target from recovery (WHOOP-style optimal: scales with recovery)
+  const target = r==null? null : (r>=67? '14–17 (push)' : r>=50? '11–14 (moderate)' : r>=34? '8–11 (maintain)' : '<8 (recover)');
+  const baseHrv=avgKey(recent(rec,30),'hrv'), todHrv=lastRec.hrv;
+  const hrvNote= (baseHrv&&todHrv)? (todHrv>=baseHrv?'at or above':'below')+' your 30-day baseline' : '';
+  return `<div class="card card-pad"><div class="kicker">Readiness today</div><div class="h-sec">WHOOP</div>
+    <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap">
+      <div style="text-align:center">
+        <div style="font-family:var(--disp);font-weight:700;font-size:52px;line-height:1;letter-spacing:-1px;color:${col}">${r==null?'—':Math.round(r)}<span style="font-size:22px">%</span></div>
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-top:4px">Recovery</div>
+      </div>
+      <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:9px">
+        <div class="dlin">Sleep performance<span class="v">${lastSlp&&lastSlp.performance!=null?Math.round(lastSlp.performance)+'%':'—'}</span></div>
+        <div class="dlin">Time asleep<span class="v">${lastSlp?fmtDur(lastSlp.durationMs):'—'}</span></div>
+        <div class="dlin">HRV<span class="v">${todHrv!=null?Math.round(todHrv)+' ms':'—'}</span></div>
+        <div class="dlin">Resting HR<span class="v">${lastRec.rhr!=null?Math.round(lastRec.rhr)+' bpm':'—'}</span></div>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding:13px 16px;background:var(--paper);border-radius:11px;border-left:3px solid ${col}">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Suggested strain target</div>
+      <div style="font-family:var(--disp);font-weight:700;font-size:22px;margin-top:3px">${target||'—'}</div>
+      ${hrvNote?`<div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-soft);margin-top:3px">HRV ${hrvNote}.</div>`:''}
+    </div></div>`;
+}
+
+/* ---- commute / traffic card ---- */
+function cardCommute(){
+  const m=morningCfg(); const t=m.traffic;
+  const live = t && t.durationText;
+  return `<div class="card card-pad"><div class="kicker">The commute</div><div class="h-sec">Drive to work</div>
+    <div style="font-family:var(--serif);font-size:14px;color:var(--ink-soft);line-height:1.5;margin-bottom:14px">
+      <b style="color:var(--ink)">${m.commute.from}</b><br>
+      <span style="color:var(--ink-faint)">↓</span><br>
+      <b style="color:var(--ink)">${m.commute.to}</b></div>
+    <div id="trafficBox">${ live
+      ? `<div style="display:flex;align-items:baseline;gap:10px"><span style="font-family:var(--disp);font-weight:700;font-size:34px;color:var(--terra-deep)">${t.durationText}</span>
+         ${t.normalText?`<span style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">vs ~${t.normalText} typical</span>`:''}</div>
+         ${t.distanceText?`<div style="font-family:var(--mono);font-size:12px;color:var(--ink-faint);margin-top:4px">${t.distanceText}</div>`:''}`
+      : proxyBase()? `<div class="empty" style="padding:16px 0">Fetching live drive time…</div>`
+        : `<div class="empty" style="padding:16px 0">Connect your proxy (WHOOP tab) to show live traffic, or <a onclick="editCommute()" style="color:var(--terra);cursor:pointer;text-decoration:underline">set route</a>.</div>` }</div>
+    <button class="btn" style="margin-top:6px" onclick="editCommute()">Edit route</button></div>`;
+}
+function editCommute(){
+  const m=morningCfg();
+  showModal(`<div class="modal-head"><div><h2>Commute route</h2><div class="ms">Used for the morning drive-time estimate</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>From</label><input id="cm_from" value="${(m.commute.from||'').replace(/"/g,'&quot;')}"></div>
+      <div class="field"><label>To</label><input id="cm_to" value="${(m.commute.to||'').replace(/"/g,'&quot;')}"></div>
+      <button class="btn primary" onclick="saveCommute()">Save</button></div>`);
+}
+function saveCommute(){ const m=morningCfg(); m.commute.from=document.getElementById('cm_from').value; m.commute.to=document.getElementById('cm_to').value; save(); closeModal(); renderHome(); }
+
+/* ---- calendar card ---- */
+function cardCalendar(){
+  const cal=(morningCfg().calendar||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const body = cal.length
+    ? cal.map(e=>`<div style="display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)">
+        <span style="font-family:var(--mono);font-size:12px;color:var(--terra-deep);min-width:52px">${e.time||'—'}</span>
+        <span style="font-family:var(--serif);font-size:14px">${e.title||''}</span>
+        ${e.location?`<span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-left:auto">${e.location}</span>`:''}</div>`).join('')
+    : (proxyBase()? `<div class="empty" style="padding:18px 0">No events today (or calendar not linked on the proxy yet).</div>`
+       : `<div class="empty" style="padding:18px 0">Connect your proxy to sync calendar, or add events manually.</div>`);
+  return `<div class="card card-pad"><div class="kicker">Today</div><div class="h-sec">Calendar</div>
+    <div id="calBox">${body}</div>
+    <button class="btn" style="margin-top:12px" onclick="addCalEvent()">+ Add event</button></div>`;
+}
+function addCalEvent(){
+  showModal(`<div class="modal-head"><div><h2>Add event</h2><div class="ms">Manual calendar entry for today</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body"><div class="row3">
+      <div class="field"><label>Time</label><input id="ce_time" type="time"></div>
+      <div class="field" style="grid-column:span 2"><label>Title</label><input id="ce_title" placeholder="e.g. Call with Ryan"></div></div>
+      <div class="field"><label>Location (optional)</label><input id="ce_loc"></div>
+      <button class="btn primary" onclick="saveCalEvent()">Add</button></div>`);
+}
+function saveCalEvent(){ const m=morningCfg(); const title=document.getElementById('ce_title').value.trim(); if(!title){toast('Enter a title');return;}
+  m.calendar.push({time:document.getElementById('ce_time').value,title,location:document.getElementById('ce_loc').value.trim()});
+  save(); closeModal(); renderHome(); }
+
+/* ---- tasks card (fully usable, local) ---- */
+function cardTasks(){
+  const tasks=morningCfg().tasks||[];
+  const open=tasks.filter(t=>!t.done), done=tasks.filter(t=>t.done);
+  const row=t=>`<div style="display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <span onclick="toggleTask('${t.id}')" style="cursor:pointer;width:19px;height:19px;border-radius:6px;border:2px solid ${t.done?'var(--good)':'var(--line2)'};background:${t.done?'var(--good)':'transparent'};flex:none;display:grid;place-items:center">
+        ${t.done?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</span>
+      <span style="font-family:var(--serif);font-size:14.5px;flex:1;${t.done?'text-decoration:line-through;color:var(--ink-faint)':''}">${t.text}</span>
+      <span onclick="delTask('${t.id}')" style="cursor:pointer;color:var(--ink-faint);font-size:18px;line-height:1">×</span></div>`;
+  return `<div class="card card-pad"><div class="kicker">Get it done</div><div class="h-sec">Tasks<span class="sub">${open.length} open${done.length?' · '+done.length+' done':''}</span></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="taskInput" placeholder="Add a task and press Enter" onkeydown="if(event.key==='Enter')addTask()"
+        style="flex:1;background:var(--paper);border:1px solid var(--line2);border-radius:9px;padding:9px 12px;font-family:var(--serif);font-size:14px;color:var(--ink)">
+      <button class="btn primary" onclick="addTask()">Add</button></div>
+    <div id="taskList">${open.map(row).join('')}${done.length?`<div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin:12px 0 4px">Completed</div>`+done.map(row).join(''):''}
+      ${tasks.length===0?'<div class="empty" style="padding:14px 0">Nothing yet — add your first task above.</div>':''}</div></div>`;
+}
+function addTask(){ const i=document.getElementById('taskInput'); const v=i.value.trim(); if(!v)return;
+  morningCfg().tasks.push({id:'t'+Date.now(),text:v,done:false}); save(); renderHome();
+  setTimeout(()=>{const el=document.getElementById('taskInput'); if(el)el.focus();},50); }
+function toggleTask(id){ const t=morningCfg().tasks.find(x=>x.id===id); if(t){t.done=!t.done;save();renderHome();} }
+function delTask(id){ const m=morningCfg(); m.tasks=m.tasks.filter(x=>x.id!==id); save(); renderHome(); }
+
+/* ---- BBC news card ---- */
+function cardNews(){
+  const news=morningCfg().news||[];
+  const body=news.length
+    ? news.slice(0,7).map(n=>`<a href="${n.link||'#'}" target="_blank" rel="noopener" style="display:block;padding:9px 0;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)">
+        <div style="font-family:var(--serif);font-size:14px;line-height:1.35">${n.title}</div>
+        ${n.pubDate?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:3px">${n.pubDate}</div>`:''}</a>`).join('')
+    : (proxyBase()? `<div class="empty" style="padding:18px 0" id="newsEmpty">Loading BBC headlines…</div>`
+       : `<div class="empty" style="padding:18px 0">Connect your proxy (WHOOP tab) to pull the BBC feed.</div>`);
+  return `<div class="card card-pad"><div class="kicker">In the world</div><div class="h-sec">BBC News</div><div id="newsBox">${body}</div></div>`;
+}
+
+/* ---- markets / currency card ---- */
+function cardMarkets(){
+  const c=morningCfg().currency;
+  return `<div class="card card-pad"><div class="kicker">Markets</div><div class="h-sec">Currency</div>
+    <div id="fxBox">${ c
+      ? `<div style="display:flex;align-items:baseline;gap:10px"><span style="font-family:var(--disp);font-weight:700;font-size:34px">R${c.usdzar.toFixed(2)}</span><span style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">per USD</span></div>
+         <div style="font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:8px">$1 = R${c.usdzar.toFixed(2)} &nbsp;·&nbsp; £1 = R${c.gbpzar?c.gbpzar.toFixed(2):'—'} &nbsp;·&nbsp; €1 = R${c.eurzar?c.eurzar.toFixed(2):'—'}</div>
+         <div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:6px">${c.fetchedAt||''}</div>`
+      : `<div class="empty" style="padding:16px 0" id="fxEmpty">Fetching exchange rates…</div>` }</div></div>`;
+}
+
+/* ---- live fetches ---- */
+async function fetchCurrency(){
+  try{
+    // no-key, CORS-friendly endpoint
+    const r=await fetch('https://api.exchangerate.host/latest?base=USD&symbols=ZAR,GBP,EUR');
+    const j=await r.json();
+    const usdzar=j.rates.ZAR, gbpzar=j.rates.ZAR/j.rates.GBP, eurzar=j.rates.ZAR/j.rates.EUR;
+    morningCfg().currency={usdzar,gbpzar,eurzar,fetchedAt:'updated '+new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})};
+    save(); renderHomeIfActive();
+  }catch(e){ const el=document.getElementById('fxEmpty'); if(el) el.textContent='Could not load rates (offline?).'; }
+}
+async function fetchNews(){
+  const base=proxyBase(); if(!base)return;
+  try{ const r=await fetch(`${base}/news?feed=bbc`); if(!r.ok)throw 0; const j=await r.json();
+    morningCfg().news=(j.items||j||[]).map(x=>({title:x.title,link:x.link,pubDate:x.pubDate||x.published||''})); save(); renderHomeIfActive();
+  }catch(e){ const el=document.getElementById('newsEmpty'); if(el) el.textContent='News route not available on proxy yet.'; }
+}
+async function fetchTraffic(){
+  const base=proxyBase(); if(!base)return; const m=morningCfg();
+  try{ const u=new URL(base+'/traffic'); u.searchParams.set('from',m.commute.from); u.searchParams.set('to',m.commute.to);
+    const r=await fetch(u); if(!r.ok)throw 0; const j=await r.json();
+    m.traffic={durationText:j.durationText||j.duration,normalText:j.normalText||j.typical,distanceText:j.distanceText||j.distance}; save(); renderHomeIfActive();
+  }catch(e){ const el=document.getElementById('trafficBox'); if(el) el.innerHTML='<div class="empty" style="padding:16px 0">Traffic route not available on proxy yet.</div>'; }
+}
+async function fetchCalendar(){
+  const base=proxyBase(); if(!base)return;
+  try{ const r=await fetch(`${base}/calendar?when=today`); if(!r.ok)throw 0; const j=await r.json();
+    const evs=(j.events||j||[]).map(e=>({time:e.time||(e.start||'').slice(11,16),title:e.title||e.summary,location:e.location}));
+    // merge proxy events with any manual ones for today
+    const manual=(morningCfg().calendar||[]).filter(e=>e._manual);
+    morningCfg().calendar=[...evs,...manual]; save(); renderHomeIfActive();
+  }catch(e){ /* leave manual entries as-is */ }
+}
+function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); if(proxyBase()){fetchNews();fetchTraffic();fetchCalendar();} fetchWhoopMorning(); }
+async function fetchWhoopMorning(){ if(proxyBase()&&typeof syncWhoop==='function'){ try{await syncWhoop();}catch(e){} renderHomeIfActive(); } }
+function renderHomeIfActive(){ const el=document.getElementById('pane-home'); if(el&&el.classList.contains('active')) renderHome(); }
+function fmtDate(d){ if(!d)return'—'; const x=new Date(d); return x.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}); }
+function shortCourse(c){ return (c||'').replace(' Golf Club','').replace(' Hotel & Country Club','').slice(0,18); }
+function totalRunAllTime(){ let t=0; for(const y in DB.run) for(const m in DB.run[y]) t+=DB.run[y][m].run||0; return t; }
+function latestBloodDate(){ if(!DB.blood||!DB.blood.length)return null; return [...DB.blood].sort((a,b)=>b.date.localeCompare(a.date))[0].date; }
+
+/* ============ WEALTH ============ */
+function renderWealth(){
+  const nw=netWorth();
+  const P=document.getElementById('pane-wealth');
+  const accountsHtml=DB.finance.accounts.map(a=>{
+    const holdings=(a.holdings||[]).map(h=>`<tr><td>${h.name}</td><td class="r mono">${ZAR(h.value)}</td><td class="r mono">${h.pct?h.pct.toFixed(1)+'%':'—'}</td></tr>`).join('');
+    const comp=a.components?`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-faint)">
+        ${a.components.nonVested?`<span>Non-vested ${ZARk(a.components.nonVested)}</span>`:''}
+        ${a.components.savings?`<span>Savings ${ZARk(a.components.savings)}</span>`:''}
+        ${a.components.retirement?`<span>Retirement ${ZARk(a.components.retirement)}</span>`:''}
+      </div>`:'';
+    return `<div class="card card-pad" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+        <div><div class="kicker" style="color:${accountColor(a.id)}">${a.type} · ${a.provider}</div>
+          <div class="h-sec" style="margin:5px 0 0">${a.name}</div>
+          <div class="mono" style="color:var(--ink-faint);margin-top:3px">${a.ref} · as at ${fmtDate(a.asOf)}</div></div>
+        <div style="text-align:right"><div class="tile" style="padding:0"><div class="num" style="font-size:30px">${ZARk(a.value)}</div>
+          ${a.ror?`<div class="foot" style="color:var(--good)">+${a.ror}% this ${a.rorPeriod}</div>`:''}</div></div>
+      </div>
+      ${holdings?`<table class="clean" style="margin-top:16px"><thead><tr><th>Underlying fund</th><th class="r">Value</th><th class="r">Weight</th></tr></thead><tbody>${holdings}</tbody></table>`:''}
+      ${a.note?`<div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-top:12px">${a.note}</div>`:''}
+      ${comp}
+      ${a.fees?`<div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:12px;border-top:1px solid var(--line);padding-top:10px">Total investment charge ${a.fees.tic}% · advice fee ${a.fees.advice}%</div>`:''}
+    </div>`;
+  }).join('');
+  P.innerHTML=`
+    <div class="coach"><div class="q">Reading the balance sheet</div>
+      <p>Your wealth is well-spread: a <b>company stake</b>, an <b>employer pension</b>, and a <b>retirement annuity</b>. Roughly <b>three-quarters</b> sits in retirement vehicles you can't fully access before 55–60, and <b>${(DB.finance.accounts.find(a=>a.id==='hbi').value/nw*100).toFixed(0)}%</b> is tied up in one private company — worth keeping an eye on for concentration risk.</p></div>
+    <div class="grid g4" style="margin-bottom:24px">
+      <div class="card tile"><div class="accent-bar" style="background:var(--gold)"></div><div class="lbl">Total Net Worth</div><div class="num">${ZARk(nw)}</div><div class="foot">${ZAR(nw)}</div></div>
+      ${DB.finance.accounts.map(a=>`<div class="card tile"><div class="accent-bar" style="background:${accountColor(a.id)}"></div><div class="lbl">${shortName(a.name)}</div><div class="num" style="font-size:27px">${ZARk(a.value)}</div><div class="foot">${(a.value/nw*100).toFixed(1)}% of total</div></div>`).join('')}
+    </div>
+    <div class="card card-pad" style="margin-bottom:22px">
+      <div class="kicker">Composition</div><div class="h-sec">How it splits<span class="sub">by holding & by liquidity</span></div>
+      <div class="ring-wrap">
+        <div>${donut(DB.finance.accounts.map(a=>({value:a.value,color:accountColor(a.id)})),150)}</div>
+        <div style="flex:1">${barChart(DB.finance.accounts.map(a=>({label:shortName(a.name),value:a.value,color:accountColor(a.id)})),{h:200,yFmt:v=>ZARk(v),labStep:1})}</div>
+      </div>
+    </div>
+    ${accountsHtml}
+    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;text-align:center;margin-top:8px">
+      Figures drawn from your INN8 and Alexforbes statements plus your stated company valuation. Informational only — not financial advice. For decisions, speak with ${DB.profile.adviser}.</div>`;
+}
+function shortName(n){ return n.replace('Retirement Annuity','RA').replace('Alexforbes ','').replace(' Pension','').replace('Harris Billings Inc','Harris Billings'); }
+/* ============ RETIREMENT (income projection) ============ */
+const RET_DEFAULTS = {growth:8, inflation:5, contribMonthly:25000, drawdown:4, includeHBI:50};
+function getRet(){ DB.retire = Object.assign({}, RET_DEFAULTS, DB.retire||{}); return DB.retire; }
+
+function projectRetirement(){
+  const r=getRet();
+  const yrs=yearsBetween(TODAY,DB.profile.targetRetirementDate);
+  // retirement-accessible capital: RA + GGG fully; HBI partially (slider %)
+  const ra=DB.finance.accounts.find(a=>a.id==='inn8').value;
+  const ggg=DB.finance.accounts.find(a=>a.id==='ggg').value;
+  const hbi=DB.finance.accounts.find(a=>a.id==='hbi').value*(r.includeHBI/100);
+  const startCapital=ra+ggg+hbi;
+  // grow lump sum + monthly contributions to retirement-investable pots (RA+GGG)
+  const g=r.growth/100, gm=Math.pow(1+g,1/12)-1;
+  const months=Math.round(yrs*12);
+  let fv=startCapital;
+  for(let m=0;m<months;m++){ fv=fv*(1+gm)+r.contribMonthly; }
+  // real (today's money) value
+  const realFactor=Math.pow(1+r.inflation/100, yrs);
+  const fvReal=fv/realFactor;
+  // sustainable annual income via drawdown rate, then monthly
+  const annual=fv*(r.drawdown/100);
+  const monthly=annual/12;
+  const monthlyReal=monthly/realFactor;
+  return {yrs,startCapital,fv,fvReal,annual,monthly,monthlyReal,ra,ggg,hbi};
+}
+
+function renderRetire(){
+  const r=getRet(); const p=projectRetirement();
+  const P=document.getElementById('pane-retire');
+  // build trajectory chart (nominal capital over time)
+  const g=r.growth/100, gm=Math.pow(1+g,1/12)-1, months=Math.round(p.yrs*12);
+  let fv=p.startCapital, pts=[]; const startYear=new Date().getFullYear()+ new Date().getMonth()/12;
+  for(let m=0;m<=months;m++){ if(m%3===0) pts.push({x:startYear+m/12,y:fv}); fv=fv*(1+gm)+r.contribMonthly; }
+  const chart=lineChart([{name:'Projected capital',color:'var(--terra)',points:pts}],
+    {h:240,area:true,dots:false,minY:0,yFmt:v=>ZARk(v),xFmt:v=>Math.round(v),maxXLabels:7});
+
+  P.innerHTML=`
+   <div class="coach"><div class="q">The number that matters</div>
+     <p>Retirement isn't a finish line, it's a paycheck you give yourself. Below is an estimate of the <b>monthly income</b> your capital could sustainably produce from age 60, in today's money. Move the sliders to see how your choices — saving more, retiring later, drawing less — change the answer. These are planning estimates, not guarantees or advice.</p></div>
+
+   <div class="card card-pad" style="margin-bottom:22px">
+     <div class="big-income">
+       <div class="pre">Estimated sustainable income at 60</div>
+       <div class="amt">${ZAR(p.monthlyReal)}<span style="font-size:24px;color:var(--ink-faint)">/mo</span></div>
+       <div class="post">in today's money · ${ZAR(p.monthly)}/mo nominal · ${ZARk(p.fv)} projected capital</div>
+     </div>
+     <div class="chart-box" style="margin-top:10px">${chart}</div>
+     <div class="legend"><span><span class="dot" style="background:var(--terra)"></span>Projected capital growth to age 60</span></div>
+   </div>
+
+   <div class="grid g2">
+     <div class="card card-pad">
+       <div class="kicker">Your assumptions</div><div class="h-sec">Tune the plan</div>
+       <div class="slider-row"><label>Annual growth (return) <b id="lg">${r.growth}%</b></label>
+         <input type="range" min="3" max="13" step="0.5" value="${r.growth}" oninput="setRet('growth',+this.value)"></div>
+       <div class="slider-row"><label>Inflation <b id="li">${r.inflation}%</b></label>
+         <input type="range" min="2" max="9" step="0.5" value="${r.inflation}" oninput="setRet('inflation',+this.value)"></div>
+       <div class="slider-row"><label>Monthly contributions <b id="lc">${ZAR(r.contribMonthly)}</b></label>
+         <input type="range" min="0" max="80000" step="2500" value="${r.contribMonthly}" oninput="setRet('contribMonthly',+this.value)"></div>
+       <div class="slider-row"><label>Safe drawdown rate <b id="ld">${r.drawdown}%</b></label>
+         <input type="range" min="2.5" max="6" step="0.25" value="${r.drawdown}" oninput="setRet('drawdown',+this.value)"></div>
+       <div class="slider-row"><label>Include Harris Billings stake <b id="lh">${r.includeHBI}%</b></label>
+         <input type="range" min="0" max="100" step="5" value="${r.includeHBI}" oninput="setRet('includeHBI',+this.value)"></div>
+       <div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-faint);margin-top:4px">
+         The company stake is illiquid; the slider lets you model how much of it you'd realistically convert to retirement capital.</div>
+     </div>
+     <div class="card card-pad">
+       <div class="kicker">The mechanics</div><div class="h-sec">How we got there</div>
+       <table class="clean">
+         <tr><td>Years until age 60</td><td class="r mono">${p.yrs.toFixed(1)}</td></tr>
+         <tr><td>RA + Pension today</td><td class="r mono">${ZARk(p.ra+p.ggg)}</td></tr>
+         <tr><td>Company stake included</td><td class="r mono">${ZARk(p.hbi)}</td></tr>
+         <tr><td>Starting capital</td><td class="r mono">${ZARk(p.startCapital)}</td></tr>
+         <tr><td>+ Contributions over ${p.yrs.toFixed(0)} yrs</td><td class="r mono">${ZARk(r.contribMonthly*12*p.yrs)}</td></tr>
+         <tr><td>Projected capital at 60</td><td class="r mono"><b>${ZARk(p.fv)}</b></td></tr>
+         <tr><td>In today's money</td><td class="r mono">${ZARk(p.fvReal)}</td></tr>
+         <tr><td>Annual income @ ${r.drawdown}%</td><td class="r mono">${ZARk(p.annual)}</td></tr>
+         <tr><td>Monthly (today's money)</td><td class="r mono" style="color:var(--terra-deep)"><b>${ZAR(p.monthlyReal)}</b></td></tr>
+       </table>
+       <div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-faint);margin-top:14px">
+         Note: at 60 you reach your <b>self-set</b> target — five years before the GGG fund's normal retirement date of ${fmtDate(DB.profile.gggNormalRetirement)}. Retiring earlier means fewer contributing years and more drawdown years, which is exactly the tension these sliders let you feel.</div>
+     </div>
+   </div>`;
+}
+function setRet(k,v){ getRet()[k]=v; save();
+  const map={growth:'lg',inflation:'li',drawdown:'ld'};
+  if(k==='contribMonthly') document.getElementById('lc').textContent=ZAR(v);
+  else if(k==='includeHBI') document.getElementById('lh').textContent=v+'%';
+  else document.getElementById(map[k]).textContent=v+'%';
+  // re-render only the outputs (cheap: full re-render keeps it simple & correct)
+  renderRetire();
+}
+/* ============ RUNNING ============ */
+function runYearTotals(){
+  const out=[];
+  for(const y in DB.run){ let run=0,cyc=0,n=0;
+    for(const m in DB.run[y]){ run+=DB.run[y][m].run||0; cyc+=DB.run[y][m].cycle||0; n++; }
+    out.push({year:+y,run:Math.round(run*10)/10,cycle:Math.round(cyc*10)/10,months:n});
+  }
+  return out.sort((a,b)=>a.year-b.year);
+}
+function renderRun(){
+  const totals=runYearTotals();
+  const P=document.getElementById('pane-run');
+  const allRun=totals.reduce((s,t)=>s+t.run,0);
+  const allCyc=totals.reduce((s,t)=>s+t.cycle,0);
+  const best=totals.reduce((b,t)=>t.run>b.run?t:b,totals[0]);
+  const avgPerYr=allRun/totals.filter(t=>t.run>0).length;
+  const hasCycle=totals.some(t=>t.cycle>0);
+
+  const runChart=lineChart([{name:'Running',color:'var(--sage)',points:totals.map(t=>({x:t.year,y:t.run}))}].concat(
+    hasCycle?[{name:'Cycling',color:'var(--terra)',points:totals.filter(t=>t.cycle>0).map(t=>({x:t.year,y:t.cycle}))}]:[]),
+    {h:250,area:false,yFmt:v=>Math.round(v),xFmt:v=>("'"+String(v).slice(2)),padY:.08,minY:0,maxXLabels:10});
+
+  P.innerHTML=`
+   <div class="coach"><div class="q">Twenty years on the road</div>
+     <p>This is one of the most valuable things you've kept: <b>two decades</b> of movement data. You've run <b>${Math.round(allRun)} km</b> since 2005 — that's most of the way ${distanceMetaphor(allRun)}. The story it tells isn't about any single year; it's that you keep lacing up. Your strongest year was <b>${best.year}</b> at ${Math.round(best.run)} km.</p></div>
+   <div class="grid g4" style="margin-bottom:24px">
+     <div class="card tile"><div class="accent-bar" style="background:var(--sage)"></div><div class="lbl">Lifetime Running</div><div class="num">${Math.round(allRun)}<small> km</small></div><div class="foot">since 2005</div></div>
+     <div class="card tile"><div class="accent-bar" style="background:var(--sage-deep)"></div><div class="lbl">Avg / Active Year</div><div class="num">${Math.round(avgPerYr)}<small> km</small></div><div class="foot">when running</div></div>
+     <div class="card tile"><div class="accent-bar" style="background:var(--gold)"></div><div class="lbl">Best Year</div><div class="num">${Math.round(best.run)}<small> km</small></div><div class="foot">${best.year}</div></div>
+     <div class="card tile"><div class="accent-bar" style="background:var(--terra)"></div><div class="lbl">Lifetime Cycling</div><div class="num">${Math.round(allCyc)}<small> km</small></div><div class="foot">2018–2022</div></div>
+   </div>
+   <div class="card card-pad" style="margin-bottom:22px">
+     <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap">
+       <div><div class="kicker">The long view</div><div class="h-sec" style="margin-bottom:6px">Kilometres per year</div></div>
+       <button class="btn primary" onclick="openRunEntry()">+ Log a month</button>
+     </div>
+     <div class="chart-box">${runChart}</div>
+     <div class="legend"><span><span class="dot" style="background:var(--sage)"></span>Running</span>${hasCycle?'<span><span class="dot" style="background:var(--terra)"></span>Cycling</span>':''}</div>
+   </div>
+   <div class="card card-pad">
+     <div class="kicker">Year by year</div><div class="h-sec">The record</div>
+     <table class="clean"><thead><tr><th>Year</th><th class="r">Running km</th><th class="r">Cycling km</th><th class="r">Months logged</th><th class="r">vs prev</th></tr></thead><tbody>
+     ${totals.slice().reverse().map((t,i,arr)=>{
+        const prev=arr[i+1]; const d=prev?t.run-prev.run:null;
+        const dc=d==null?'':d>0?'var(--good)':d<0?'var(--bad)':'var(--ink-faint)';
+        return `<tr><td class="mono">${t.year}</td><td class="r mono">${t.run||'—'}</td><td class="r mono">${t.cycle||'—'}</td><td class="r mono">${t.months}</td>
+          <td class="r mono" style="color:${dc}">${d==null?'—':(d>0?'+':'')+Math.round(d)}</td></tr>`;
+     }).join('')}
+     </tbody></table>
+   </div>`;
+}
+function distanceMetaphor(km){
+  if(km>=9000) return 'around the coastline of South Africa';
+  if(km>=6000) return 'from Cape Town to Cairo';
+  if(km>=3000) return 'the length of Africa twice over';
+  if(km>=1500) return 'from Cape Town to Johannesburg';
+  return 'a serious distance';
+}
+function openRunEntry(){
+  const yrNow=new Date().getFullYear();
+  showModal(`<div class="modal-head"><div><h2>Log a month</h2><div class="ms">Add or update running / cycling distance</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="row3">
+        <div class="field"><label>Year</label><input type="number" id="re_year" value="${yrNow}" min="2000" max="2100"></div>
+        <div class="field"><label>Month</label><select id="re_month">${MONTHS.map((m,i)=>`<option value="${i+1}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('')}</select></div>
+        <div class="field"><label>Run (km)</label><input type="number" id="re_run" step="0.1" placeholder="0"></div>
+      </div>
+      <div class="field"><label>Cycle (km) — optional</label><input type="number" id="re_cyc" step="0.1" placeholder="0"></div>
+      <button class="btn primary" onclick="saveRun()">Save</button>
+    </div>`);
+}
+function saveRun(){
+  const y=document.getElementById('re_year').value, m=document.getElementById('re_month').value;
+  const run=parseFloat(document.getElementById('re_run').value)||0;
+  const cyc=parseFloat(document.getElementById('re_cyc').value)||0;
+  DB.run[y]=DB.run[y]||{}; DB.run[y][m]={run:Math.round(run*100)/100,cycle:Math.round(cyc*100)/100};
+  save(); closeModal(); renderRun(); renderHome(); toast(`Logged ${MONTHS[m-1]} ${y}`);
+}
+
+/* ============ HEALTH (flexible marker panel) ============ */
+function bloodMarkers(){
+  const map={};
+  (DB.blood||[]).forEach(r=>{ (map[r.marker]=map[r.marker]||[]).push(r); });
+  for(const k in map) map[k].sort((a,b)=>a.date.localeCompare(b.date));
+  return map;
+}
+function markerStatus(val,lo,hi){
+  if(lo==null&&hi==null) return {t:'tracked',c:'var(--ink-faint)',bg:'var(--paper2)'};
+  if(hi!=null&&val>hi) return {t:'above range',c:'var(--bad)',bg:'rgba(191,106,94,.12)'};
+  if(lo!=null&&val<lo) return {t:'below range',c:'var(--bad)',bg:'rgba(191,106,94,.12)'};
+  return {t:'in range',c:'var(--good)',bg:'rgba(111,148,104,.13)'};
+}
+function markerChart(arr,col){
+  // line chart with reference-range band; x = decimal year
+  const W=340,H=150,pad={l:42,r:12,t:14,b:26};
+  const pts=arr.map(r=>({x:new Date(r.date).getFullYear()+new Date(r.date).getMonth()/12,y:r.value}));
+  const lo=arr[0].low, hi=arr[0].high;
+  const ys=pts.map(p=>p.y).concat(lo!=null?[lo]:[]).concat(hi!=null?[hi]:[]);
+  let minY=Math.min(...ys), maxY=Math.max(...ys); const r=(maxY-minY)||1; minY-=r*0.18; maxY+=r*0.18;
+  let minX=Math.min(...pts.map(p=>p.x)), maxX=Math.max(...pts.map(p=>p.x)); if(minX===maxX){minX-=1;maxX+=1;}
+  const px=x=>pad.l+(x-minX)/(maxX-minX)*(W-pad.l-pad.r);
+  const py=y=>H-pad.b-(y-minY)/((maxY-minY)||1)*(H-pad.t-pad.b);
+  // range band
+  let band='';
+  const yTop = hi!=null? py(hi) : pad.t;
+  const yBot = lo!=null? py(lo) : H-pad.b;
+  if(lo!=null||hi!=null) band=`<rect x="${pad.l}" y="${yTop}" width="${W-pad.l-pad.r}" height="${Math.max(0,yBot-yTop)}" fill="var(--good)" opacity=".09"/>`;
+  // y labels (range edges + min/max)
+  let yl='';
+  [['',minY],['',maxY]].forEach(()=>{});
+  const labels=[]; if(lo!=null)labels.push(lo); if(hi!=null)labels.push(hi);
+  labels.forEach(v=>{ yl+=`<line x1="${pad.l}" y1="${py(v)}" x2="${W-pad.r}" y2="${py(v)}" stroke="var(--good)" stroke-width="1" stroke-dasharray="3 3" opacity=".5"/>
+    <text x="${pad.l-6}" y="${py(v)+3}" text-anchor="end" font-family="var(--mono)" font-size="9" fill="var(--ink-faint)">${v}</text>`; });
+  // path + dots colored by in/out of range
+  const d=pts.map((p,i)=>(i?'L':'M')+px(p.x)+' '+py(p.y)).join(' ');
+  const dots=pts.map((p,i)=>{ const out=(lo!=null&&p.y<lo)||(hi!=null&&p.y>hi);
+    return `<circle cx="${px(p.x)}" cy="${py(p.y)}" r="3.4" fill="${out?'var(--bad)':col}" stroke="var(--card)" stroke-width="1.5"/>`; }).join('');
+  // x labels (first & last year)
+  const xl=`<text x="${px(pts[0].x)}" y="${H-8}" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="var(--ink-faint)">'${String(Math.round(pts[0].x)).slice(2)}</text>
+    <text x="${px(pts[pts.length-1].x)}" y="${H-8}" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="var(--ink-faint)">'${String(Math.round(pts[pts.length-1].x)).slice(2)}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${band}${yl}<path d="${d}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linejoin="round"/>${dots}${xl}</svg>`;
+}
+function trendArrow(arr){
+  if(arr.length<2) return '';
+  const a=arr[arr.length-2].value, b=arr[arr.length-1].value;
+  const lo=arr[0].low,hi=arr[0].high;
+  // is "up" good or bad? if hi exists, up is bad; if lo exists only, up is good
+  const dir=b>a?'up':b<a?'down':'flat';
+  if(dir==='flat')return'';
+  let good;
+  if(hi!=null&&lo==null) good=(dir==='down');
+  else if(lo!=null&&hi==null) good=(dir==='up');
+  else good=null;
+  const col= good==null?'var(--ink-faint)':good?'var(--good)':'var(--warn)';
+  const ar=dir==='up'?'↑':'↓';
+  return `<span style="color:${col};font-family:var(--mono);font-size:12px">${ar}</span>`;
+}
+function renderHealth(){
+  const markers=bloodMarkers();
+  let names=Object.keys(markers);
+  // sort: out-of-range first, then alphabetical
+  names.sort((a,b)=>{
+    const la=markers[a][markers[a].length-1], lb=markers[b][markers[b].length-1];
+    const oa=markerStatus(la.value,la.low,la.high).t!=='in range'&&la.low!=null;
+    const ob=markerStatus(lb.value,lb.low,lb.high).t!=='in range'&&lb.low!=null;
+    if(oa!==ob) return oa?-1:1;
+    return a.localeCompare(b);
+  });
+  const P=document.getElementById('pane-health');
+  const flagged=names.filter(nm=>{const l=markers[nm][markers[nm].length-1];const s=markerStatus(l.value,l.low,l.high);return l.low!=null&&s.t!=='in range';});
+  const cards=names.map((nm,idx)=>{
+    const arr=markers[nm]; const latest=arr[arr.length-1];
+    const st=markerStatus(latest.value,latest.low,latest.high);
+    const col=PALETTE[idx%PALETTE.length];
+    const rangeTxt = latest.low!=null&&latest.high!=null?`${latest.low}–${latest.high}`
+      : latest.high!=null?`< ${latest.high}` : latest.low!=null?`> ${latest.low}`:'no range';
+    return `<div class="card marker-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><div class="mk-name">${nm}</div><div class="mk-range">normal ${rangeTxt} ${latest.unit||''}</div></div>
+        <span class="status-pill" style="color:${st.c};background:${st.bg}">${st.t}</span>
+      </div>
+      <div class="mk-latest"><span class="mk-val" style="color:${st.c}">${latest.value}</span>
+        ${trendArrow(arr)}
+        <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px">${latest.unit||''} · ${fmtDate(latest.date)}</span></div>
+      <div style="margin-top:4px">${markerChart(arr,col)}</div>
+      <div class="mono" style="color:var(--ink-faint);font-size:10px;margin-top:2px">${arr.length} readings · ${fmtDate(arr[0].date)} → ${fmtDate(latest.date)}</div>
+    </div>`;
+  }).join('');
+  P.innerHTML=`
+   <div class="coach"><div class="q">What the bloodwork knows</div>
+     <p>${healthCoach(markers,flagged)}</p></div>
+   <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center">
+     <button class="btn primary" onclick="openHealthUpload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Upload results (CSV)</button>
+     <button class="btn" onclick="openBloodEntry()">+ Add a single reading</button>
+     ${names.length?`<span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${names.length} markers · ${flagged.length} outside range</span>`:''}
+   </div>
+   ${names.length?`<div class="grid g2">${cards}</div>`:`<div class="card card-pad"><div class="empty">No markers yet. Upload a CSV with columns like <b>Date, WBC, Cholesterol…</b> and each becomes a tracked card.</div></div>`}
+   <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;text-align:center;margin-top:18px">
+     Informational tracking only — not medical advice or diagnosis. Discuss results — especially anything flagged — with a qualified healthcare professional.</div>`;
+}
+function healthCoach(markers,flagged){
+  const bits=[];
+  bits.push(`Trends matter more than any single reading, and you've built a <b>rich history</b> here — ${Object.keys(markers).length} markers, some going back to 2013.`);
+  if(flagged.length){
+    const lipids=flagged.filter(f=>/chol|ldl|hdl|triglyc/i.test(f));
+    if(lipids.length) bits.push(`The clearest signal is your <b>lipid panel</b> — cholesterol and LDL have run above range across most readings. That's the kind of durable pattern worth raising with Dr Nel.`);
+    const wbc=flagged.find(f=>/white cell|neutroph/i.test(f));
+    if(wbc) bits.push(`Your <b>white cell and neutrophil counts</b> have sat just below range consistently for over a decade — a stable, long-standing pattern rather than a new change.`);
+  }
+  bits.push(`Out-of-range markers are surfaced first below. None of this is a diagnosis — it's a map to walk through with your doctor.`);
+  return bits.join(' ');
+}
+/* ============ HEALTH: upload + entry ============ */
+function openHealthUpload(){
+  showModal(`<div class="modal-head"><div><h2>Upload results</h2><div class="ms">Any CSV with a Date column + marker columns</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="dz" id="hdz" onclick="document.getElementById('hcsv').click()">
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        <div class="dz-t">Drop CSV or click to browse</div>
+        <div class="dz-s">First column = date. Each other column becomes a tracked marker.</div>
+      </div>
+      <input type="file" id="hcsv" accept=".csv" style="display:none" onchange="handleHealthCSV(this.files[0])">
+      <div id="hPreview"></div>
+      <details style="margin-top:18px"><summary style="cursor:pointer;font-family:var(--mono);font-size:11px;color:var(--ink-faint);letter-spacing:.5px">▸ CSV format help</summary>
+        <div style="font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);background:var(--paper);padding:14px;border-radius:10px;margin-top:10px;line-height:1.7">
+          Date,Cholesterol,Glucose,PSA<br>2025-07-25,7.4,5.5,1.2<br>2025-11-22,6.6,,1.0<br><br>
+          To set normal ranges, add them to the column header in brackets:<br>
+          <span style="color:var(--terra)">Cholesterol (&lt;5.0)</span> · <span style="color:var(--terra)">Glucose (3.9-5.5)</span> · <span style="color:var(--terra)">HDL (&gt;1.0)</span>
+        </div></details>
+    </div>`);
+  const dz=document.getElementById('hdz');
+  ['dragover','dragenter'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--terra)';}));
+  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--line2)';}));
+  dz.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0])handleHealthCSV(ev.dataTransfer.files[0]); });
+}
+function parseCSVLine(line){ const out=[];let c='',q=false;
+  for(let i=0;i<line.length;i++){const ch=line[i];
+    if(ch==='"')q=!q; else if(ch===','&&!q){out.push(c);c='';} else c+=ch;}
+  out.push(c); return out; }
+function parseRange(header){
+  // returns {name, low, high}
+  let name=header.trim(), low=null, high=null;
+  const m=header.match(/\(([^)]*)\)\s*$/);
+  if(m){ const inside=m[1].replace(/,/g,'.').trim(); name=header.slice(0,m.index).trim();
+    let mm;
+    if((mm=inside.match(/^<\s*([\d.]+)/))) high=+mm[1];
+    else if((mm=inside.match(/^>\s*([\d.]+)/))) low=+mm[1];
+    else if((mm=inside.match(/([\d.]+)\s*[-–]\s*([\d.]+)/))){ low=+mm[1]; high=+mm[2]; }
+  }
+  return {name,low,high};
+}
+function handleHealthCSV(file){
+  if(!file)return; const reader=new FileReader();
+  reader.onload=e=>{ try{
+    let txt=e.target.result.replace(/^\uFEFF/,'');
+    const lines=txt.split(/\r?\n/).filter(l=>l.trim());
+    const header=parseCSVLine(lines[0]);
+    const cols=header.slice(1).map(parseRange);
+    const newReadings=[];
+    for(let i=1;i<lines.length;i++){
+      const cells=parseCSVLine(lines[i]);
+      const date=normalizeDate(cells[0]); if(!date)continue;
+      cols.forEach((c,j)=>{ const raw=(cells[j+1]||'').trim().replace(',','.');
+        const v=parseFloat(raw); if(isNaN(v))return;
+        newReadings.push({date,marker:c.name,value:v,low:c.low,high:c.high});
+      });
+    }
+    if(!newReadings.length)throw new Error('No readings found — check the date column and values');
+    window._pendingBlood=newReadings;
+    const byM={}; newReadings.forEach(r=>{(byM[r.marker]=byM[r.marker]||[]).push(r);});
+    document.getElementById('hPreview').innerHTML=`
+      <div style="margin-top:18px;padding:16px;background:var(--paper);border:1px solid var(--line2);border-radius:12px">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--good);letter-spacing:1px;margin-bottom:8px">✓ ${newReadings.length} readings · ${Object.keys(byM).length} markers</div>
+        ${Object.entries(byM).map(([m,a])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-family:var(--serif);font-size:14px"><span>${m}</span><span class="mono" style="color:var(--ink-faint)">${a.length} reading${a.length>1?'s':''}</span></div>`).join('')}
+        <button class="btn primary" style="width:100%;justify-content:center;margin-top:14px" onclick="commitBlood()">Add to health panel</button>
+      </div>`;
+  }catch(err){ document.getElementById('hPreview').innerHTML=`<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ ${err.message}</div>`; }
+  };
+  reader.readAsText(file);
+}
+function normalizeDate(s){
+  if(!s)return null; s=s.trim();
+  let m;
+  if((m=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/))) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  if((m=s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/))) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  const d=new Date(s); if(!isNaN(d)) return d.toISOString().slice(0,10);
+  return null;
+}
+function commitBlood(){
+  if(!window._pendingBlood)return;
+  // merge, de-dupe on (date,marker)
+  const key=r=>r.date+'|'+r.marker; const seen=new Set(DB.blood.map(key));
+  let added=0;
+  window._pendingBlood.forEach(r=>{ if(!seen.has(key(r))){ DB.blood.push(r); seen.add(key(r)); added++; }
+    else { const ex=DB.blood.find(x=>key(x)===key(r)); ex.value=r.value; if(r.low!=null)ex.low=r.low; if(r.high!=null)ex.high=r.high; }
+    // propagate range to existing readings of same marker if they lack one
+    if(r.low!=null||r.high!=null) DB.blood.filter(x=>x.marker===r.marker).forEach(x=>{ if(x.low==null)x.low=r.low; if(x.high==null)x.high=r.high; });
+  });
+  window._pendingBlood=null; save(); closeModal(); renderHealth(); renderHome(); toast(`Added ${added} new readings`);
+}
+function openBloodEntry(){
+  const existing=[...new Set(DB.blood.map(r=>r.marker))].sort();
+  showModal(`<div class="modal-head"><div><h2>Add a reading</h2><div class="ms">Single marker value on a date</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Marker</label><input id="be_marker" list="be_list" placeholder="e.g. Cholesterol">
+        <datalist id="be_list">${existing.map(m=>`<option value="${m}">`).join('')}</datalist></div>
+      <div class="row3">
+        <div class="field"><label>Value</label><input id="be_val" type="number" step="0.01"></div>
+        <div class="field"><label>Date</label><input id="be_date" type="date" value="${TODAY}"></div>
+        <div class="field"><label>Unit</label><input id="be_unit" placeholder="mmol/L"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Normal low (optional)</label><input id="be_lo" type="number" step="0.01"></div>
+        <div class="field"><label>Normal high (optional)</label><input id="be_hi" type="number" step="0.01"></div>
+      </div>
+      <button class="btn primary" onclick="saveBlood()">Save reading</button>
+    </div>`);
+}
+function saveBlood(){
+  const marker=document.getElementById('be_marker').value.trim();
+  const value=parseFloat(document.getElementById('be_val').value);
+  if(!marker||isNaN(value)){ toast('Enter a marker and value'); return; }
+  const date=document.getElementById('be_date').value||TODAY;
+  const unit=document.getElementById('be_unit').value.trim()||null;
+  let lo=parseFloat(document.getElementById('be_lo').value); lo=isNaN(lo)?null:lo;
+  let hi=parseFloat(document.getElementById('be_hi').value); hi=isNaN(hi)?null:hi;
+  // inherit range/unit from existing marker if not given
+  const ex=DB.blood.find(r=>r.marker===marker);
+  if(ex){ if(lo==null)lo=ex.low; if(hi==null)hi=ex.high; }
+  DB.blood.push({date,marker,value:Math.round(value*100)/100,unit:unit||(ex&&ex.unit)||null,low:lo,high:hi});
+  save(); closeModal(); renderHealth(); renderHome(); toast(`Logged ${marker}`);
+}
+
+/* ============ GOLF (compact) ============ */
+const CLUB_ORDER=['Driver','3 Wood','2 Iron','4 Iron','5 Iron','6 Iron','7 Iron','8 Iron','9 Iron','Pitching Wedge','Gap Wedge','52° Wedge','56° Wedge','60° Wedge','Putter'];
+const CLUB_ABBR={'Driver':'Dr','3 Wood':'3W','2 Iron':'2i','4 Iron':'4i','5 Iron':'5i','6 Iron':'6i','7 Iron':'7i','8 Iron':'8i','9 Iron':'9i','Pitching Wedge':'PW','Gap Wedge':'GW','52° Wedge':'52°','56° Wedge':'56°','60° Wedge':'60°','Putter':'Pt'};
+// canonical bag — every club shows in the bag view even before it has shot data
+const BAG=[...CLUB_ORDER];
+// map common launch-monitor club-type names onto the canonical bag
+const CLUB_ALIASES={
+  'driver':'Driver','3 wood':'3 Wood','three wood':'3 Wood','3w':'3 Wood',
+  '2 iron':'2 Iron','4 iron':'4 Iron','5 iron':'5 Iron','6 iron':'6 Iron','7 iron':'7 Iron','8 iron':'8 Iron','9 iron':'9 Iron',
+  'pitching wedge':'Pitching Wedge','pw':'Pitching Wedge','wedge':'Pitching Wedge',
+  'gap wedge':'Gap Wedge','gw':'Gap Wedge','approach wedge':'Gap Wedge','aw':'Gap Wedge',
+  'sand wedge':'56° Wedge','sw':'56° Wedge',           // default a generic SW to the 56°
+  'lob wedge':'60° Wedge','lw':'60° Wedge',             // default a generic LW to the 60°
+  '50 degree':'Gap Wedge','52 degree':'52° Wedge','54 degree':'52° Wedge',
+  '56 degree':'56° Wedge','58 degree':'56° Wedge','60 degree':'60° Wedge',
+  '52°':'52° Wedge','56°':'56° Wedge','60°':'60° Wedge','putter':'Putter'
+};
+function canonicalClub(name){
+  if(!name) return null;
+  const k=name.trim().toLowerCase().replace(/\s+/g,' ');
+  if(CLUB_ALIASES[k]) return CLUB_ALIASES[k];
+  // tolerant degree match e.g. "60° Sand Wedge", "Vokey 56", "SM9 58"
+  const deg=k.match(/(\d{2})\s*(?:°|deg|degree)?/);
+  if(deg){ const d=+deg[1]; if(d>=48&&d<=64){ if(d<=50)return'Gap Wedge'; if(d<=53)return'52° Wedge'; if(d<=58)return'56° Wedge'; return'60° Wedge'; } }
+  // title-case fallback so unknown clubs still track
+  return name.trim().replace(/\b\w/g,c=>c.toUpperCase());
+}
+function golf(){ return DB.golf||{shots:[],rounds:[]}; }
+function clubsWithData(){ return [...new Set(golf().shots.map(s=>s.club))]; }
+function clubsInBag(){
+  // union of canonical bag + any extra clubs that have data, sorted by bag order
+  const extra=clubsWithData().filter(c=>!BAG.includes(c));
+  return [...BAG, ...extra].sort((a,b)=>{
+    const ia=CLUB_ORDER.indexOf(a), ib=CLUB_ORDER.indexOf(b);
+    return (ia<0?99:ia)-(ib<0?99:ib);
+  });
+}
+/* Scratch (0-handicap) benchmark reference — carry in METRES, clubhead speed in mph.
+   Carry figures converted from widely-published scratch/low-single-figure yardages
+   (Shot Scope / Trackman scratch tier). Clubhead speed anchored to Trackman scratch
+   values (driver ~94, 6i ~80, PW ~72) interpolated across the bag. Dispersion target
+   is the lateral carry spread (±m) a scratch player typically holds per club. */
+const SCRATCH={
+  'Driver':       {carry:251, chs:113, disp:13},
+  '3 Wood':       {carry:224, chs:107, disp:12},
+  '2 Iron':       {carry:201, chs:98,  disp:11},
+  '4 Iron':       {carry:188, chs:90,  disp:10},
+  '5 Iron':       {carry:178, chs:88,  disp:9},
+  '6 Iron':       {carry:167, chs:85,  disp:8.5},
+  '7 Iron':       {carry:155, chs:82,  disp:8},
+  '8 Iron':       {carry:143, chs:78,  disp:7},
+  '9 Iron':       {carry:130, chs:75,  disp:6.5},
+  'Pitching Wedge':{carry:117,chs:72,  disp:6},
+  'Gap Wedge':    {carry:104, chs:68,  disp:5.5},
+  '52° Wedge':    {carry:95,  chs:64,  disp:5},
+  '56° Wedge':    {carry:82,  chs:60,  disp:4.5},
+  '60° Wedge':    {carry:68,  chs:56,  disp:4}
+};
+// robust clubhead speed: launch monitors emit junk CHS readings, so use a filtered
+// median that rejects values outside a plausible band relative to the club's ball speed.
+/* ---- Outlier rejection (IQR fences). Removes mishits/junk before any stat. ---- */
+function rejectOutliers(vals){
+  const v=vals.filter(x=>x!=null&&isFinite(x));
+  if(v.length<4) return v;                       // too few to fence
+  const s=v.slice().sort((a,b)=>a-b);
+  const q=p=>{const i=(s.length-1)*p, lo=Math.floor(i), hi=Math.ceil(i); return s[lo]+(s[hi]-s[lo])*(i-lo);};
+  const q1=q(0.25), q3=q(0.75), iqr=q3-q1;
+  const lo=q1-1.5*iqr, hi=q3+1.5*iqr;
+  return v.filter(x=>x>=lo&&x<=hi);
+}
+function meanOf(a){ return a.length? a.reduce((s,x)=>s+x,0)/a.length : null; }
+function sdOf(a){ if(a.length<2)return null; const m=meanOf(a); return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1)); }
+
+function robustClubSpeed(shots){
+  // launch monitors emit junk CHS readings; the reliable discriminator is smash factor
+  // (ballSpeed/clubSpeed). A genuine iron/wedge strike sits ~1.20–1.55; driver ~1.40–1.52.
+  const sane=shots.filter(s=>s.clubSpeed!=null&&s.clubSpeed>50&&s.clubSpeed<135&&s.ballSpeed!=null)
+    .filter(s=>{const sm=s.ballSpeed/s.clubSpeed; return sm>=1.15&&sm<=1.55;})
+    .map(s=>s.clubSpeed);
+  const loose=shots.map(s=>s.clubSpeed).filter(v=>v!=null&&v>50&&v<135);
+  const use=rejectOutliers(sane.length>=3?sane:loose);
+  if(!use.length) return null;
+  const sorted=use.slice().sort((a,b)=>a-b);
+  const mid=Math.floor(sorted.length/2);
+  return sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])/2; // median
+}
+
+/* ---- SEPARATE distance & accuracy scores vs scratch (each 0-100) ---- */
+function distanceScore(club,avgCarry){
+  const ref=SCRATCH[club]; if(!ref||avgCarry==null) return null;
+  return Math.round(Math.max(0,Math.min(100,(avgCarry/ref.carry)*100)));
+}
+function accuracyScore(club,latSd){
+  const ref=SCRATCH[club]; if(!ref||latSd==null) return null;
+  return Math.round(Math.max(0,Math.min(100,(ref.disp/Math.max(latSd,0.1))*100)));
+}
+function scoreColor(s){ return s==null?'var(--ink-faint)': s>=90?'var(--good)': s>=70?'var(--sky)': s>=50?'var(--gold)':'var(--bad)'; }
+function scoreLabel(s){ return s==null?'—': s>=90?'scratch+': s>=70?'strong': s>=50?'developing':'work zone'; }
+
+/* ---- Expert coaching commentary per club ---- */
+function clubCommentary(club,a){
+  const ref=SCRATCH[club]; if(!ref||a.n===0) return [];
+  const notes=[]; const dist=a.distScore, acc=a.accScore;
+  // distance read
+  if(dist!=null){
+    const d=a.avgCarry-ref.carry;
+    if(d>=8) notes.push({tag:'Distance',tone:'good',text:`Carrying ${a.avgCarry.toFixed(0)} m — ${d.toFixed(0)} m past the scratch ${ref.carry} m mark. Length is an asset here; don't chase more at the cost of strike.`});
+    else if(d>=-5) notes.push({tag:'Distance',tone:'good',text:`At ${a.avgCarry.toFixed(0)} m you're essentially on the scratch ${ref.carry} m benchmark. This is a trustworthy yardage to commit to on course.`});
+    else notes.push({tag:'Distance',tone:'watch',text:`${a.avgCarry.toFixed(0)} m is ${Math.abs(d).toFixed(0)} m short of the ${ref.carry} m scratch carry. Before swinging harder, check strike: a thin or low-spin miss costs carry without feeling like it.`});
+  }
+  // accuracy read
+  if(acc!=null){
+    if(a.sd<=ref.disp) notes.push({tag:'Accuracy',tone:'good',text:`Dispersion of ±${a.sd.toFixed(1)} m is tighter than the ±${ref.disp} m a scratch player holds — your control with this club is genuinely tour-adjacent.`});
+    else if(a.sd<=ref.disp*1.6) notes.push({tag:'Accuracy',tone:'watch',text:`±${a.sd.toFixed(1)} m is a touch wider than the ±${ref.disp} m scratch norm. Tightening start-line is the fastest gain — most of the spread is direction, not distance.`});
+    else notes.push({tag:'Accuracy',tone:'bad',text:`±${a.sd.toFixed(1)} m is well outside the ±${ref.disp} m scratch window. On course, plan for the wide miss: aim to the safe side and treat this as a "fat part of the green" club, not a flag-hunter.`});
+  }
+  // strike quality from smash (cleaned)
+  if(a.avgSmash!=null){
+    const ideal = club==='Driver'?1.48: /Wedge/.test(club)?1.25:1.38;
+    if(a.avgSmash>=ideal-0.04) notes.push({tag:'Strike',tone:'good',text:`Smash factor ${a.avgSmash.toFixed(2)} shows clean centre-face contact — you're converting club speed into ball speed efficiently.`});
+    else notes.push({tag:'Strike',tone:'watch',text:`Smash factor ${a.avgSmash.toFixed(2)} is a little below ideal (~${ideal.toFixed(2)}) — points to off-centre contact. Foot-spray or face tape will show whether it's heel/toe or low-face.`});
+  }
+  return notes;
+}
+
+function clubAgg(club){ const sh=golf().shots.filter(s=>s.club===club);
+  // outlier-rejected carry & dispersion
+  const carry=rejectOutliers(sh.map(s=>s.carry).filter(v=>v!=null));
+  const dev=rejectOutliers(sh.map(s=>s.carryDev).filter(v=>v!=null));
+  const sd=sdOf(dev);
+  const avgCarry=meanOf(carry);
+  const chs=robustClubSpeed(sh);
+  const smash=meanOf(rejectOutliers(sh.map(s=>s.smash).filter(v=>v!=null)));
+  const distScore=distanceScore(club,avgCarry);
+  const accScore=accuracyScore(club,sd);
+  const a={n:sh.length,avgCarry,bestCarry:carry.length?Math.max(...carry):null,sd,chs,avgSmash:smash,
+    distScore,accScore,sessions:new Set(sh.map(s=>(s.date||'').slice(0,10))).size};
+  a.commentary=clubCommentary(club,a);
+  return a; }
+function renderGolf(){
+  const g=golf(); const bag=clubsInBag();
+  const withData=clubsInBag().filter(c=>clubAgg(c).n>0);
+  const rounds=[...g.rounds].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const scores=rounds.map(r=>r.total); const best=scores.length?Math.min(...scores):null; const avg=scores.length?mean(scores):null;
+  const P=document.getElementById('pane-golf');
+  const trend=lineChart([{name:'Score',color:'var(--terra)',points:rounds.slice().reverse().map((r,i)=>({x:i,y:r.total}))}],
+    {h:200,dots:true,padY:.15,xLabels:rounds.slice().reverse().map(r=>(r.date||'').slice(5)),xFmt:v=>v,yFmt:v=>Math.round(v),maxXLabels:8});
+  const barClubs=withData.length?withData:bag;
+  P.innerHTML=`
+   <div class="coach"><div class="q">On the course</div>
+     <p>You're playing to a scoring average of <b>${avg?avg.toFixed(1):'—'}</b> across ${rounds.length} rounds, with a best of <b>${best||'—'}</b>. You've got <b>${withData.length}</b> of your <b>${bag.length}</b> bag clubs with range data so far. The fastest path to lower scores usually isn't more distance — it's tighter dispersion and reliable wedge numbers. Keep feeding sessions in and the gaps between clubs will tell their own story.</p></div>
+   <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center">
+     <button class="btn primary" onclick="openGolfImport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import range session</button>
+     <button class="btn" onclick="go('run')">Running log</button>
+     <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${g.shots.length} shots · ${withData.length}/${bag.length} clubs · ${rounds.length} rounds</span>
+   </div>
+   <div class="grid g4" style="margin-bottom:24px">
+     <div class="card tile"><div class="accent-bar" style="background:var(--terra)"></div><div class="lbl">Best Round</div><div class="num">${best||'—'}</div><div class="foot">${rounds.length} logged</div></div>
+     <div class="card tile"><div class="accent-bar" style="background:var(--gold)"></div><div class="lbl">Scoring Avg</div><div class="num">${avg?avg.toFixed(1):'—'}</div><div class="foot">all rounds</div></div>
+     <div class="card tile"><div class="accent-bar" style="background:var(--sage)"></div><div class="lbl">Clubs With Data</div><div class="num">${withData.length}<small>/${bag.length}</small></div><div class="foot">${g.shots.length} shots</div></div>
+     <div class="card tile"><div class="accent-bar" style="background:var(--sky)"></div><div class="lbl">Last Round</div><div class="num">${rounds[0]?rounds[0].total:'—'}</div><div class="foot">${rounds[0]?shortCourse(rounds[0].course):''}</div></div>
+   </div>
+   <div class="grid g2" style="margin-bottom:22px">
+     <div class="card card-pad"><div class="kicker">Scoring</div><div class="h-sec">Round history</div>${trend}</div>
+     <div class="card card-pad"><div class="kicker">The bag</div><div class="h-sec">Avg carry by club</div>
+       ${withData.length?barChart(withData.map(c=>({label:CLUB_ABBR[c]||c.slice(0,3),value:clubAgg(c).avgCarry||0,color:'var(--terra)'})),{h:200,yFmt:v=>Math.round(v),showVal:true,valFmt:v=>Math.round(v)}):'<div class="empty">No range data yet — import a session to see your distances</div>'}</div>
+   </div>
+   <div class="card card-pad" style="margin-bottom:18px"><div class="kicker">Range</div><div class="h-sec">The bag<span class="sub">distance &amp; accuracy scored separately vs a scratch (0-handicap) golfer · tap a club for detail</span></div>
+     <table class="clean"><thead><tr><th>Club</th><th class="r">Shots</th><th class="r">Avg carry</th><th class="r">Club speed</th><th class="r">Dispersion ±</th><th class="r">Distance</th><th class="r">Accuracy</th><th></th></tr></thead><tbody>
+     ${bag.map(c=>{const a=clubAgg(c);const dim=a.n===0?'opacity:.45':'';const click=a.n>0?`style="cursor:pointer;${dim}" onclick="openClubDetail('${c.replace(/'/g,"\\'")}')"`:`style="${dim}"`;
+       const ref=SCRATCH[c]; const dc=scoreColor(a.distScore), ac=scoreColor(a.accScore);
+       const cell=(v,col)=> v!=null?`<b style="color:${col}">${v}</b><span style="color:var(--ink-faint);font-size:11px">/100</span>`:'—';
+       return `<tr ${click}><td><b>${CLUB_ABBR[c]||''}</b> &nbsp;${c}</td><td class="r mono">${a.n||'—'}</td><td class="r mono">${a.avgCarry?a.avgCarry.toFixed(1)+' m':'—'}</td><td class="r mono">${a.chs!=null?Math.round(a.chs)+' mph':'—'}</td><td class="r mono">${a.sd!=null?a.sd.toFixed(1)+' m':'—'}</td><td class="r mono">${cell(a.distScore,dc)}</td><td class="r mono">${cell(a.accScore,ac)}</td><td class="r">${a.n>0?'<span style="color:var(--ink-faint)">›</span>':''}</td></tr>`;}).join('')}
+     </tbody></table>
+     <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:12px"><b>Distance</b> = your carry vs the scratch carry for that club. <b>Accuracy</b> = your shot-to-shot spread vs the scratch dispersion. Each scored 0–100 (100 = scratch level or better). All figures use outlier-rejected data — mishits and junk launch-monitor readings are discarded before scoring.</div></div>
+   <div class="card card-pad"><div class="kicker">Scorecards</div><div class="h-sec">Rounds</div>
+     <table class="clean"><thead><tr><th>Date</th><th>Course</th><th class="r">Out</th><th class="r">In</th><th class="r">Score</th></tr></thead><tbody>
+     ${rounds.map(r=>{const f=r.holes&&r.holes.length>=18?r.holes.slice(0,9).reduce((a,b)=>a+b,0):'—';const b=r.holes&&r.holes.length>=18?r.holes.slice(9).reduce((a,b)=>a+b,0):'—';const ov=r.total-(r.par||72);
+       return `<tr><td class="mono">${(r.date||'').slice(0,10)}</td><td>${r.course}${r.layout?' · '+r.layout:''}</td><td class="r mono">${f}</td><td class="r mono">${b}</td><td class="r mono"><b>${r.total}</b> <span style="color:${ov>0?'var(--bad)':'var(--good)'}">(${ov>0?'+':''}${ov})</span></td></tr>`;}).join('')}
+     </tbody></table>
+   </div>`;
+}
+
+/* ---- GOLF range CSV import (Garmin / launch-monitor) ---- */
+const GOLF_CSV_MAP={'date':'date','club type':'clubRaw','club name':'clubName','club speed':'clubSpeed','attack angle':'attackAngle',
+  'club path':'clubPath','club face':'clubFace','ball speed':'ballSpeed','smash factor':'smash','launch angle':'launchAngle',
+  'launch direction':'launchDir','backspin':'backspin','sidespin':'sidespin','spin rate':'spinRate','apex height':'apex',
+  'carry distance':'carry','carry deviation distance':'carryDev','total distance':'total','total deviation distance':'totalDev'};
+function openGolfImport(){
+  showModal(`<div class="modal-head"><div><h2>Import range session</h2><div class="ms">Drop a Garmin / launch-monitor CSV — clubs map to your bag automatically</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="dz" id="gdz" onclick="document.getElementById('gcsv').click()">
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        <div class="dz-t">Drop CSV or click to browse</div>
+        <div class="dz-s">Detects club, carry, deviation, spin, ball speed & more</div>
+      </div>
+      <input type="file" id="gcsv" accept=".csv" style="display:none" onchange="handleGolfCSV(this.files[0])">
+      <div id="gPreview"></div>
+    </div>`);
+  const dz=document.getElementById('gdz');
+  ['dragover','dragenter'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--terra)';}));
+  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--line2)';}));
+  dz.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0])handleGolfCSV(ev.dataTransfer.files[0]); });
+}
+function handleGolfCSV(file){
+  if(!file)return; const reader=new FileReader();
+  reader.onload=e=>{ try{
+    let txt=e.target.result.replace(/^\uFEFF/,'');
+    const lines=txt.split(/\r?\n/).filter(l=>l.trim());
+    const header=parseCSVLine(lines[0]).map(h=>h.trim().toLowerCase());
+    const idx={}; header.forEach((h,i)=>{ if(GOLF_CSV_MAP[h]!==undefined) idx[GOLF_CSV_MAP[h]]=i; });
+    if(idx.carry===undefined && idx.clubRaw===undefined) throw new Error('Could not find Club Type / Carry Distance columns');
+    let start=1; const r2=parseCSVLine(lines[1]||''); if(r2[idx.carry]&&/^\s*\[/.test(r2[idx.carry])) start=2;
+    const shots=[];
+    for(let i=start;i<lines.length;i++){
+      const c=parseCSVLine(lines[i]);
+      const rawClub=(c[idx.clubRaw]||c[idx.clubName]||'').trim();
+      const carry=parseFloat(c[idx.carry]);
+      if(!rawClub && isNaN(carry)) continue;
+      const s={club:canonicalClub(rawClub)||'Unknown', _raw:rawClub};
+      for(const k in idx){ if(k==='clubRaw'||k==='clubName')continue;
+        const raw=(c[idx[k]]||'').trim();
+        if(k==='date'){ s.date=raw||null; }
+        else { const n=parseFloat(raw); s[k]=isNaN(n)?null:Math.round(n*100)/100; } }
+      if(!s.club) continue;
+      shots.push(s);
+    }
+    if(!shots.length) throw new Error('No shots found in file');
+    window._pendingGolf=shots;
+    const byClub={}; shots.forEach(s=>{(byClub[s.club]=byClub[s.club]||[]).push(s);});
+    const rows=Object.entries(byClub).map(([club,arr])=>{
+      const cy=arr.map(s=>s.carry).filter(v=>v!=null);
+      const inBag=BAG.includes(club);
+      const raws=[...new Set(arr.map(s=>s._raw))].join(', ');
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+        <select onchange="remapGolf('${raws.replace(/'/g,"")}',this.value)" style="font-family:var(--serif);font-size:13px;padding:5px 8px;border:1px solid var(--line2);border-radius:8px;background:var(--paper);color:var(--ink)">
+          ${BAG.map(b=>`<option ${b===club?'selected':''}>${b}</option>`).join('')}
+          ${inBag?'':`<option selected>${club}</option>`}
+        </select>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">was “${raws}”</span>
+        <span style="margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-soft)">${arr.length} shots · ${cy.length?Math.round(mean(cy)):'—'} m avg</span>
+      </div>`;
+    }).join('');
+    document.getElementById('gPreview').innerHTML=`
+      <div style="margin-top:18px;padding:16px;background:var(--paper);border:1px solid var(--line2);border-radius:12px">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--good);letter-spacing:1px;margin-bottom:6px">✓ ${shots.length} shots · ${Object.keys(byClub).length} club${Object.keys(byClub).length>1?'s':''}</div>
+        <div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-faint);margin-bottom:8px">Check the club mapping — adjust any dropdown if a club was matched wrong.</div>
+        ${rows}
+        <button class="btn primary" style="width:100%;justify-content:center;margin-top:14px" onclick="commitGolf()">Add to bag</button>
+      </div>`;
+  }catch(err){ document.getElementById('gPreview').innerHTML=`<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ ${err.message}</div>`; }
+  };
+  reader.readAsText(file);
+}
+function remapGolf(raws,newClub){
+  const set=new Set(raws.split(', '));
+  (window._pendingGolf||[]).forEach(s=>{ if(set.has(s._raw)) s.club=newClub; });
+}
+function commitGolf(){
+  if(!window._pendingGolf)return;
+  DB.golf=DB.golf||{shots:[],rounds:[]};
+  const clean=window._pendingGolf.map(s=>{const {_raw,...rest}=s;return rest;});
+  DB.golf.shots.push(...clean);
+  const n=clean.length; window._pendingGolf=null;
+  save(); closeModal(); renderGolf(); renderHome(); toast(`Added ${n} shots to your bag`);
+}
+
+/* ---- CLUB DETAIL popup: full session-by-session summary ---- */
+function sessionsForClub(club){
+  const byDate={};
+  golf().shots.filter(s=>s.club===club).forEach(s=>{ const d=(s.date||'').slice(0,10)||'undated'; (byDate[d]=byDate[d]||[]).push(s); });
+  return Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0]))
+    .map(([date,shots])=>({date,shots}));
+}
+function statBlock(shots){
+  const f=k=>shots.map(s=>s[k]).filter(v=>v!=null);
+  const m=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  const sd=a=>{if(a.length<2)return null;const mm=m(a);return Math.sqrt(a.reduce((s,x)=>s+(x-mm)**2,0)/(a.length-1));};
+  const carry=f('carry'),total=f('total'),dev=f('carryDev'),ball=f('ballSpeed'),spin=f('spinRate'),smash=f('smash'),launch=f('launchAngle'),apex=f('apex'),cs=f('clubSpeed');
+  return {n:shots.length,avgCarry:m(carry),bestCarry:carry.length?Math.max(...carry):null,carrySd:sd(carry),
+    avgTotal:m(total),latSd:sd(dev),absDev:m(dev.map(Math.abs)),avgBall:m(ball),avgSpin:m(spin),
+    avgSmash:m(smash),avgLaunch:m(launch),avgApex:m(apex),avgClubSpeed:m(cs)};
+}
+function openClubDetail(club){
+  const sessions=sessionsForClub(club);
+  const all=golf().shots.filter(s=>s.club===club);
+  const st=statBlock(all);
+  const fx=(v,d=1,u='')=> v==null?'—':v.toFixed(d)+u;
+  const A=clubAgg(club);                          // outlier-rejected aggregate (scores, commentary, chs)
+  const chs=A.chs;
+  const ref=SCRATCH[club];
+  // overall stat grid (uses cleaned carry/dispersion from A; other metrics from statBlock)
+  const cds=[['Avg carry',fx(A.avgCarry,1,' m')],['Best',fx(A.bestCarry,1,' m')],['Carry σ',fx(st.carrySd,1,' m')],
+    ['Club speed',chs!=null?Math.round(chs)+' mph':'—'],['Dispersion ±',fx(A.sd,1,' m')],['Ball spd',fx(st.avgBall,1)],
+    ['Smash',fx(A.avgSmash,2)],['Launch',fx(st.avgLaunch,1,'°')],['Spin',st.avgSpin==null?'—':Math.round(st.avgSpin)+' rpm'],['Apex',fx(st.avgApex,1,' ft')]];
+  // per-shot carry chart across all sessions
+  const maxC=Math.max(...all.map(s=>s.carry||0),1);
+  const bars=all.map((s,i)=>{const h=s.carry?Math.max(4,s.carry/maxC*100):4;
+    return `<div title="Shot ${i+1}: ${fx(s.carry,1,' m')} carry, ${fx(s.carryDev,1,' m')} offline" style="flex:1;min-width:3px;height:${h}%;background:${s.carry?'linear-gradient(180deg,var(--terra-soft),var(--terra))':'var(--line2)'};border-radius:3px 3px 0 0"></div>`;}).join('');
+  // session cards
+  const sessHtml=sessions.map(se=>{
+    const s=statBlock(se.shots);
+    const rows=se.shots.map((sh,i)=>{const dev=sh.carryDev;const side=dev==null?'':dev>0?' R':dev<0?' L':'';
+      const dc=dev==null?'var(--ink-faint)':Math.abs(dev)<=4?'var(--good)':Math.abs(dev)<=8?'var(--warn)':'var(--bad)';
+      return `<tr><td class="mono">${i+1}</td><td class="r mono">${fx(sh.carry,1)}</td><td class="r mono">${fx(sh.total,1)}</td>
+        <td class="r mono" style="color:${dc}">${dev==null?'—':Math.abs(dev).toFixed(1)+side}</td>
+        <td class="r mono">${fx(sh.ballSpeed,1)}</td><td class="r mono">${fx(sh.smash,2)}</td>
+        <td class="r mono">${fx(sh.launchAngle,1)}</td><td class="r mono">${sh.spinRate==null?'—':Math.round(sh.spinRate)}</td></tr>`;}).join('');
+    return `<details class="card" style="margin-bottom:12px;border-radius:12px" ${sessions.length===1?'open':''}>
+      <summary style="cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:14px;list-style:none">
+        <span style="font-family:var(--disp);font-weight:700;font-size:16px">${fmtDate(se.date)}</span>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">${s.n} shots</span>
+        <span style="margin-left:auto;font-family:var(--disp);font-weight:700;font-size:20px;color:var(--terra-deep)">${fx(s.avgCarry,1)}<span style="font-size:12px;color:var(--ink-faint);font-weight:500"> m avg</span></span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">±${fx(s.latSd,1)} m</span>
+      </summary>
+      <div style="padding:0 18px 16px">
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:12px">
+          <span>Best ${fx(s.bestCarry,1)} m</span><span>Total ${fx(s.avgTotal,1)} m</span><span>Ball ${fx(s.avgBall,1)}</span>
+          <span>Smash ${fx(s.avgSmash,2)}</span><span>Launch ${fx(s.avgLaunch,1)}°</span><span>Spin ${s.avgSpin==null?'—':Math.round(s.avgSpin)}</span>
+        </div>
+        <div style="overflow-x:auto"><table class="clean" style="font-size:12.5px"><thead><tr><th>#</th><th class="r">Carry</th><th class="r">Total</th><th class="r">Offline</th><th class="r">Ball</th><th class="r">Smash</th><th class="r">Launch</th><th class="r">Spin</th></tr></thead><tbody>${rows}</tbody></table></div>
+      </div>
+    </details>`;
+  }).join('');
+  showModal(`
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:48px;height:48px;border-radius:12px;background:var(--terra);display:grid;place-items:center;font-family:var(--disp);font-weight:800;font-size:17px;color:#fff">${CLUB_ABBR[club]||''}</div>
+        <div><h2>${club}</h2><div class="ms">${st.n} shots across ${sessions.length} session${sessions.length>1?'s':''} · ±${fx(st.latSd,1)} m dispersion</div></div>
+      </div>
+      <button class="x" onclick="closeModal()">${xSvg()}</button>
+    </div>
+    <div class="modal-body">
+      ${ref?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
+        <div style="padding:16px 18px;border-radius:14px;background:var(--card);border:1px solid var(--line);border-left:4px solid ${scoreColor(A.distScore)}">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Distance vs scratch</div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px"><span style="font-family:var(--disp);font-weight:700;font-size:38px;line-height:1;color:${scoreColor(A.distScore)}">${A.distScore!=null?A.distScore:'—'}</span><span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">/100 · ${scoreLabel(A.distScore)}</span></div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:5px">${A.avgCarry?A.avgCarry.toFixed(0):'—'} m vs scratch ${ref.carry} m</div>
+        </div>
+        <div style="padding:16px 18px;border-radius:14px;background:var(--card);border:1px solid var(--line);border-left:4px solid ${scoreColor(A.accScore)}">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Accuracy vs scratch</div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px"><span style="font-family:var(--disp);font-weight:700;font-size:38px;line-height:1;color:${scoreColor(A.accScore)}">${A.accScore!=null?A.accScore:'—'}</span><span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">/100 · ${scoreLabel(A.accScore)}</span></div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:5px">±${A.sd!=null?A.sd.toFixed(1):'—'} m vs scratch ±${ref.disp} m</div>
+        </div>
+      </div>`:''}
+      ${A.commentary&&A.commentary.length?`<div style="margin-bottom:20px;border:1px solid var(--line);border-radius:14px;overflow:hidden">
+        <div style="padding:11px 16px;background:var(--card2);font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-faint);border-bottom:1px solid var(--line)">Coach's read</div>
+        ${A.commentary.map(n=>{const col=n.tone==='good'?'var(--good)':n.tone==='bad'?'var(--bad)':'var(--gold)';
+          return `<div style="display:flex;gap:13px;padding:13px 16px;border-bottom:1px solid var(--line);align-items:flex-start">
+            <span style="flex:none;font-family:var(--mono);font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:${col};border:1px solid ${col};border-radius:20px;padding:3px 9px;margin-top:1px">${n.tag}</span>
+            <span style="font-family:var(--serif);font-size:13.5px;line-height:1.5;color:var(--ink-soft)">${n.text}</span>
+          </div>`;}).join('')}
+      </div>`:''}
+      <div class="club-detail-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:20px">
+        ${cds.map(c=>`<div style="background:var(--card);padding:13px 14px"><div style="font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">${c[0]}</div><div style="font-family:var(--disp);font-weight:700;font-size:21px;margin-top:4px">${c[1]}</div></div>`).join('')}
+      </div>
+      <div class="kicker">Every shot · carry</div>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:120px;border-bottom:1px solid var(--line);margin:8px 0 22px">${bars}</div>
+      <div class="kicker" style="margin-bottom:10px">Sessions</div>
+      ${sessHtml}
+    </div>`);
+}
+
+/* ============ MODALS / NAV / INIT ============ */
+function xSvg(){ return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>'; }
+const overlay=document.getElementById('overlay'), modal=document.getElementById('modal');
+function showModal(h){ modal.innerHTML=h; overlay.classList.add('show'); }
+function closeModal(){ overlay.classList.remove('show'); }
+overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+function go(pane){ document.querySelector(`.nav button[data-pane="${pane}"]`).click(); }
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pane-'+b.dataset.pane).classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}));
+
+function exportData(){ const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`stuart-life-backup-${TODAY}.json`;a.click(); toast('Backup downloaded'); }
+function restoreData(input){ const f=input.files[0];if(!f)return;const r=new FileReader();
+  r.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d.profile||!d.finance)throw 0;
+    if(!confirm('Restore from backup? This replaces current data.'))return; DB=d;save();renderAll();toast('Data restored');}
+    catch(err){toast('Invalid backup file');}}; r.readAsText(f); input.value=''; }
+
+let tt;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+
+
+/* ============================================================
+   WHOOP MODULE — live-sync-ready (proxy) + manual import
+   ============================================================
+   The WHOOP API cannot be called directly from a static file:
+   it needs OAuth2 + a client_secret, which must live server-side.
+   So this module talks to YOUR proxy (a small backend you host),
+   never to WHOOP directly. Until the proxy exists, the same
+   normalized shape can be filled via manual JSON import.
+
+   Proxy contract (you build this — see WHOOP_PROXY folder):
+     GET  {proxyUrl}/whoop/recovery?days=N   -> [{date,recovery,hrv,rhr,spo2,skinTemp}]
+     GET  {proxyUrl}/whoop/sleep?days=N      -> [{date,performance,efficiency,consistency,
+                                                  durationMs,remMs,swsMs,lightMs,awakeMs,respRate,disturbances}]
+     GET  {proxyUrl}/whoop/workouts?days=N   -> [{date,sport,strain,avgHr,maxHr,kilojoule,distanceM,durationMs}]
+     GET  {proxyUrl}/whoop/cycles?days=N     -> [{date,strain,avgHr,maxHr,kilojoule}]
+     GET  {proxyUrl}/whoop/profile           -> {firstName,lastName,heightM,weightKg,maxHr}
+   The proxy holds the secret, does the OAuth dance, and maps
+   WHOOP's raw schema to these flat records. Mapping reference is
+   embedded in the proxy server.js so it stays in one place.
+*/
+function whoopDB(){ DB.whoop = DB.whoop || {proxyUrl:'', lastSync:null, recovery:[], sleep:[], workouts:[], cycles:[], profile:null}; return DB.whoop; }
+
+const msToH = ms => ms==null? null : ms/3600000;
+const fmtDur = ms => { if(ms==null)return'—'; const h=Math.floor(ms/3600000), m=Math.round((ms%3600000)/60000); return `${h}h ${String(m).padStart(2,'0')}m`; };
+
+/* ---- normalize: accept either our proxy's flat shape OR raw WHOOP API json ---- */
+function normalizeWhoop(kind, raw){
+  // If it's a raw WHOOP paginated response, unwrap .records
+  const recs = Array.isArray(raw) ? raw : (raw && raw.records) ? raw.records : [];
+  return recs.map(r=>{
+    // already flat (from our proxy)?
+    if(kind==='recovery'){
+      if('recovery' in r || 'hrv' in r) return r;
+      const s=r.score||{};
+      return {date:(r.created_at||'').slice(0,10), recovery:s.recovery_score??null, hrv:s.hrv_rmssd_milli??null,
+              rhr:s.resting_heart_rate??null, spo2:s.spo2_percentage??null, skinTemp:s.skin_temp_celsius??null};
+    }
+    if(kind==='sleep'){
+      if('performance' in r || 'efficiency' in r) return r;
+      const s=r.score||{}, st=s.stage_summary||{};
+      const dur=(st.total_in_bed_time_milli||0)-(st.total_awake_time_milli||0);
+      return {date:(r.start||r.created_at||'').slice(0,10), performance:s.sleep_performance_percentage??null,
+              efficiency:s.sleep_efficiency_percentage??null, consistency:s.sleep_consistency_percentage??null,
+              durationMs:dur, remMs:st.total_rem_sleep_time_milli??null, swsMs:st.total_slow_wave_sleep_time_milli??null,
+              lightMs:st.total_light_sleep_time_milli??null, awakeMs:st.total_awake_time_milli??null,
+              respRate:s.respiratory_rate??null, disturbances:st.disturbance_count??null, nap:r.nap};
+    }
+    if(kind==='workouts'){
+      if('sport' in r || 'strain' in r) return r;
+      const s=r.score||{};
+      return {date:(r.start||'').slice(0,10), sport:r.sport_name||'workout', strain:s.strain??null,
+              avgHr:s.average_heart_rate??null, maxHr:s.max_heart_rate??null, kilojoule:s.kilojoule??null,
+              distanceM:s.distance_meter??null, durationMs:r.start&&r.end?(new Date(r.end)-new Date(r.start)):null};
+    }
+    if(kind==='cycles'){
+      if('strain' in r && !('sport' in r)) return r;
+      const s=r.score||{};
+      return {date:(r.start||'').slice(0,10), strain:s.strain??null, avgHr:s.average_heart_rate??null,
+              maxHr:s.max_heart_rate??null, kilojoule:s.kilojoule??null};
+    }
+    return r;
+  }).filter(r=>r.date);
+}
+
+/* ---- live sync via proxy ---- */
+async function syncWhoop(){
+  const w=whoopDB();
+  if(!w.proxyUrl){ toast('Set your proxy URL first'); return; }
+  const base=w.proxyUrl.replace(/\/$/,'');
+  const days=180;
+  toast('Syncing WHOOP…');
+  try{
+    const fetches=['recovery','sleep','workouts','cycles'].map(k=>
+      fetch(`${base}/whoop/${k}?days=${days}`,{headers:{'Accept':'application/json'}})
+        .then(r=>{ if(!r.ok) throw new Error(`${k}: HTTP ${r.status}`); return r.json(); })
+        .then(j=>({k,data:normalizeWhoop(k,j)})));
+    const profileP=fetch(`${base}/whoop/profile`).then(r=>r.ok?r.json():null).catch(()=>null);
+    const results=await Promise.all(fetches);
+    results.forEach(({k,data})=> w[k]=mergeByDate(w[k]||[], data));
+    const prof=await profileP; if(prof) w.profile=prof;
+    w.lastSync=new Date().toISOString();
+    save(); renderWhoop(); renderHome(); toast('WHOOP synced');
+  }catch(err){
+    toast('Sync failed — '+err.message);
+    console.error(err);
+  }
+}
+function mergeByDate(existing, incoming){
+  const map={}; existing.forEach(r=>map[r.date]=r); incoming.forEach(r=>map[r.date]=r);
+  return Object.values(map).sort((a,b)=>a.date.localeCompare(b.date));
+}
+
+/* ---- manual import (paste/upload WHOOP JSON until proxy is live) ---- */
+function openWhoopImport(){
+  showModal(`<div class="modal-head"><div><h2>Import WHOOP data</h2><div class="ms">Paste JSON from the API or your export — Recovery, Sleep, Workouts, or Cycles</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Data type</label><select id="wi_kind">
+        <option value="recovery">Recovery</option><option value="sleep">Sleep</option>
+        <option value="workouts">Workouts</option><option value="cycles">Cycles</option></select></div>
+      <div class="field"><label>JSON (a WHOOP API response, an array of records, or our flat format)</label>
+        <textarea id="wi_json" style="width:100%;min-height:200px;font-family:var(--mono);font-size:12px;background:var(--paper);border:1px solid var(--line2);border-radius:10px;padding:12px;color:var(--ink)" placeholder='{"records":[...]}  or  [{"date":"2026-06-01","recovery":62,...}]'></textarea></div>
+      <button class="btn primary" onclick="commitWhoopImport()">Import</button>
+    </div>`);
+}
+function commitWhoopImport(){
+  const kind=document.getElementById('wi_kind').value;
+  let raw; try{ raw=JSON.parse(document.getElementById('wi_json').value); }
+  catch(e){ toast('Invalid JSON'); return; }
+  const data=normalizeWhoop(kind,raw);
+  if(!data.length){ toast('No records found'); return; }
+  const w=whoopDB(); w[kind]=mergeByDate(w[kind]||[],data); w.lastSync=new Date().toISOString();
+  save(); closeModal(); renderWhoop(); renderHome(); toast(`Imported ${data.length} ${kind} records`);
+}
+function openWhoopSettings(){
+  const w=whoopDB();
+  showModal(`<div class="modal-head"><div><h2>WHOOP connection</h2><div class="ms">Point the platform at your proxy for live sync</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Proxy base URL</label><input id="w_proxy" value="${w.proxyUrl||''}" placeholder="https://your-proxy.onrender.com"></div>
+      <div style="font-family:var(--serif);font-style:italic;font-size:13px;color:var(--ink-faint);line-height:1.6;margin-bottom:16px">
+        This is the address of the small backend you host (see the WHOOP_PROXY folder). It holds your WHOOP secret, handles login, and returns both your WHOOP data and the morning-report feeds (traffic, news, calendar). Saved separately from your data, so it survives a Restore. Leaving it blank keeps the platform in manual-import mode.</div>
+      <div style="display:flex;gap:10px"><button class="btn primary" onclick="saveWhoopProxy()">Save</button>
+        ${w.proxyUrl?`<button class="btn" onclick="closeModal();syncWhoop()">Save &amp; sync now</button>`:''}</div>
+    </div>`);
+}
+function saveWhoopProxy(){ const url=document.getElementById('w_proxy').value.trim(); whoopDB().proxyUrl=url; saveConn({proxyUrl:url}); save(); closeModal(); renderWhoop(); renderHome(); toast('Proxy URL saved'); }
+
+/* ---- analytics helpers ---- */
+function recent(arr,n){ return (arr||[]).slice(-n); }
+function avgKey(arr,k){ const v=(arr||[]).map(r=>r[k]).filter(x=>x!=null); return v.length?v.reduce((s,x)=>s+x,0)/v.length:null; }
+
+/* ---- render ---- */
+function renderWhoop(){
+  const w=whoopDB();
+  const P=document.getElementById('pane-whoop');
+  const has = (w.recovery.length||w.sleep.length||w.workouts.length||w.cycles.length);
+
+  if(!has){
+    P.innerHTML=`
+     <div class="coach"><div class="q">Closing the loop on recovery</div>
+       <p>Your running log tells you what you <b>did</b>; WHOOP tells you what it <b>cost</b> and whether you've recovered enough to do it again. Connect it and this section will track recovery, sleep, and strain alongside everything else. Because this platform is a single file, live sync runs through a small backend you host — I've generated that for you. Until it's live, you can paste WHOOP JSON straight in.</p></div>
+     <div class="card card-pad" style="text-align:center;padding:48px 28px">
+       <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:16px"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>
+       <div class="h-sec" style="justify-content:center">No WHOOP data yet</div>
+       <div style="font-family:var(--serif);font-style:italic;color:var(--ink-soft);max-width:460px;margin:0 auto 22px">Connect your proxy for live sync, or import a WHOOP API response to get started.</div>
+       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+         <button class="btn primary" onclick="openWhoopSettings()">Connect proxy</button>
+         <button class="btn" onclick="openWhoopImport()">Import JSON</button>
+       </div>
+     </div>`;
+    return;
+  }
+
+  const rec=w.recovery, slp=w.sleep, wk=w.workouts;
+  const lastRec=rec[rec.length-1], lastSlp=slp[slp.length-1];
+  const recAvg=avgKey(recent(rec,7),'recovery'), hrvAvg=avgKey(recent(rec,7),'hrv'), rhrAvg=avgKey(recent(rec,7),'rhr');
+  const slpAvg=avgKey(recent(slp,7),'performance');
+  const strainAvg=avgKey(recent(w.cycles.length?w.cycles:wk,7),'strain');
+
+  const recColor=v=> v==null?'var(--ink-faint)': v>=67?'var(--good)': v>=34?'var(--warn)':'var(--bad)';
+  const tiles=[
+    {bar:recColor(lastRec&&lastRec.recovery),lbl:'Recovery Today',num:(lastRec&&lastRec.recovery!=null?Math.round(lastRec.recovery)+'<small>%</small>':'—'),foot:lastRec?fmtDate(lastRec.date):''},
+    {bar:'var(--sky)',lbl:'HRV · 7-day',num:(hrvAvg!=null?Math.round(hrvAvg)+'<small> ms</small>':'—'),foot:lastRec&&lastRec.hrv!=null?`latest ${Math.round(lastRec.hrv)} ms`:''},
+    {bar:'var(--sage)',lbl:'Resting HR · 7-day',num:(rhrAvg!=null?Math.round(rhrAvg)+'<small> bpm</small>':'—'),foot:lastRec&&lastRec.rhr!=null?`latest ${Math.round(lastRec.rhr)} bpm`:''},
+    {bar:'var(--gold)',lbl:'Sleep Perf · 7-day',num:(slpAvg!=null?Math.round(slpAvg)+'<small>%</small>':'—'),foot:lastSlp?`last ${fmtDur(lastSlp.durationMs)}`:''},
+  ];
+
+  // charts
+  const recChart=lineChart([
+      {name:'Recovery',color:'var(--terra)',points:recent(rec,30).map((r,i)=>({x:i,y:r.recovery})).filter(p=>p.y!=null)}],
+      {h:200,padY:.1,minY:0,yFmt:v=>Math.round(v),xLabels:recent(rec,30).map(r=>r.date.slice(5)),maxXLabels:7,dots:false,area:true});
+  const hrvChart=lineChart([
+      {name:'HRV',color:'var(--sky)',points:recent(rec,30).map((r,i)=>({x:i,y:r.hrv})).filter(p=>p.y!=null)}],
+      {h:200,padY:.12,yFmt:v=>Math.round(v),xLabels:recent(rec,30).map(r=>r.date.slice(5)),maxXLabels:7,dots:false});
+  const strainSeries = w.cycles.length? w.cycles : wk;
+  const strainChart=barChart(recent(strainSeries,21).map(r=>({label:r.date.slice(5),value:r.strain||0,color:'var(--sage)'})),
+      {h:200,max:21,yFmt:v=>Math.round(v),labStep:3});
+
+  // sleep stage breakdown (latest)
+  let stageHtml='';
+  if(lastSlp && lastSlp.remMs!=null){
+    const stages=[['REM',lastSlp.remMs,'var(--sky)'],['Deep (SWS)',lastSlp.swsMs,'var(--terra)'],['Light',lastSlp.lightMs,'var(--sage)'],['Awake',lastSlp.awakeMs,'var(--ink-faint)']];
+    const tot=stages.reduce((s,x)=>s+(x[1]||0),0)||1;
+    stageHtml=`<div class="card card-pad"><div class="kicker">Last night</div><div class="h-sec">Sleep stages<span class="sub">${fmtDur(lastSlp.durationMs)} asleep · ${fmtDate(lastSlp.date)}</span></div>
+      <div style="display:flex;height:26px;border-radius:8px;overflow:hidden;margin-bottom:14px">
+        ${stages.map(s=>`<div style="width:${(s[1]||0)/tot*100}%;background:${s[2]}" title="${s[0]}"></div>`).join('')}</div>
+      <div class="donut">${stages.map(s=>`<div class="dlin"><span class="dot" style="background:${s[2]}"></span>${s[0]}<span class="v">${fmtDur(s[1])}</span></div>`).join('')}
+        ${lastSlp.respRate!=null?`<div class="dlin" style="border-top:1px solid var(--line);margin-top:5px;padding-top:8px">Respiratory rate<span class="v">${lastSlp.respRate.toFixed(1)} rpm</span></div>`:''}
+        ${lastSlp.efficiency!=null?`<div class="dlin">Sleep efficiency<span class="v">${Math.round(lastSlp.efficiency)}%</span></div>`:''}
+      </div></div>`;
+  }
+
+  // recent workouts table
+  const wkRows=recent(wk,12).slice().reverse().map(r=>`<tr>
+      <td class="mono">${r.date}</td><td style="text-transform:capitalize">${r.sport||'—'}</td>
+      <td class="r mono">${r.strain!=null?r.strain.toFixed(1):'—'}</td>
+      <td class="r mono">${r.avgHr??'—'}</td><td class="r mono">${r.distanceM!=null?(r.distanceM/1000).toFixed(2)+' km':'—'}</td>
+      <td class="r mono">${fmtDur(r.durationMs)}</td></tr>`).join('');
+
+  P.innerHTML=`
+   <div class="coach"><div class="q">Reading your recovery</div>
+     <p>${whoopCoach(rec,slp,strainSeries)}</p></div>
+   <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center">
+     ${w.proxyUrl?`<button class="btn primary" onclick="syncWhoop()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>Sync now</button>`
+       :`<button class="btn primary" onclick="openWhoopSettings()">Connect proxy</button>`}
+     <button class="btn" onclick="openWhoopImport()">Import JSON</button>
+     <button class="btn" onclick="openWhoopSettings()">Settings</button>
+     <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${w.lastSync?'last sync '+fmtDate(w.lastSync.slice(0,10)):'manual mode'} · ${rec.length} days</span>
+   </div>
+   <div class="grid g4" style="margin-bottom:24px">
+     ${tiles.map(t=>`<div class="card tile"><div class="accent-bar" style="background:${t.bar}"></div><div class="lbl">${t.lbl}</div><div class="num">${t.num}</div><div class="foot">${t.foot}</div></div>`).join('')}
+   </div>
+   <div class="grid g2" style="margin-bottom:22px">
+     <div class="card card-pad"><div class="kicker">30 days</div><div class="h-sec">Recovery score</div>${recChart}</div>
+     <div class="card card-pad"><div class="kicker">30 days</div><div class="h-sec">Heart rate variability</div>${hrvChart}</div>
+   </div>
+   <div class="grid g2" style="margin-bottom:22px">
+     <div class="card card-pad"><div class="kicker">21 days</div><div class="h-sec">Daily strain<span class="sub">0–21 scale</span></div>${strainChart}</div>
+     ${stageHtml||'<div class="card card-pad"><div class="empty">No sleep-stage data yet</div></div>'}
+   </div>
+   ${wkRows?`<div class="card card-pad"><div class="kicker">Activity</div><div class="h-sec">Recent workouts</div>
+     <table class="clean"><thead><tr><th>Date</th><th>Sport</th><th class="r">Strain</th><th class="r">Avg HR</th><th class="r">Distance</th><th class="r">Duration</th></tr></thead><tbody>${wkRows}</tbody></table></div>`:''}
+   <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;text-align:center;margin-top:16px">
+     WHOOP metrics for personal insight only — not medical data. Live sync runs through your self-hosted proxy; your tokens never touch this file.</div>`;
+}
+function whoopCoach(rec,slp,strain){
+  const bits=[];
+  const r7=avgKey(recent(rec,7),'recovery'), r30=avgKey(recent(rec,30),'recovery');
+  const hrv7=avgKey(recent(rec,7),'hrv'), hrv30=avgKey(recent(rec,30),'hrv');
+  if(r7!=null){
+    const band = r7>=67?'green':r7>=34?'yellow':'red';
+    bits.push(`Your 7-day recovery is averaging <b>${Math.round(r7)}%</b> — ${band==='green'?'solidly in the green; your body is absorbing the work well':band==='yellow'?'in the yellow, suggesting you\u2019re carrying some fatigue':'running red, a clear signal to back off and prioritise sleep'}.`);
+  }
+  if(hrv7!=null&&hrv30!=null){
+    const d=hrv7-hrv30;
+    if(Math.abs(d)>=2) bits.push(`HRV is trending <b>${d>0?'up':'down'}</b> versus your month average — ${d>0?'a good sign of adaptation':'worth watching, often an early marker of accumulated stress or under-recovery'}.`);
+  }
+  const s7=avgKey(recent(slp,7),'performance');
+  if(s7!=null) bits.push(`Sleep performance is averaging <b>${Math.round(s7)}%</b> of need.`);
+  bits.push(`At 54, recovery capacity is the lever that lets you keep running and playing golf for decades — these numbers are how you protect it.`);
+  return bits.join(' ');
+}
+
+function renderAll(){ renderHome();renderWealth();renderRetire();renderGolf();renderRun();renderHealth();renderWhoop(); }
+document.getElementById('todayStr').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+renderAll();
+</script>
+</body>
+</html>

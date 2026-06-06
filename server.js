@@ -270,5 +270,17 @@ app.get('/calendar', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/', (req, res) => res.send('LifePlatform proxy running. WHOOP authenticated: ' + (!!tokens) + '. Routes: /whoop/*, /news, /traffic, /calendar. Visit /auth/login to connect WHOOP.'));
+// Serve the LifePlatform dashboard itself at / and /app (same origin as the proxy,
+// so the platform auto-detects this URL and CORS is a non-issue).
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const APP_FILE = path.join(__dirname, 'LifePlatform.html');
+function serveApp(req, res){
+  if (fs.existsSync(APP_FILE)) return res.sendFile(APP_FILE);
+  res.status(404).send('LifePlatform.html not found in the deploy. Upload it alongside server.js.');
+}
+app.get('/', serveApp);
+app.get('/app', serveApp);
+app.get('/status', (req, res) => res.send('LifePlatform proxy running. WHOOP authenticated: ' + (!!tokens) + '. Routes: /whoop/*, /news, /traffic, /calendar. Visit /auth/login to connect WHOOP.'));
 app.listen(PORT, () => console.log(`LifePlatform proxy listening on port ${PORT}`));
