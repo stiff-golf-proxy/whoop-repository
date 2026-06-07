@@ -233,8 +233,17 @@ const CONN_KEY='sh_life_conn_v1';
 function loadConn(){ try{const r=localStorage.getItem(CONN_KEY); if(r)return JSON.parse(r);}catch(e){} return {proxyUrl:''}; }
 function saveConn(c){ try{localStorage.setItem(CONN_KEY,JSON.stringify(c));}catch(e){} }
 (function reconcileConn(){
-  // If DB has a proxyUrl but the durable store doesn't, copy it across (migration).
   const c=loadConn();
+  // If the dashboard is being SERVED FROM a real host (Railway etc.), adopt that
+  // origin as the proxy automatically and persist it — so the connect box never shows.
+  try{
+    if(location && /^https?:/.test(location.protocol) && location.hostname &&
+       !/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) && location.protocol!=='file:'){
+      const origin=location.origin.replace(/\/$/,'');
+      c.proxyUrl=origin; saveConn(c);
+    }
+  }catch(e){}
+  // Migration: if DB had a proxyUrl but durable store didn't, copy it across.
   if(DB.whoop&&DB.whoop.proxyUrl&&!c.proxyUrl){ c.proxyUrl=DB.whoop.proxyUrl; saveConn(c); }
   // Always mirror the durable URL back into DB.whoop so the rest of the app sees it.
   if(c.proxyUrl){ DB.whoop=DB.whoop||{}; DB.whoop.proxyUrl=c.proxyUrl; }
@@ -1561,15 +1570,25 @@ function renderWhoop(){
   const has = (w.recovery.length||w.sleep.length||w.workouts.length||w.cycles.length);
 
   if(!has){
+    const hasProxy=!!proxyBase();
+    // If a proxy is connected but we have no data yet, kick off a sync automatically.
+    if(hasProxy && !window._whoopAutoTried){
+      window._whoopAutoTried=true;
+      P.innerHTML=`<div class="coach"><div class="q">Connecting to WHOOP…</div><p>Pulling your recovery, sleep and strain from your proxy. This takes a few seconds the first time (and a little longer if the server was asleep).</p></div>
+      <div class="card card-pad" style="text-align:center;padding:48px 28px"><div class="h-sec" style="justify-content:center">Syncing…</div>
+      <div style="font-family:var(--serif);font-style:italic;color:var(--ink-soft)">One moment.</div></div>`;
+      setTimeout(()=>{ syncWhoop(); }, 100);
+      return;
+    }
     P.innerHTML=`
      <div class="coach"><div class="q">Closing the loop on recovery</div>
        <p>Your running log tells you what you <b>did</b>; WHOOP tells you what it <b>cost</b> and whether you've recovered enough to do it again. Connect it and this section will track recovery, sleep, and strain alongside everything else. Because this platform is a single file, live sync runs through a small backend you host — I've generated that for you. Until it's live, you can paste WHOOP JSON straight in.</p></div>
      <div class="card card-pad" style="text-align:center;padding:48px 28px">
        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:16px"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>
        <div class="h-sec" style="justify-content:center">No WHOOP data yet</div>
-       <div style="font-family:var(--serif);font-style:italic;color:var(--ink-soft);max-width:460px;margin:0 auto 22px">Connect your proxy for live sync, or import a WHOOP API response to get started.</div>
+       <div style="font-family:var(--serif);font-style:italic;color:var(--ink-soft);max-width:460px;margin:0 auto 22px">${hasProxy?'Sync didn\'t return data yet — your proxy may need a re-login. Tap below to retry or check the connection.':'Connect your proxy for live sync, or import a WHOOP API response to get started.'}</div>
        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-         <button class="btn primary" onclick="openWhoopSettings()">Connect proxy</button>
+         ${hasProxy?`<button class="btn primary" onclick="window._whoopAutoTried=false;syncWhoop()">Retry sync</button>`:`<button class="btn primary" onclick="openWhoopSettings()">Connect proxy</button>`}
          <button class="btn" onclick="openWhoopImport()">Import JSON</button>
        </div>
      </div>`;
