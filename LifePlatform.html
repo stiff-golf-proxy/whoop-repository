@@ -172,6 +172,37 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 @media(max-width:860px){
   .g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}
   .ring-wrap{flex-direction:column;align-items:flex-start}
+  .wrap{padding:0 18px 90px}
+}
+/* Phones */
+@media(max-width:560px){
+  .wrap{padding:0 13px 80px}
+  .topbar{padding:18px 0 16px;gap:12px}
+  .greet .hi{font-size:22px}
+  .g4{grid-template-columns:1fr 1fr;gap:12px}
+  .row2,.row3{grid-template-columns:1fr}
+  .tile{padding:15px 16px}
+  .tile .num{font-size:27px}
+  .tile .lbl{font-size:9px;letter-spacing:1px}
+  .tile .foot{font-size:12px}
+  .h-sec{font-size:19px}
+  .card-pad{padding:18px 16px}
+  /* nav becomes a horizontal scroll strip so buttons never crush */
+  .nav{flex-wrap:nowrap;overflow-x:auto;gap:6px;margin-bottom:22px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px}
+  .nav::-webkit-scrollbar{display:none}
+  .nav button{flex:0 0 auto;font-size:14px;padding:9px 13px}
+  .nav button .ic{width:15px;height:15px}
+  /* any table sitting in a card scrolls horizontally instead of overflowing */
+  .card .scroll-x,.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table.clean{font-size:13px;min-width:520px}
+  table.clean th,table.clean td{padding:9px 9px}
+  /* modal goes near-fullscreen for room */
+  .modal{max-width:100%;border-radius:16px}
+  .modal-head{padding:18px 18px}
+  .modal-head h2{font-size:20px}
+  .modal-body{padding:18px 16px}
+  .club-detail-stats{grid-template-columns:repeat(2,1fr)!important}
+  .big-income .amt{font-size:42px}
 }
 </style>
 </head>
@@ -764,14 +795,14 @@ function renderRun(){
    </div>
    <div class="card card-pad">
      <div class="kicker">Year by year</div><div class="h-sec">The record</div>
-     <table class="clean"><thead><tr><th>Year</th><th class="r">Running km</th><th class="r">Cycling km</th><th class="r">Months logged</th><th class="r">vs prev</th></tr></thead><tbody>
+     <div class="scroll-x"><table class="clean"><thead><tr><th>Year</th><th class="r">Running km</th><th class="r">Cycling km</th><th class="r">Months logged</th><th class="r">vs prev</th></tr></thead><tbody>
      ${totals.slice().reverse().map((t,i,arr)=>{
         const prev=arr[i+1]; const d=prev?t.run-prev.run:null;
         const dc=d==null?'':d>0?'var(--good)':d<0?'var(--bad)':'var(--ink-faint)';
         return `<tr><td class="mono">${t.year}</td><td class="r mono">${t.run||'—'}</td><td class="r mono">${t.cycle||'—'}</td><td class="r mono">${t.months}</td>
           <td class="r mono" style="color:${dc}">${d==null?'—':(d>0?'+':'')+Math.round(d)}</td></tr>`;
      }).join('')}
-     </tbody></table>
+     </tbody></table></div>
    </div>`;
 }
 function distanceMetaphor(km){
@@ -1139,48 +1170,113 @@ function scoreColor(s){ return s==null?'var(--ink-faint)': s>=90?'var(--good)': 
 function scoreLabel(s){ return s==null?'—': s>=90?'scratch+': s>=70?'strong': s>=50?'developing':'work zone'; }
 
 /* ---- Expert coaching commentary per club ---- */
+function sessionStats(shots){
+  const carry=rejectOutliers(shots.map(s=>s.carry).filter(v=>v!=null));
+  const total=rejectOutliers(shots.map(s=>s.total).filter(v=>v!=null));
+  const dev=rejectOutliers(shots.map(s=>s.carryDev).filter(v=>v!=null));
+  const smash=rejectOutliers(shots.map(s=>s.smash).filter(v=>v!=null));
+  return {
+    n:shots.length,
+    avgCarry:meanOf(carry), avgTotal:meanOf(total),
+    bestTotal:total.length?Math.max(...total):null, bestCarry:carry.length?Math.max(...carry):null,
+    sd:sdOf(dev), carrySd:sdOf(carry), avgSmash:meanOf(smash), chs:robustClubSpeed(shots)
+  };
+}
+function delta(cur,prev,opt){
+  opt=opt||{}; if(cur==null||prev==null) return null;
+  const d=cur-prev; const better = opt.lowerIsBetter ? d<0 : d>0;
+  const flat=Math.abs(d) < (opt.flatBand||0);
+  return {d, better, flat, dir: flat?'\u2192':(d>0?'\u2191':'\u2193')};
+}
+
 function clubCommentary(club,a){
-  const ref=SCRATCH[club]; if(!ref||a.n===0) return [];
-  const notes=[]; const dist=a.distScore, acc=a.accScore;
-  // distance read
-  if(dist!=null){
-    const d=a.avgCarry-ref.carry;
-    if(d>=8) notes.push({tag:'Distance',tone:'good',text:`Carrying ${a.avgCarry.toFixed(0)} m — ${d.toFixed(0)} m past the scratch ${ref.carry} m mark. Length is an asset here; don't chase more at the cost of strike.`});
-    else if(d>=-5) notes.push({tag:'Distance',tone:'good',text:`At ${a.avgCarry.toFixed(0)} m you're essentially on the scratch ${ref.carry} m benchmark. This is a trustworthy yardage to commit to on course.`});
-    else notes.push({tag:'Distance',tone:'watch',text:`${a.avgCarry.toFixed(0)} m is ${Math.abs(d).toFixed(0)} m short of the ${ref.carry} m scratch carry. Before swinging harder, check strike: a thin or low-spin miss costs carry without feeling like it.`});
+  const ref=SCRATCH[club]; if(!a||a.n===0) return [];
+  const notes=[]; const L=a.last, P=a.prev;
+  if(!L) return [{tag:'Data',tone:'watch',text:'No clean session data yet for this club.'}];
+
+  if(L.sd!=null){
+    const dd=P&&P.sd!=null?delta(L.sd,P.sd,{lowerIsBetter:true,flatBand:0.5}):null;
+    const vsScratch = ref? (L.sd<=ref.disp?'inside':L.sd<=ref.disp*1.6?'near':'outside') : null;
+    let tone = vsScratch==='inside'?'good':vsScratch==='near'?'watch':'bad';
+    let txt = `Last session dispersion was \u00b1${L.sd.toFixed(1)} m`;
+    if(ref) txt += ` (scratch holds \u00b1${ref.disp} m)`;
+    if(dd){
+      if(dd.flat) txt += `, essentially unchanged from the session before \u2014 you've plateaued here. To move it, shrink your target: pick a smaller start-line window and commit to it.`;
+      else if(dd.better){ txt += `, tightening from \u00b1${P.sd.toFixed(1)} m last time \u2014 ${Math.abs(dd.d).toFixed(1)} m less spread. That's real progress; whatever you changed, bank it.`; tone = tone==='bad'?'watch':'good'; }
+      else { txt += `, wider than the \u00b1${P.sd.toFixed(1)} m you held previously. Spread crept up ${Math.abs(dd.d).toFixed(1)} m \u2014 check whether you were swinging full-tilt rather than controlled.`; tone='bad'; }
+    } else {
+      txt += vsScratch==='inside'?` \u2014 already tighter than scratch. Log another session so we can confirm it holds.`:` \u2014 this is your baseline. One more session and we'll see the direction of travel.`;
+    }
+    notes.push({tag:'Accuracy',tone,text:txt});
   }
-  // accuracy read
-  if(acc!=null){
-    if(a.sd<=ref.disp) notes.push({tag:'Accuracy',tone:'good',text:`Dispersion of ±${a.sd.toFixed(1)} m is tighter than the ±${ref.disp} m a scratch player holds — your control with this club is genuinely tour-adjacent.`});
-    else if(a.sd<=ref.disp*1.6) notes.push({tag:'Accuracy',tone:'watch',text:`±${a.sd.toFixed(1)} m is a touch wider than the ±${ref.disp} m scratch norm. Tightening start-line is the fastest gain — most of the spread is direction, not distance.`});
-    else notes.push({tag:'Accuracy',tone:'bad',text:`±${a.sd.toFixed(1)} m is well outside the ±${ref.disp} m scratch window. On course, plan for the wide miss: aim to the safe side and treat this as a "fat part of the green" club, not a flag-hunter.`});
-  }
-  // strike quality from smash (cleaned)
-  if(a.avgSmash!=null){
+
+  if(L.avgSmash!=null){
     const ideal = club==='Driver'?1.48: /Wedge/.test(club)?1.25:1.38;
-    if(a.avgSmash>=ideal-0.04) notes.push({tag:'Strike',tone:'good',text:`Smash factor ${a.avgSmash.toFixed(2)} shows clean centre-face contact — you're converting club speed into ball speed efficiently.`});
-    else notes.push({tag:'Strike',tone:'watch',text:`Smash factor ${a.avgSmash.toFixed(2)} is a little below ideal (~${ideal.toFixed(2)}) — points to off-centre contact. Foot-spray or face tape will show whether it's heel/toe or low-face.`});
+    const dd=P&&P.avgSmash!=null?delta(L.avgSmash,P.avgSmash,{flatBand:0.02}):null;
+    let tone = L.avgSmash>=ideal-0.04?'good':'watch';
+    let txt = `Smash factor ${L.avgSmash.toFixed(2)} (ideal ~${ideal.toFixed(2)})`;
+    if(dd){
+      if(dd.flat) txt += `, holding steady. Contact is repeatable; if it's below ideal, a strike drill \u2014 foot-spray to expose heel/toe bias \u2014 is the next lever.`;
+      else if(dd.better){ txt += `, up from ${P.avgSmash.toFixed(2)} \u2014 finding the centre more often. Strike is trending the right way.`; tone='good'; }
+      else { txt += `, down from ${P.avgSmash.toFixed(2)} \u2014 contact slipped off-centre. Check ball position, and whether fatigue crept in late in the bucket.`; tone='watch'; }
+    } else {
+      txt += L.avgSmash>=ideal-0.04?` \u2014 clean centre-face contact.`:` \u2014 a touch low, suggesting off-centre strikes. Foot-spray will show the pattern.`;
+    }
+    notes.push({tag:'Strike',tone,text:txt});
+  }
+
+  if(L.carrySd!=null){
+    const dd=P&&P.carrySd!=null?delta(L.carrySd,P.carrySd,{lowerIsBetter:true,flatBand:1}):null;
+    let tone = L.carrySd<=6?'good':L.carrySd<=10?'watch':'bad';
+    let txt = `Carry varied \u00b1${L.carrySd.toFixed(1)} m shot-to-shot this session`;
+    if(dd){
+      if(dd.flat) txt += ` \u2014 about the same as last time. A repeatable number is what lets you club confidently on course.`;
+      else if(dd.better){ txt += `, tighter than the \u00b1${P.carrySd.toFixed(1)} m before \u2014 distance control is firming up.`; tone = tone==='bad'?'watch':'good'; }
+      else { txt += `, more scattered than the \u00b1${P.carrySd.toFixed(1)} m before \u2014 a few flyers or duffs in the mix. Check the shot table for the outliers.`; }
+    } else {
+      txt += `. ${L.carrySd<=6?'Tight grouping \u2014 you can trust this yardage.':'Some scatter; tightening this makes on-course club selection far easier.'}`;
+    }
+    notes.push({tag:'Consistency',tone,text:txt});
+  }
+
+  if(L.avgTotal!=null){
+    const dd=P&&P.avgTotal!=null?delta(L.avgTotal,P.avgTotal,{flatBand:2}):null;
+    let txt = `Averaging ${L.avgTotal.toFixed(0)} m total (${L.avgCarry?L.avgCarry.toFixed(0):'\u2014'} m carry)`;
+    let tone='good';
+    if(dd && !dd.flat){ txt += dd.better?`, up ${Math.abs(dd.d).toFixed(0)} m on last session.`:`, down ${Math.abs(dd.d).toFixed(0)} m on last session \u2014 if accuracy improved, a small distance trade is fine.`; }
+    else if(ref){ const gap=L.avgCarry-ref.carry; txt += gap>=-5?` \u2014 around the scratch benchmark. Plenty of length; keep the focus on control.`:` \u2014 ${Math.abs(gap).toFixed(0)} m under scratch carry, but distance isn't your priority. Leave it.`; }
+    notes.push({tag:'Distance',tone,text:txt});
   }
   return notes;
 }
 
-function clubAgg(club){ const sh=golf().shots.filter(s=>s.club===club);
-  // outlier-rejected carry, total & dispersion
-  const carry=rejectOutliers(sh.map(s=>s.carry).filter(v=>v!=null));
-  const total=rejectOutliers(sh.map(s=>s.total).filter(v=>v!=null));
-  const dev=rejectOutliers(sh.map(s=>s.carryDev).filter(v=>v!=null));
-  const sd=sdOf(dev);
-  const avgCarry=meanOf(carry);
-  const avgTotal=meanOf(total);
-  const chs=robustClubSpeed(sh);
-  const smash=meanOf(rejectOutliers(sh.map(s=>s.smash).filter(v=>v!=null)));
-  const distScore=distanceScore(club,avgCarry);
-  const accScore=accuracyScore(club,sd);
-  const a={n:sh.length,avgCarry,avgTotal,bestCarry:carry.length?Math.max(...carry):null,
-    bestTotal:total.length?Math.max(...total):null,sd,chs,avgSmash:smash,
-    distScore,accScore,sessions:new Set(sh.map(s=>(s.date||'').slice(0,10))).size};
+function clubAgg(club){
+  const sh=golf().shots.filter(s=>s.club===club);
+  const byDate={};
+  sh.forEach(s=>{ const d=(s.date||'').slice(0,10)||'undated'; (byDate[d]=byDate[d]||[]).push(s); });
+  const sessionList=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0]))
+    .map(([date,shots])=>({date,shots,stats:sessionStats(shots)}));
+  const last = sessionList[0]?sessionList[0].stats:null;
+  const prev = sessionList[1]?sessionList[1].stats:null;
+  const allCarry=rejectOutliers(sh.map(s=>s.carry).filter(v=>v!=null));
+  const allTotal=rejectOutliers(sh.map(s=>s.total).filter(v=>v!=null));
+  const allDev=rejectOutliers(sh.map(s=>s.carryDev).filter(v=>v!=null));
+  const allTime={avgTotal:meanOf(allTotal),avgCarry:meanOf(allCarry),sd:sdOf(allDev),bestTotal:allTotal.length?Math.max(...allTotal):null};
+  const a={
+    n:sh.length, sessions:sessionList.length, sessionList, last, prev, allTime,
+    avgTotal: last?last.avgTotal:null, avgCarry: last?last.avgCarry:null,
+    sd: last?last.sd:null, chs: last?last.chs:null, avgSmash: last?last.avgSmash:null,
+    bestTotal: last?last.bestTotal:null, carrySd: last?last.carrySd:null,
+    lastDate: sessionList[0]?sessionList[0].date:null,
+    distScore: last?distanceScore(club,last.avgCarry):null,
+    accScore: last?accuracyScore(club,last.sd):null,
+    dCarry: delta(last&&last.avgTotal,prev&&prev.avgTotal,{flatBand:2}),
+    dSd: delta(last&&last.sd,prev&&prev.sd,{lowerIsBetter:true,flatBand:0.5}),
+    dSmash: delta(last&&last.avgSmash,prev&&prev.avgSmash,{flatBand:0.02})
+  };
   a.commentary=clubCommentary(club,a);
-  return a; }
+  return a;
+}
 function renderGolf(){
   const g=golf(); const bag=clubsInBag();
   const withData=clubsInBag().filter(c=>clubAgg(c).n>0);
@@ -1209,19 +1305,21 @@ function renderGolf(){
      <div class="card card-pad"><div class="kicker">The bag</div><div class="h-sec">Avg carry by club</div>
        ${withData.length?barChart(withData.map(c=>({label:CLUB_ABBR[c]||c.slice(0,3),value:clubAgg(c).avgCarry||0,color:'var(--terra)'})),{h:200,yFmt:v=>Math.round(v),showVal:true,valFmt:v=>Math.round(v)}):'<div class="empty">No range data yet — import a session to see your distances</div>'}</div>
    </div>
-   <div class="card card-pad" style="margin-bottom:18px"><div class="kicker">Range</div><div class="h-sec">The bag<span class="sub">distance &amp; accuracy scored separately vs a scratch (0-handicap) golfer · tap a club for detail</span></div>
-     <table class="clean"><thead><tr><th>Club</th><th class="r">Shots</th><th class="r">Avg total</th><th class="r">Avg carry</th><th class="r">Club speed</th><th class="r">Dispersion ±</th><th class="r">Distance</th><th class="r">Accuracy</th><th></th></tr></thead><tbody>
+   <div class="card card-pad" style="margin-bottom:18px"><div class="kicker">Range</div><div class="h-sec">The bag<span class="sub">your most recent session per club, with the trend vs the session before · tap for full detail</span></div>
+     <div class="scroll-x"><table class="clean"><thead><tr><th>Club</th><th class="r">Last session</th><th class="r">Total</th><th class="r">Dispersion ±</th><th class="r">Strike</th><th class="r">Distance</th><th class="r">Accuracy</th><th></th></tr></thead><tbody>
      ${bag.map(c=>{const a=clubAgg(c);const dim=a.n===0?'opacity:.45':'';const click=a.n>0?`style="cursor:pointer;${dim}" onclick="openClubDetail('${c.replace(/'/g,"\\'")}')"`:`style="${dim}"`;
        const ref=SCRATCH[c]; const dc=scoreColor(a.distScore), ac=scoreColor(a.accScore);
        const cell=(v,col)=> v!=null?`<b style="color:${col}">${v}</b><span style="color:var(--ink-faint);font-size:11px">/100</span>`:'—';
-       return `<tr ${click}><td><b>${CLUB_ABBR[c]||''}</b> &nbsp;${c}</td><td class="r mono">${a.n||'—'}</td><td class="r mono"><b>${a.avgTotal?a.avgTotal.toFixed(1)+' m':'—'}</b></td><td class="r mono" style="color:var(--ink-faint)">${a.avgCarry?a.avgCarry.toFixed(1)+' m':'—'}</td><td class="r mono">${a.chs!=null?Math.round(a.chs)+' mph':'—'}</td><td class="r mono">${a.sd!=null?a.sd.toFixed(1)+' m':'—'}</td><td class="r mono">${cell(a.distScore,dc)}</td><td class="r mono">${cell(a.accScore,ac)}</td><td class="r">${a.n>0?'<span style="color:var(--ink-faint)">›</span>':''}</td></tr>`;}).join('')}
-     </tbody></table>
-     <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:12px"><b>Distance</b> = your carry vs the scratch carry for that club. <b>Accuracy</b> = your shot-to-shot spread vs the scratch dispersion. Each scored 0–100 (100 = scratch level or better). All figures use outlier-rejected data — mishits and junk launch-monitor readings are discarded before scoring.</div></div>
+       const arrow=(dd)=> !dd?'':`<span style="font-size:11px;color:${dd.flat?'var(--ink-faint)':dd.better?'var(--good)':'var(--bad)'}"> ${dd.dir}</span>`;
+       const datelbl=a.lastDate?fmtDate(a.lastDate):'—';
+       return `<tr ${click}><td><b>${CLUB_ABBR[c]||''}</b> &nbsp;${c}</td><td class="r mono" style="color:var(--ink-faint);font-size:12px">${a.n>0?datelbl:'—'}</td><td class="r mono"><b>${a.avgTotal?a.avgTotal.toFixed(1)+' m':'—'}</b>${arrow(a.dCarry)}</td><td class="r mono">${a.sd!=null?a.sd.toFixed(1)+' m':'—'}${arrow(a.dSd)}</td><td class="r mono">${a.avgSmash!=null?a.avgSmash.toFixed(2):'—'}${arrow(a.dSmash)}</td><td class="r mono">${cell(a.distScore,dc)}</td><td class="r mono">${cell(a.accScore,ac)}</td><td class="r">${a.n>0?'<span style="color:var(--ink-faint)">›</span>':''}</td></tr>`;}).join('')}
+     </tbody></table></div>
+     <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:12px">Numbers shown are your <b>most recent session</b> per club — current form, not a career average. Arrows compare to the session before (<span style="color:var(--good)">↑</span> better, <span style="color:var(--bad)">↓</span> worse, → unchanged). <b>Distance/Accuracy</b> scores are vs a scratch golfer. All figures use outlier-rejected data. Tap a club for session-by-session history and the coach's read.</div></div>
    <div class="card card-pad"><div class="kicker">Scorecards</div><div class="h-sec">Rounds</div>
-     <table class="clean"><thead><tr><th>Date</th><th>Course</th><th class="r">Out</th><th class="r">In</th><th class="r">Score</th></tr></thead><tbody>
+     <div class="scroll-x"><table class="clean"><thead><tr><th>Date</th><th>Course</th><th class="r">Out</th><th class="r">In</th><th class="r">Score</th></tr></thead><tbody>
      ${rounds.map(r=>{const f=r.holes&&r.holes.length>=18?r.holes.slice(0,9).reduce((a,b)=>a+b,0):'—';const b=r.holes&&r.holes.length>=18?r.holes.slice(9).reduce((a,b)=>a+b,0):'—';const ov=r.total-(r.par||72);
        return `<tr><td class="mono">${(r.date||'').slice(0,10)}</td><td>${r.course}${r.layout?' · '+r.layout:''}</td><td class="r mono">${f}</td><td class="r mono">${b}</td><td class="r mono"><b>${r.total}</b> <span style="color:${ov>0?'var(--bad)':'var(--good)'}">(${ov>0?'+':''}${ov})</span></td></tr>`;}).join('')}
-     </tbody></table>
+     </tbody></table></div>
    </div>`;
 }
 
@@ -1328,17 +1426,20 @@ function statBlock(shots){
 }
 function openClubDetail(club){
   const sessions=sessionsForClub(club);
-  const all=golf().shots.filter(s=>s.club===club);
-  const st=statBlock(all);
+  const allShots=golf().shots.filter(s=>s.club===club);
+  const st=statBlock(allShots);                   // all-time, for the small reference line
   const fx=(v,d=1,u='')=> v==null?'—':v.toFixed(d)+u;
-  const A=clubAgg(club);                          // outlier-rejected aggregate (scores, commentary, chs)
+  const A=clubAgg(club);                          // session-based aggregate (headline = last session)
   const chs=A.chs;
   const ref=SCRATCH[club];
-  // overall stat grid (uses cleaned carry/dispersion from A; other metrics from statBlock)
+  const lastShots=A.sessionList&&A.sessionList[0]?A.sessionList[0].shots:[];
+  const ls=statBlock(lastShots);                  // last-session detail metrics
+  // stat grid — LAST SESSION values
   const cds=[['Avg total',fx(A.avgTotal,1,' m')],['Avg carry',fx(A.avgCarry,1,' m')],['Best total',fx(A.bestTotal,1,' m')],
-    ['Club speed',chs!=null?Math.round(chs)+' mph':'—'],['Dispersion ±',fx(A.sd,1,' m')],['Ball spd',fx(st.avgBall,1)],
-    ['Smash',fx(A.avgSmash,2)],['Launch',fx(st.avgLaunch,1,'°')],['Spin',st.avgSpin==null?'—':Math.round(st.avgSpin)+' rpm'],['Apex',fx(st.avgApex,1,' ft')]];
-  // per-shot carry chart across all sessions
+    ['Club speed',chs!=null?Math.round(chs)+' mph':'—'],['Dispersion ±',fx(A.sd,1,' m')],['Ball spd',fx(ls.avgBall,1)],
+    ['Smash',fx(A.avgSmash,2)],['Launch',fx(ls.avgLaunch,1,'°')],['Spin',ls.avgSpin==null?'—':Math.round(ls.avgSpin)+' rpm'],['Apex',fx(ls.avgApex,1,' ft')]];
+  // per-shot carry chart — LAST SESSION only
+  const all=lastShots;
   const maxC=Math.max(...all.map(s=>s.carry||0),1);
   const bars=all.map((s,i)=>{const h=s.carry?Math.max(4,s.carry/maxC*100):4;
     return `<div title="Shot ${i+1}: ${fx(s.carry,1,' m')} carry, ${fx(s.carryDev,1,' m')} offline" style="flex:1;min-width:3px;height:${h}%;background:${s.carry?'linear-gradient(180deg,var(--terra-soft),var(--terra))':'var(--line2)'};border-radius:3px 3px 0 0"></div>`;}).join('');
@@ -1351,7 +1452,7 @@ function openClubDetail(club){
         <td class="r mono" style="color:${dc}">${dev==null?'—':Math.abs(dev).toFixed(1)+side}</td>
         <td class="r mono">${fx(sh.ballSpeed,1)}</td><td class="r mono">${fx(sh.smash,2)}</td>
         <td class="r mono">${fx(sh.launchAngle,1)}</td><td class="r mono">${sh.spinRate==null?'—':Math.round(sh.spinRate)}</td></tr>`;}).join('');
-    return `<details class="club-session card" style="margin-bottom:12px;border-radius:12px" ${sessions.length===1?'open':''} ontoggle="if(this.open){document.querySelectorAll('.club-session').forEach(d=>{if(d!==this)d.open=false;})}">
+    return `<details class="club-session card" style="margin-bottom:12px;border-radius:12px" ${si===0?'open':''} ontoggle="if(this.open){document.querySelectorAll('.club-session').forEach(d=>{if(d!==this)d.open=false;})}">
       <summary style="cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:14px;list-style:none">
         <span style="font-family:var(--disp);font-weight:700;font-size:16px">${fmtDate(se.date)}</span>
         <span style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">${s.n} shots</span>
@@ -1371,23 +1472,24 @@ function openClubDetail(club){
     <div class="modal-head">
       <div style="display:flex;align-items:center;gap:14px">
         <div style="width:48px;height:48px;border-radius:12px;background:var(--terra);display:grid;place-items:center;font-family:var(--disp);font-weight:800;font-size:17px;color:#fff">${CLUB_ABBR[club]||''}</div>
-        <div><h2>${club}</h2><div class="ms">${st.n} shots across ${sessions.length} session${sessions.length>1?'s':''} · ±${fx(st.latSd,1)} m dispersion</div></div>
+        <div><h2>${club}</h2><div class="ms">Last session ${A.lastDate?fmtDate(A.lastDate):'—'} · ${ls.n} shots · ±${fx(A.sd,1)} m${A.sessions>1?` &nbsp;·&nbsp; ${A.sessions} sessions logged`:''}</div></div>
       </div>
       <button class="x" onclick="closeModal()">${xSvg()}</button>
     </div>
     <div class="modal-body">
-      ${ref?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
+      ${ref?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">
         <div style="padding:16px 18px;border-radius:14px;background:var(--card);border:1px solid var(--line);border-left:4px solid ${scoreColor(A.distScore)}">
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Distance vs scratch</div>
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Distance vs scratch · last session</div>
           <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px"><span style="font-family:var(--disp);font-weight:700;font-size:38px;line-height:1;color:${scoreColor(A.distScore)}">${A.distScore!=null?A.distScore:'—'}</span><span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">/100 · ${scoreLabel(A.distScore)}</span></div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:5px">${A.avgCarry?A.avgCarry.toFixed(0):'—'} m vs scratch ${ref.carry} m</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:5px">${A.avgCarry?A.avgCarry.toFixed(0):'—'} m carry vs scratch ${ref.carry} m</div>
         </div>
         <div style="padding:16px 18px;border-radius:14px;background:var(--card);border:1px solid var(--line);border-left:4px solid ${scoreColor(A.accScore)}">
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Accuracy vs scratch</div>
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Accuracy vs scratch · last session</div>
           <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px"><span style="font-family:var(--disp);font-weight:700;font-size:38px;line-height:1;color:${scoreColor(A.accScore)}">${A.accScore!=null?A.accScore:'—'}</span><span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">/100 · ${scoreLabel(A.accScore)}</span></div>
           <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:5px">±${A.sd!=null?A.sd.toFixed(1):'—'} m vs scratch ±${ref.disp} m</div>
         </div>
-      </div>`:''}
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-bottom:18px;text-align:center">all-time average: ${fx(A.allTime.avgTotal,0,' m')} total · ±${fx(A.allTime.sd,1)} m dispersion across ${A.n} shots</div>`:''}
       ${A.commentary&&A.commentary.length?`<div style="margin-bottom:20px;border:1px solid var(--line);border-radius:14px;overflow:hidden">
         <div style="padding:11px 16px;background:var(--card2);font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-faint);border-bottom:1px solid var(--line)">Coach's read</div>
         ${A.commentary.map(n=>{const col=n.tone==='good'?'var(--good)':n.tone==='bad'?'var(--bad)':'var(--gold)';
@@ -1399,9 +1501,15 @@ function openClubDetail(club){
       <div class="club-detail-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:20px">
         ${cds.map(c=>`<div style="background:var(--card);padding:13px 14px"><div style="font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">${c[0]}</div><div style="font-family:var(--disp);font-weight:700;font-size:21px;margin-top:4px">${c[1]}</div></div>`).join('')}
       </div>
-      <div class="kicker">Every shot · carry</div>
+      <div class="kicker">Last session · every shot (carry)</div>
       <div style="display:flex;align-items:flex-end;gap:3px;height:120px;border-bottom:1px solid var(--line);margin:8px 0 22px">${bars}</div>
-      <div class="kicker" style="margin-bottom:10px">Sessions</div>
+      ${A.sessionList.length>1?`<div class="kicker" style="margin-bottom:10px">Session trend <span style="color:var(--ink-faint);font-weight:400;text-transform:none;letter-spacing:0">· newest first</span></div>
+      <div style="overflow-x:auto;margin-bottom:22px"><table class="clean" style="font-size:12.5px"><thead><tr><th>Session</th><th class="r">Shots</th><th class="r">Total</th><th class="r">Carry</th><th class="r">Dispersion ±</th><th class="r">Carry σ</th><th class="r">Smash</th></tr></thead><tbody>
+      ${A.sessionList.map((se,i)=>{const t=se.stats; const pst=A.sessionList[i+1]?A.sessionList[i+1].stats:null;
+        const arr=(cur,prev,low)=>{ if(prev==null||cur==null)return''; const d=cur-prev; const better=low?d<0:d>0; const flat=Math.abs(d)<(low?0.5:1); return `<span style="font-size:10px;color:${flat?'var(--ink-faint)':better?'var(--good)':'var(--bad)'}"> ${flat?'→':d>0?'↑':'↓'}</span>`; };
+        return `<tr${i===0?' style="background:var(--card2)"':''}><td class="mono">${fmtDate(se.date)}${i===0?' <span style="color:var(--terra);font-size:10px">●now</span>':''}</td><td class="r mono">${t.n}</td><td class="r mono">${fx(t.avgTotal,1)}${arr(t.avgTotal,pst&&pst.avgTotal,false)}</td><td class="r mono">${fx(t.avgCarry,1)}</td><td class="r mono">${fx(t.sd,1)}${arr(t.sd,pst&&pst.sd,true)}</td><td class="r mono">${fx(t.carrySd,1)}${arr(t.carrySd,pst&&pst.carrySd,true)}</td><td class="r mono">${fx(t.avgSmash,2)}${arr(t.avgSmash,pst&&pst.avgSmash,false)}</td></tr>`;}).join('')}
+      </tbody></table></div>`:''}
+      <div class="kicker" style="margin-bottom:10px">Session detail <span style="color:var(--ink-faint);font-weight:400;text-transform:none;letter-spacing:0">· tap to expand one at a time</span></div>
       ${sessHtml}
     </div>`);
 }
@@ -1666,7 +1774,7 @@ function renderWhoop(){
      ${stageHtml||'<div class="card card-pad"><div class="empty">No sleep-stage data yet</div></div>'}
    </div>
    ${wkRows?`<div class="card card-pad"><div class="kicker">Activity</div><div class="h-sec">Recent workouts</div>
-     <table class="clean"><thead><tr><th>Date</th><th>Sport</th><th class="r">Strain</th><th class="r">Avg HR</th><th class="r">Distance</th><th class="r">Duration</th></tr></thead><tbody>${wkRows}</tbody></table></div>`:''}
+     <div class="scroll-x"><table class="clean"><thead><tr><th>Date</th><th>Sport</th><th class="r">Strain</th><th class="r">Avg HR</th><th class="r">Distance</th><th class="r">Duration</th></tr></thead><tbody>${wkRows}</tbody></table></div></div>`:''}
    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;text-align:center;margin-top:16px">
      WHOOP metrics for personal insight only — not medical data. Live sync runs through your self-hosted proxy; your tokens never touch this file.</div>`;
 }
