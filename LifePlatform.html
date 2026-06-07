@@ -1165,16 +1165,19 @@ function clubCommentary(club,a){
 }
 
 function clubAgg(club){ const sh=golf().shots.filter(s=>s.club===club);
-  // outlier-rejected carry & dispersion
+  // outlier-rejected carry, total & dispersion
   const carry=rejectOutliers(sh.map(s=>s.carry).filter(v=>v!=null));
+  const total=rejectOutliers(sh.map(s=>s.total).filter(v=>v!=null));
   const dev=rejectOutliers(sh.map(s=>s.carryDev).filter(v=>v!=null));
   const sd=sdOf(dev);
   const avgCarry=meanOf(carry);
+  const avgTotal=meanOf(total);
   const chs=robustClubSpeed(sh);
   const smash=meanOf(rejectOutliers(sh.map(s=>s.smash).filter(v=>v!=null)));
   const distScore=distanceScore(club,avgCarry);
   const accScore=accuracyScore(club,sd);
-  const a={n:sh.length,avgCarry,bestCarry:carry.length?Math.max(...carry):null,sd,chs,avgSmash:smash,
+  const a={n:sh.length,avgCarry,avgTotal,bestCarry:carry.length?Math.max(...carry):null,
+    bestTotal:total.length?Math.max(...total):null,sd,chs,avgSmash:smash,
     distScore,accScore,sessions:new Set(sh.map(s=>(s.date||'').slice(0,10))).size};
   a.commentary=clubCommentary(club,a);
   return a; }
@@ -1207,11 +1210,11 @@ function renderGolf(){
        ${withData.length?barChart(withData.map(c=>({label:CLUB_ABBR[c]||c.slice(0,3),value:clubAgg(c).avgCarry||0,color:'var(--terra)'})),{h:200,yFmt:v=>Math.round(v),showVal:true,valFmt:v=>Math.round(v)}):'<div class="empty">No range data yet — import a session to see your distances</div>'}</div>
    </div>
    <div class="card card-pad" style="margin-bottom:18px"><div class="kicker">Range</div><div class="h-sec">The bag<span class="sub">distance &amp; accuracy scored separately vs a scratch (0-handicap) golfer · tap a club for detail</span></div>
-     <table class="clean"><thead><tr><th>Club</th><th class="r">Shots</th><th class="r">Avg carry</th><th class="r">Club speed</th><th class="r">Dispersion ±</th><th class="r">Distance</th><th class="r">Accuracy</th><th></th></tr></thead><tbody>
+     <table class="clean"><thead><tr><th>Club</th><th class="r">Shots</th><th class="r">Avg total</th><th class="r">Avg carry</th><th class="r">Club speed</th><th class="r">Dispersion ±</th><th class="r">Distance</th><th class="r">Accuracy</th><th></th></tr></thead><tbody>
      ${bag.map(c=>{const a=clubAgg(c);const dim=a.n===0?'opacity:.45':'';const click=a.n>0?`style="cursor:pointer;${dim}" onclick="openClubDetail('${c.replace(/'/g,"\\'")}')"`:`style="${dim}"`;
        const ref=SCRATCH[c]; const dc=scoreColor(a.distScore), ac=scoreColor(a.accScore);
        const cell=(v,col)=> v!=null?`<b style="color:${col}">${v}</b><span style="color:var(--ink-faint);font-size:11px">/100</span>`:'—';
-       return `<tr ${click}><td><b>${CLUB_ABBR[c]||''}</b> &nbsp;${c}</td><td class="r mono">${a.n||'—'}</td><td class="r mono">${a.avgCarry?a.avgCarry.toFixed(1)+' m':'—'}</td><td class="r mono">${a.chs!=null?Math.round(a.chs)+' mph':'—'}</td><td class="r mono">${a.sd!=null?a.sd.toFixed(1)+' m':'—'}</td><td class="r mono">${cell(a.distScore,dc)}</td><td class="r mono">${cell(a.accScore,ac)}</td><td class="r">${a.n>0?'<span style="color:var(--ink-faint)">›</span>':''}</td></tr>`;}).join('')}
+       return `<tr ${click}><td><b>${CLUB_ABBR[c]||''}</b> &nbsp;${c}</td><td class="r mono">${a.n||'—'}</td><td class="r mono"><b>${a.avgTotal?a.avgTotal.toFixed(1)+' m':'—'}</b></td><td class="r mono" style="color:var(--ink-faint)">${a.avgCarry?a.avgCarry.toFixed(1)+' m':'—'}</td><td class="r mono">${a.chs!=null?Math.round(a.chs)+' mph':'—'}</td><td class="r mono">${a.sd!=null?a.sd.toFixed(1)+' m':'—'}</td><td class="r mono">${cell(a.distScore,dc)}</td><td class="r mono">${cell(a.accScore,ac)}</td><td class="r">${a.n>0?'<span style="color:var(--ink-faint)">›</span>':''}</td></tr>`;}).join('')}
      </tbody></table>
      <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:12px"><b>Distance</b> = your carry vs the scratch carry for that club. <b>Accuracy</b> = your shot-to-shot spread vs the scratch dispersion. Each scored 0–100 (100 = scratch level or better). All figures use outlier-rejected data — mishits and junk launch-monitor readings are discarded before scoring.</div></div>
    <div class="card card-pad"><div class="kicker">Scorecards</div><div class="h-sec">Rounds</div>
@@ -1320,7 +1323,7 @@ function statBlock(shots){
   const sd=a=>{if(a.length<2)return null;const mm=m(a);return Math.sqrt(a.reduce((s,x)=>s+(x-mm)**2,0)/(a.length-1));};
   const carry=f('carry'),total=f('total'),dev=f('carryDev'),ball=f('ballSpeed'),spin=f('spinRate'),smash=f('smash'),launch=f('launchAngle'),apex=f('apex'),cs=f('clubSpeed');
   return {n:shots.length,avgCarry:m(carry),bestCarry:carry.length?Math.max(...carry):null,carrySd:sd(carry),
-    avgTotal:m(total),latSd:sd(dev),absDev:m(dev.map(Math.abs)),avgBall:m(ball),avgSpin:m(spin),
+    avgTotal:m(total),bestTotal:total.length?Math.max(...total):null,latSd:sd(dev),absDev:m(dev.map(Math.abs)),avgBall:m(ball),avgSpin:m(spin),
     avgSmash:m(smash),avgLaunch:m(launch),avgApex:m(apex),avgClubSpeed:m(cs)};
 }
 function openClubDetail(club){
@@ -1332,35 +1335,35 @@ function openClubDetail(club){
   const chs=A.chs;
   const ref=SCRATCH[club];
   // overall stat grid (uses cleaned carry/dispersion from A; other metrics from statBlock)
-  const cds=[['Avg carry',fx(A.avgCarry,1,' m')],['Best',fx(A.bestCarry,1,' m')],['Carry σ',fx(st.carrySd,1,' m')],
+  const cds=[['Avg total',fx(A.avgTotal,1,' m')],['Avg carry',fx(A.avgCarry,1,' m')],['Best total',fx(A.bestTotal,1,' m')],
     ['Club speed',chs!=null?Math.round(chs)+' mph':'—'],['Dispersion ±',fx(A.sd,1,' m')],['Ball spd',fx(st.avgBall,1)],
     ['Smash',fx(A.avgSmash,2)],['Launch',fx(st.avgLaunch,1,'°')],['Spin',st.avgSpin==null?'—':Math.round(st.avgSpin)+' rpm'],['Apex',fx(st.avgApex,1,' ft')]];
   // per-shot carry chart across all sessions
   const maxC=Math.max(...all.map(s=>s.carry||0),1);
   const bars=all.map((s,i)=>{const h=s.carry?Math.max(4,s.carry/maxC*100):4;
     return `<div title="Shot ${i+1}: ${fx(s.carry,1,' m')} carry, ${fx(s.carryDev,1,' m')} offline" style="flex:1;min-width:3px;height:${h}%;background:${s.carry?'linear-gradient(180deg,var(--terra-soft),var(--terra))':'var(--line2)'};border-radius:3px 3px 0 0"></div>`;}).join('');
-  // session cards
-  const sessHtml=sessions.map(se=>{
+  // session cards — each opens independently (accordion: opening one closes the others)
+  const sessHtml=sessions.map((se,si)=>{
     const s=statBlock(se.shots);
     const rows=se.shots.map((sh,i)=>{const dev=sh.carryDev;const side=dev==null?'':dev>0?' R':dev<0?' L':'';
       const dc=dev==null?'var(--ink-faint)':Math.abs(dev)<=4?'var(--good)':Math.abs(dev)<=8?'var(--warn)':'var(--bad)';
-      return `<tr><td class="mono">${i+1}</td><td class="r mono">${fx(sh.carry,1)}</td><td class="r mono">${fx(sh.total,1)}</td>
+      return `<tr><td class="mono">${i+1}</td><td class="r mono">${fx(sh.total,1)}</td><td class="r mono">${fx(sh.carry,1)}</td>
         <td class="r mono" style="color:${dc}">${dev==null?'—':Math.abs(dev).toFixed(1)+side}</td>
         <td class="r mono">${fx(sh.ballSpeed,1)}</td><td class="r mono">${fx(sh.smash,2)}</td>
         <td class="r mono">${fx(sh.launchAngle,1)}</td><td class="r mono">${sh.spinRate==null?'—':Math.round(sh.spinRate)}</td></tr>`;}).join('');
-    return `<details class="card" style="margin-bottom:12px;border-radius:12px" ${sessions.length===1?'open':''}>
+    return `<details class="club-session card" style="margin-bottom:12px;border-radius:12px" ${sessions.length===1?'open':''} ontoggle="if(this.open){document.querySelectorAll('.club-session').forEach(d=>{if(d!==this)d.open=false;})}">
       <summary style="cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:14px;list-style:none">
         <span style="font-family:var(--disp);font-weight:700;font-size:16px">${fmtDate(se.date)}</span>
         <span style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">${s.n} shots</span>
-        <span style="margin-left:auto;font-family:var(--disp);font-weight:700;font-size:20px;color:var(--terra-deep)">${fx(s.avgCarry,1)}<span style="font-size:12px;color:var(--ink-faint);font-weight:500"> m avg</span></span>
+        <span style="margin-left:auto;font-family:var(--disp);font-weight:700;font-size:20px;color:var(--terra-deep)">${fx(s.avgTotal,1)}<span style="font-size:12px;color:var(--ink-faint);font-weight:500"> m total</span></span>
         <span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">±${fx(s.latSd,1)} m</span>
       </summary>
       <div style="padding:0 18px 16px">
         <div style="display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:12px">
-          <span>Best ${fx(s.bestCarry,1)} m</span><span>Total ${fx(s.avgTotal,1)} m</span><span>Ball ${fx(s.avgBall,1)}</span>
+          <span>Avg total ${fx(s.avgTotal,1)} m</span><span>Avg carry ${fx(s.avgCarry,1)} m</span><span>Best total ${fx(s.bestTotal,1)} m</span><span>Ball ${fx(s.avgBall,1)}</span>
           <span>Smash ${fx(s.avgSmash,2)}</span><span>Launch ${fx(s.avgLaunch,1)}°</span><span>Spin ${s.avgSpin==null?'—':Math.round(s.avgSpin)}</span>
         </div>
-        <div style="overflow-x:auto"><table class="clean" style="font-size:12.5px"><thead><tr><th>#</th><th class="r">Carry</th><th class="r">Total</th><th class="r">Offline</th><th class="r">Ball</th><th class="r">Smash</th><th class="r">Launch</th><th class="r">Spin</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <div style="overflow-x:auto"><table class="clean" style="font-size:12.5px"><thead><tr><th>#</th><th class="r">Total</th><th class="r">Carry</th><th class="r">Offline</th><th class="r">Ball</th><th class="r">Smash</th><th class="r">Launch</th><th class="r">Spin</th></tr></thead><tbody>${rows}</tbody></table></div>
       </div>
     </details>`;
   }).join('');
