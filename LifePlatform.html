@@ -203,7 +203,55 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   .modal-body{padding:18px 16px}
   .club-detail-stats{grid-template-columns:repeat(2,1fr)!important}
   .big-income .amt{font-size:42px}
+  .tk-grid{grid-template-columns:1fr!important}
 }
+
+/* ---- tasks / projects module ---- */
+.tk-over{display:grid;grid-template-columns:auto 1fr auto;gap:28px;align-items:center}
+@media(max-width:760px){.tk-over{grid-template-columns:1fr;gap:18px}}
+.tk-ring-num{font-family:var(--disp);font-weight:700;font-size:21px;fill:var(--ink)}
+.tk-metrics{display:flex;gap:30px;flex-wrap:wrap}
+.tk-metric .v{font-family:var(--disp);font-weight:700;font-size:27px;line-height:1;letter-spacing:-.5px}
+.tk-metric .l{font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink-faint);margin-top:5px}
+.tk-wkbars{display:flex;align-items:flex-end;gap:6px;height:46px}
+.tk-wkcol{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.tk-wkcol .bar{width:100%;min-height:3px;background:var(--terra-soft);border-radius:4px 4px 2px 2px;transition:.35s}
+.tk-wkcol .bar.today{background:var(--terra)}
+.tk-wkcol .d{font-family:var(--mono);font-size:8.5px;color:var(--ink-faint)}
+.tk-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:18px}
+.tk-proj{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 18px 12px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.tk-proj-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px}
+.tk-proj-name{font-family:var(--disp);font-weight:700;font-size:17px;letter-spacing:-.2px;display:flex;align-items:center;gap:9px}
+.tk-pdot{width:11px;height:11px;border-radius:4px;flex:none}
+.tk-gear{cursor:pointer;color:var(--ink-faint);opacity:.55;transition:.15s;flex:none}
+.tk-gear:hover{opacity:1;color:var(--terra)}
+.tk-goal{font-family:var(--serif);font-size:12.5px;color:var(--ink-soft);font-style:italic}
+.tk-goal b{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.tk-bar{height:6px;border-radius:6px;background:var(--line2);overflow:hidden;margin:8px 0 4px}
+.tk-bar>i{display:block;height:100%;border-radius:6px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.tk-list{margin-top:6px}
+.tk-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.tk-item:last-child{border-bottom:none}
+.tk-check{width:20px;height:20px;border-radius:7px;border:2px solid var(--line2);flex:none;display:grid;place-items:center;cursor:pointer;transition:.15s}
+.tk-check:hover{border-color:var(--terra)}
+.tk-check.on{background:var(--good);border-color:var(--good)}
+.tk-txt{font-family:var(--serif);font-size:14.5px;flex:1;cursor:pointer;line-height:1.35}
+.tk-txt.done{text-decoration:line-through;color:var(--ink-faint)}
+.tk-flag{width:13px;height:13px;flex:none;cursor:pointer;border-radius:3px;border:1.5px solid transparent}
+.tk-due{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:20px;white-space:nowrap;flex:none}
+.tk-x{cursor:pointer;color:var(--line2);font-size:18px;line-height:1;padding:0 2px;flex:none}
+.tk-x:hover{color:var(--rose)}
+.tk-add{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:12px}
+.tk-add input{flex:1;background:var(--paper);border:1px solid var(--line2);border-radius:9px;padding:8px 11px;font-family:var(--serif);font-size:13.5px;color:var(--ink)}
+.tk-add input:focus{outline:none;border-color:var(--terra);box-shadow:0 0 0 3px rgba(14,124,134,.14)}
+.tk-add button{flex:none;width:34px;height:34px;border-radius:9px;border:none;background:var(--terra);color:#fff;font-size:20px;line-height:1;cursor:pointer;transition:.15s}
+.tk-add button:hover{background:var(--terra-deep)}
+.tk-newproj{border:2px dashed var(--line2);border-radius:16px;display:grid;place-items:center;min-height:130px;cursor:pointer;color:var(--ink-faint);font-family:var(--disp);font-weight:600;font-size:15px;transition:.18s;text-align:center}
+.tk-newproj:hover{border-color:var(--terra);color:var(--terra);background:rgba(14,124,134,.04)}
+.tk-focus{display:flex;gap:8px;flex-wrap:wrap}
+.tk-fchip{font-family:var(--serif);font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:6px 12px;display:inline-flex;align-items:center;gap:7px;box-shadow:var(--shadow)}
+.tk-fchip .fdot{width:8px;height:8px;border-radius:3px;flex:none}
+.tk-done-head{font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin:12px 0 2px;cursor:pointer;user-select:none}
 </style>
 </head>
 <body>
@@ -410,13 +458,13 @@ function renderHome(){
      ${cardReadiness()}
      ${cardCommute()}
    </div>
+   ${cardTasks()}
    <div class="grid g2" style="margin-bottom:18px">
      ${cardCalendar()}
-     ${cardTasks()}
-   </div>
-   <div class="grid g2" style="margin-bottom:8px">
-     ${cardNews()}
      ${cardMarkets()}
+   </div>
+   <div style="margin-bottom:8px">
+     ${cardNews()}
    </div>
    <div style="text-align:right;margin-top:10px">
      <button class="btn" onclick="refreshMorning()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>Refresh feeds</button>
@@ -478,9 +526,18 @@ function cardReadiness(){
 }
 
 /* ---- commute / traffic card ---- */
+// Build a Google Maps directions deep-link with live traffic — works with no proxy,
+// opens in the browser or the Maps app and routes around current congestion.
+function mapsDirUrl(from,to){
+  return 'https://www.google.com/maps/dir/?api=1'
+    + '&origin='+encodeURIComponent(from||'')
+    + '&destination='+encodeURIComponent(to||'')
+    + '&travelmode=driving';
+}
 function cardCommute(){
   const m=morningCfg(); const t=m.traffic;
   const live = t && t.durationText;
+  const dirUrl = mapsDirUrl(m.commute.from, m.commute.to);
   return `<div class="card card-pad"><div class="kicker">The commute</div><div class="h-sec">Drive to work</div>
     <div style="font-family:var(--serif);font-size:14px;color:var(--ink-soft);line-height:1.5;margin-bottom:14px">
       <b style="color:var(--ink)">${m.commute.from}</b><br>
@@ -491,8 +548,11 @@ function cardCommute(){
          ${t.normalText?`<span style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">vs ~${t.normalText} typical</span>`:''}</div>
          ${t.distanceText?`<div style="font-family:var(--mono);font-size:12px;color:var(--ink-faint);margin-top:4px">${t.distanceText}</div>`:''}`
       : proxyBase()? `<div class="empty" style="padding:16px 0">Fetching live drive time…</div>`
-        : `<div class="empty" style="padding:16px 0">Connect your proxy (WHOOP tab) to show live traffic, or <a onclick="editCommute()" style="color:var(--terra);cursor:pointer;text-decoration:underline">set route</a>.</div>` }</div>
-    <button class="btn" style="margin-top:6px" onclick="editCommute()">Edit route</button></div>`;
+        : `<div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);padding:6px 0 2px">Open the route below for live traffic, or <a onclick="editCommute()" style="color:var(--terra);cursor:pointer;text-decoration:underline">set route</a>.</div>` }</div>
+    <div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap">
+      <a class="btn primary" href="${dirUrl}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>Open directions</a>
+      <button class="btn" onclick="editCommute()">Edit route</button></div></div>`;
 }
 function editCommute(){
   const m=morningCfg();
@@ -530,28 +590,249 @@ function saveCalEvent(){ const m=morningCfg(); const title=document.getElementBy
   m.calendar.push({time:document.getElementById('ce_time').value,title,location:document.getElementById('ce_loc').value.trim()});
   save(); closeModal(); renderHome(); }
 
-/* ---- tasks card (fully usable, local) ---- */
-function cardTasks(){
-  const tasks=morningCfg().tasks||[];
-  const open=tasks.filter(t=>!t.done), done=tasks.filter(t=>t.done);
-  const row=t=>`<div style="display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--line)">
-      <span onclick="toggleTask('${t.id}')" style="cursor:pointer;width:19px;height:19px;border-radius:6px;border:2px solid ${t.done?'var(--good)':'var(--line2)'};background:${t.done?'var(--good)':'transparent'};flex:none;display:grid;place-items:center">
-        ${t.done?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</span>
-      <span style="font-family:var(--serif);font-size:14.5px;flex:1;${t.done?'text-decoration:line-through;color:var(--ink-faint)':''}">${t.text}</span>
-      <span onclick="delTask('${t.id}')" style="cursor:pointer;color:var(--ink-faint);font-size:18px;line-height:1">×</span></div>`;
-  return `<div class="card card-pad"><div class="kicker">Get it done</div><div class="h-sec">Tasks<span class="sub">${open.length} open${done.length?' · '+done.length+' done':''}</span></div>
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <input id="taskInput" placeholder="Add a task and press Enter" onkeydown="if(event.key==='Enter')addTask()"
-        style="flex:1;background:var(--paper);border:1px solid var(--line2);border-radius:9px;padding:9px 12px;font-family:var(--serif);font-size:14px;color:var(--ink)">
-      <button class="btn primary" onclick="addTask()">Add</button></div>
-    <div id="taskList">${open.map(row).join('')}${done.length?`<div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin:12px 0 4px">Completed</div>`+done.map(row).join(''):''}
-      ${tasks.length===0?'<div class="empty" style="padding:14px 0">Nothing yet — add your first task above.</div>':''}</div></div>`;
+/* ============================================================
+   TASKS — Projects + weekly goals (Apple-clean, performance-first)
+   Data model (stored in DB.morning):
+     projects:[{id,name,color,weekGoal,weekTarget}]
+     tasks:[{id,text,done,projectId,priority(1-3),due'YYYY-MM-DD',createdAt,doneAt}]
+   ============================================================ */
+const TK_PALETTE=['var(--terra)','var(--sage)','var(--plum)','var(--gold)','var(--rose)','var(--sky)'];
+const TK_PRIO={1:{c:'var(--rose)',l:'High'},2:{c:'var(--terra)',l:'Medium'},3:{c:'var(--ink-faint)',l:'Low'}};
+
+function tasksCfg(){
+  const m=morningCfg();
+  if(!Array.isArray(m.projects)) m.projects=[];
+  if(!Array.isArray(m.tasks)) m.tasks=[];
+  // migrate legacy flat tasks -> full shape
+  m.tasks.forEach(t=>{
+    if(t.text===undefined && t.title!==undefined) t.text=t.title;
+    if(t.projectId===undefined) t.projectId=null;
+    if(t.priority===undefined) t.priority=2;
+    if(t.due===undefined) t.due=null;
+    if(t.createdAt===undefined) t.createdAt=Date.now();
+    if(t.done && t.doneAt===undefined) t.doneAt=Date.now();
+  });
+  // seed starter projects once
+  if(m.projects.length===0 && !m._projSeeded){
+    m._projSeeded=true;
+    m.projects=[
+      {id:'p_work',     name:'Work',     color:'var(--terra)', weekGoal:'Move the big rocks forward', weekTarget:5},
+      {id:'p_personal', name:'Personal', color:'var(--sage)',  weekGoal:'Health, home & admin',        weekTarget:3}
+    ];
+    save();
+  }
+  return m;
 }
-function addTask(){ const i=document.getElementById('taskInput'); const v=i.value.trim(); if(!v)return;
-  morningCfg().tasks.push({id:'t'+Date.now(),text:v,done:false}); save(); renderHome();
-  setTimeout(()=>{const el=document.getElementById('taskInput'); if(el)el.focus();},50); }
-function toggleTask(id){ const t=morningCfg().tasks.find(x=>x.id===id); if(t){t.done=!t.done;save();renderHome();} }
-function delTask(id){ const m=morningCfg(); m.tasks=m.tasks.filter(x=>x.id!==id); save(); renderHome(); }
+function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function tkWeekStart(){ const d=new Date(); d.setHours(0,0,0,0); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); return d.getTime(); }
+function tkInWeek(ts){ if(!ts)return false; const s=tkWeekStart(); return ts>=s && ts<s+7*864e5; }
+function tkStreak(tasks){
+  const days=new Set(tasks.filter(t=>t.done&&t.doneAt).map(t=>new Date(t.doneAt).toDateString()));
+  let n=0, d=new Date(); d.setHours(0,0,0,0);
+  if(!days.has(d.toDateString())) d.setDate(d.getDate()-1); // grace: today not done yet still counts yesterday's streak
+  while(days.has(d.toDateString())){ n++; d.setDate(d.getDate()-1); }
+  return n;
+}
+function tkRing(pct,size,stroke,color){
+  const r=(size-stroke)/2, c=2*Math.PI*r, off=c*(1-Math.min(1,(pct||0)/100));
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line2)" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/>
+    <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" class="tk-ring-num">${Math.round(pct||0)}%</text></svg>`;
+}
+function tkDueChip(t){
+  if(!t.due) return '';
+  const now=new Date(); now.setHours(0,0,0,0);
+  const d=new Date(t.due+'T00:00:00'); const diff=Math.round((d-now)/864e5);
+  let label,bg,fg;
+  if(diff<0){ label=`${-diff}d over`; bg='rgba(194,85,78,.15)'; fg='var(--bad)'; }
+  else if(diff===0){ label='Today'; bg='rgba(14,124,134,.15)'; fg='var(--terra-deep)'; }
+  else if(diff===1){ label='Tom'; bg='var(--paper2)'; fg='var(--ink-soft)'; }
+  else if(diff<7){ label=d.toLocaleDateString('en-ZA',{weekday:'short'}); bg='var(--paper2)'; fg='var(--ink-soft)'; }
+  else { label=d.toLocaleDateString('en-ZA',{day:'numeric',month:'short'}); bg='var(--paper2)'; fg='var(--ink-soft)'; }
+  return `<span class="tk-due" style="background:${bg};color:${fg}">${label}</span>`;
+}
+function tkSortOpen(a,b){
+  const t=todayISO();
+  const rank=x=> x.due ? (x.due<t?0:x.due===t?1:2) : 3;
+  if(rank(a)!==rank(b)) return rank(a)-rank(b);
+  if((a.due||'')!==(b.due||'')){ if(!a.due)return 1; if(!b.due)return -1; return a.due<b.due?-1:1; }
+  if((a.priority||2)!==(b.priority||2)) return (a.priority||2)-(b.priority||2);
+  return (a.createdAt||0)-(b.createdAt||0);
+}
+function tkProjTasks(m,pid,known){
+  return m.tasks.filter(t=> pid==='__inbox' ? (!t.projectId||!known.has(t.projectId)) : t.projectId===pid);
+}
+function tkCoach(open,overdue,doneWeek,plannedWeek,streak){
+  if(overdue>0) return `You're carrying <b>${overdue}</b> overdue task${overdue>1?'s':''}. Clear those first — nothing erodes momentum like a backlog you're stepping around.`;
+  if(plannedWeek && doneWeek>=plannedWeek) return `Every weekly target met — <b>${doneWeek}</b> done. Bank the win, then pull one task forward from next week while you're hot.`;
+  if(streak>=3) return `<b>${streak}-day</b> streak going. Protect it: choose the single hardest task and start there before the day fills up.`;
+  if(open===0) return `Clean slate. Set a weekly target on each project so your effort has a finish line to run at.`;
+  return `Performance is a stack of decisive days. Pick your three most important tasks below and close them before noon.`;
+}
+
+function cardTasks(){
+  const m=tasksCfg();
+  const known=new Set(m.projects.map(p=>p.id));
+  const hasInbox=m.tasks.some(t=>!t.projectId||!known.has(t.projectId));
+  const projects=[...m.projects, ...(hasInbox?[{id:'__inbox',name:'Inbox',color:'var(--ink-faint)',weekGoal:'Unsorted — file these into a project',weekTarget:0,_virtual:true}]:[])];
+
+  const openAll=m.tasks.filter(t=>!t.done);
+  const doneWeek=m.tasks.filter(t=>t.done&&tkInWeek(t.doneAt)).length;
+  const plannedWeek=m.projects.reduce((s,p)=>s+(+p.weekTarget||0),0);
+  const overdue=openAll.filter(t=>t.due&&t.due<todayISO()).length;
+  const pctWeek=plannedWeek?Math.min(100,Math.round(doneWeek/plannedWeek*100)):(doneWeek?100:0);
+  const streak=tkStreak(m.tasks);
+
+  // weekly completion bars (Mon..Sun)
+  const s=tkWeekStart(); const dayCounts=[0,0,0,0,0,0,0];
+  m.tasks.forEach(t=>{ if(t.done&&t.doneAt){ const i=Math.floor((new Date(t.doneAt).setHours(0,0,0,0)-s)/864e5); if(i>=0&&i<7) dayCounts[i]++; }});
+  const maxDay=Math.max(1,...dayCounts);
+  const todayIdx=(new Date().getDay()+6)%7;
+  const DOW=['M','T','W','T','F','S','S'];
+  const barsHtml=dayCounts.map((c,i)=>`<div class="tk-wkcol"><div class="bar ${i===todayIdx?'today':''}" style="height:${Math.round(c/maxDay*40)+3}px" title="${c} done"></div><div class="d">${DOW[i]}</div></div>`).join('');
+
+  // today's focus — top 3 open (overdue/today/priority)
+  const focus=openAll.slice().sort(tkSortOpen).slice(0,3);
+  const projColor=id=>{ const p=m.projects.find(x=>x.id===id); return p?p.color:'var(--ink-faint)'; };
+  const focusHtml=focus.length
+    ? `<div class="tk-focus">${focus.map(t=>`<span class="tk-fchip" onclick="editTask('${t.id}')" style="cursor:pointer"><span class="fdot" style="background:${projColor(t.projectId)}"></span>${tkEsc(t.text)}${tkDueChip(t)}</span>`).join('')}</div>`
+    : `<div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px">Nothing urgent — add a task to set today's focus.</div>`;
+
+  // project cards
+  const projHtml=projects.map(p=>{
+    const list=tkProjTasks(m,p.id,known);
+    const open=list.filter(t=>!t.done).sort(tkSortOpen);
+    const done=list.filter(t=>t.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+    const dWeek=list.filter(t=>t.done&&tkInWeek(t.doneAt)).length;
+    const tgt=+p.weekTarget||0;
+    const pct=tgt?Math.min(100,Math.round(dWeek/tgt*100)):0;
+    const row=t=>`<div class="tk-item">
+        <span class="tk-check ${t.done?'on':''}" onclick="toggleTask('${t.id}')">${t.done?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</span>
+        ${!t.done?`<span class="tk-flag" onclick="cyclePriority('${t.id}')" title="${TK_PRIO[t.priority||2].l} priority — click to change" style="background:${TK_PRIO[t.priority||2].c}"></span>`:''}
+        <span class="tk-txt ${t.done?'done':''}" onclick="editTask('${t.id}')">${tkEsc(t.text)}</span>
+        ${!t.done?tkDueChip(t):''}
+        <span class="tk-x" onclick="delTask('${t.id}')">×</span></div>`;
+    const goalLine = tgt
+      ? `<div class="tk-goal">${p.weekGoal?tkEsc(p.weekGoal)+' · ':''}<b>${dWeek}/${tgt}</b> this week</div>
+         <div class="tk-bar"><i style="width:${pct}%;background:${p.color}"></i></div>`
+      : (p.weekGoal?`<div class="tk-goal">${tkEsc(p.weekGoal)}</div>`:'');
+    const doneBlock = done.length
+      ? `<div class="tk-done-head" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">${done.length} done ▾</div><div style="display:none">${done.map(row).join('')}</div>`
+      : '';
+    return `<div class="tk-proj">
+      <div class="tk-proj-head">
+        <div><div class="tk-proj-name"><span class="tk-pdot" style="background:${p.color}"></span>${tkEsc(p.name)}</div></div>
+        ${p._virtual?'':`<svg class="tk-gear" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" onclick="editProject('${p.id}')"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`}
+      </div>
+      ${goalLine}
+      <div class="tk-list">${open.map(row).join('')||`<div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;padding:8px 0">All clear here.</div>`}${doneBlock}</div>
+      ${p._virtual?'':`<div class="tk-add">
+        <input id="tkin_${p.id}" placeholder="Add to ${tkEsc(p.name)}…" onkeydown="if(event.key==='Enter')addTaskTo('${p.id}')">
+        <button onclick="addTaskTo('${p.id}')" title="Add">+</button></div>`}
+    </div>`;
+  }).join('');
+
+  return `<div class="card card-pad" style="margin-bottom:18px">
+    <div class="kicker">Get it done</div>
+    <div class="h-sec">Tasks<span class="sub">${openAll.length} open · ${doneWeek} done this week</span></div>
+    <div class="tk-over">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+        ${tkRing(pctWeek,108,11,'var(--terra)')}
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.5px;color:var(--ink-faint)">${plannedWeek?`${doneWeek} / ${plannedWeek} weekly goal`:`${doneWeek} done this week`}</div>
+      </div>
+      <div>
+        <div class="tk-metrics" style="margin-bottom:14px">
+          <div class="tk-metric"><div class="v" style="color:${overdue?'var(--bad)':'var(--ink)'}">${overdue}</div><div class="l">Overdue</div></div>
+          <div class="tk-metric"><div class="v">${openAll.length}</div><div class="l">Open</div></div>
+          <div class="tk-metric"><div class="v" style="color:var(--sage-deep)">${streak}<span style="font-size:15px"> d</span></div><div class="l">Streak</div></div>
+        </div>
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:8px">Today's focus</div>
+        ${focusHtml}
+      </div>
+      <div style="min-width:150px">
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:8px">This week</div>
+        <div class="tk-wkbars">${barsHtml}</div>
+      </div>
+    </div>
+    <div class="coach" style="margin:18px 0 4px"><div class="q">Coach</div><p>${tkCoach(openAll.length,overdue,doneWeek,plannedWeek,streak)}</p></div>
+    <div class="tk-grid">
+      ${projHtml}
+      <div class="tk-newproj" onclick="addProject()">+ New project</div>
+    </div></div>`;
+}
+function tkEsc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function addTaskTo(pid){
+  const i=document.getElementById('tkin_'+pid); if(!i)return; const v=i.value.trim(); if(!v)return;
+  tasksCfg().tasks.push({id:'t'+Date.now(),text:v,done:false,projectId:pid,priority:2,due:null,createdAt:Date.now()});
+  save(); renderHome();
+  setTimeout(()=>{ const el=document.getElementById('tkin_'+pid); if(el)el.focus(); },50);
+}
+function toggleTask(id){ const t=tasksCfg().tasks.find(x=>x.id===id); if(t){ t.done=!t.done; t.doneAt=t.done?Date.now():null; save(); renderHome(); } }
+function delTask(id){ const m=tasksCfg(); m.tasks=m.tasks.filter(x=>x.id!==id); save(); renderHome(); }
+function cyclePriority(id){ const t=tasksCfg().tasks.find(x=>x.id===id); if(t){ t.priority=(t.priority||2)%3+1; save(); renderHome(); } }
+
+function editTask(id){
+  const m=tasksCfg(); const t=m.tasks.find(x=>x.id===id); if(!t)return;
+  const opts=m.projects.map(p=>`<option value="${p.id}" ${t.projectId===p.id?'selected':''}>${tkEsc(p.name)}</option>`).join('')+`<option value="" ${!t.projectId?'selected':''}>Inbox</option>`;
+  showModal(`<div class="modal-head"><div><h2>Edit task</h2><div class="ms">Set priority, due date and project</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Task</label><input id="et_text" value="${tkEsc(t.text)}"></div>
+      <div class="row3">
+        <div class="field"><label>Project</label><select id="et_proj">${opts}</select></div>
+        <div class="field"><label>Priority</label><select id="et_prio">
+          <option value="1" ${t.priority===1?'selected':''}>High</option>
+          <option value="2" ${(t.priority||2)===2?'selected':''}>Medium</option>
+          <option value="3" ${t.priority===3?'selected':''}>Low</option></select></div>
+        <div class="field"><label>Due</label><input id="et_due" type="date" value="${t.due||''}"></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button class="btn primary" onclick="saveTaskEdit('${id}')">Save</button>
+        <button class="btn" onclick="delTask('${id}');closeModal()">Delete</button></div>
+    </div>`);
+}
+function saveTaskEdit(id){
+  const t=tasksCfg().tasks.find(x=>x.id===id); if(!t)return;
+  const tx=document.getElementById('et_text').value.trim(); if(!tx){toast('Task needs text');return;}
+  t.text=tx; t.projectId=document.getElementById('et_proj').value||null;
+  t.priority=+document.getElementById('et_prio').value; t.due=document.getElementById('et_due').value||null;
+  save(); closeModal(); renderHome();
+}
+
+function addProject(){ projectModal(null); }
+function editProject(id){ projectModal(id); }
+function projectModal(id){
+  const m=tasksCfg(); const p=id?m.projects.find(x=>x.id===id):null;
+  const swatches=TK_PALETTE.map(c=>`<span onclick="document.getElementById('pj_color').value='${c}';document.querySelectorAll('.pj-sw').forEach(e=>e.style.outline='none');this.style.outline='3px solid var(--ink)'" class="pj-sw" style="width:30px;height:30px;border-radius:9px;background:${c};cursor:pointer;display:inline-block;outline:${p&&p.color===c||!p&&c===TK_PALETTE[0]?'3px solid var(--ink)':'none'};outline-offset:2px"></span>`).join('');
+  showModal(`<div class="modal-head"><div><h2>${p?'Edit project':'New project'}</h2><div class="ms">A project is an area you're driving forward this week</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="pj_color" value="${p?p.color:TK_PALETTE[0]}">
+      <div class="field"><label>Name</label><input id="pj_name" value="${p?tkEsc(p.name):''}" placeholder="e.g. Gerber deal, Fitness, Home"></div>
+      <div class="field"><label>Colour</label><div style="display:flex;gap:10px;flex-wrap:wrap">${swatches}</div></div>
+      <div class="field"><label>Weekly goal</label><input id="pj_goal" value="${p?tkEsc(p.weekGoal||''):''}" placeholder="What does a good week look like here?"></div>
+      <div class="field"><label>Weekly target — tasks to finish (0 = no target)</label><input id="pj_target" type="number" min="0" max="50" value="${p?(p.weekTarget||0):3}"></div>
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button class="btn primary" onclick="saveProject(${id?`'${id}'`:'null'})">Save</button>
+        ${p?`<button class="btn" onclick="delProject('${id}')">Delete project</button>`:''}</div>
+    </div>`);
+}
+function saveProject(id){
+  const m=tasksCfg();
+  const name=document.getElementById('pj_name').value.trim(); if(!name){toast('Name the project');return;}
+  const color=document.getElementById('pj_color').value;
+  const weekGoal=document.getElementById('pj_goal').value.trim();
+  const weekTarget=Math.max(0,+document.getElementById('pj_target').value||0);
+  if(id){ const p=m.projects.find(x=>x.id===id); if(p){p.name=name;p.color=color;p.weekGoal=weekGoal;p.weekTarget=weekTarget;} }
+  else { m.projects.push({id:'p'+Date.now(),name,color,weekGoal,weekTarget}); }
+  save(); closeModal(); renderHome();
+}
+function delProject(id){
+  const m=tasksCfg();
+  m.tasks.forEach(t=>{ if(t.projectId===id) t.projectId=null; }); // tasks fall back to Inbox
+  m.projects=m.projects.filter(x=>x.id!==id);
+  save(); closeModal(); renderHome();
+}
 
 /* ---- BBC news card ---- */
 function cardNews(){
@@ -578,14 +859,31 @@ function cardMarkets(){
 
 /* ---- live fetches ---- */
 async function fetchCurrency(){
-  try{
-    // no-key, CORS-friendly endpoint
-    const r=await fetch('https://api.exchangerate.host/latest?base=USD&symbols=ZAR,GBP,EUR');
-    const j=await r.json();
-    const usdzar=j.rates.ZAR, gbpzar=j.rates.ZAR/j.rates.GBP, eurzar=j.rates.ZAR/j.rates.EUR;
-    morningCfg().currency={usdzar,gbpzar,eurzar,fetchedAt:'updated '+new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})};
+  // The old exchangerate.host keyless endpoint now requires a paid access_key,
+  // so it silently returned no rates. These two are keyless + CORS-enabled.
+  const stamp = extra => 'updated '+new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})+(extra?' · '+extra:'');
+  const commit = (usdzar,gbpzar,eurzar,extra)=>{
+    morningCfg().currency={usdzar,gbpzar,eurzar,fetchedAt:stamp(extra)};
     save(); renderHomeIfActive();
-  }catch(e){ const el=document.getElementById('fxEmpty'); if(el) el.textContent='Could not load rates (offline?).'; }
+  };
+  // PRIMARY: open.er-api.com — keyless, live USD base (includes ZAR, GBP, EUR)
+  try{
+    const r=await fetch('https://open.er-api.com/v6/latest/USD');
+    const j=await r.json();
+    if(!j||j.result!=='success'||!j.rates||j.rates.ZAR==null) throw new Error('primary unavailable');
+    const rt=j.rates;
+    const day = j.time_last_update_utc ? 'rate '+new Date(j.time_last_update_utc).toLocaleDateString('en-ZA',{day:'numeric',month:'short'}) : '';
+    commit(rt.ZAR, rt.ZAR/rt.GBP, rt.ZAR/rt.EUR, day);
+    return;
+  }catch(e){ /* fall through to backup */ }
+  // FALLBACK: Frankfurter (ECB reference rates) — also keyless + CORS
+  try{
+    const r2=await fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=ZAR,GBP,EUR');
+    const j2=await r2.json(); const rt=j2.rates;
+    if(!rt||rt.ZAR==null) throw new Error('fallback unavailable');
+    commit(rt.ZAR, rt.ZAR/rt.GBP, rt.ZAR/rt.EUR, j2.date?('ECB '+j2.date):'');
+    return;
+  }catch(e2){ const el=document.getElementById('fxEmpty'); if(el) el.textContent='Could not load rates (offline?).'; }
 }
 async function fetchNews(){
   const base=proxyBase(); if(!base)return;
@@ -1789,7 +2087,8 @@ function renderWhoop(){
      <div class="card card-pad"><div class="kicker">21 days</div><div class="h-sec">Daily strain<span class="sub">0–21 scale</span></div>${strainChart}</div>
      ${stageHtml||'<div class="card card-pad"><div class="empty">No sleep-stage data yet</div></div>'}
    </div>
-   ${wkRows?`<div class="card card-pad"><div class="kicker">Activity</div><div class="h-sec">Recent workouts</div>
+   ${whoopTraining(w)}
+   ${wkRows?`<div class="card card-pad" style="margin-top:22px"><div class="kicker">Activity</div><div class="h-sec">Recent workouts</div>
      <div class="scroll-x"><table class="clean"><thead><tr><th>Date</th><th>Sport</th><th class="r">Strain</th><th class="r">Avg HR</th><th class="r">Distance</th><th class="r">Duration</th></tr></thead><tbody>${wkRows}</tbody></table></div></div>`:''}
    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;text-align:center;margin-top:16px">
      WHOOP metrics for personal insight only — not medical data. Live sync runs through your self-hosted proxy; your tokens never touch this file.</div>`;
@@ -1809,6 +2108,79 @@ function whoopCoach(rec,slp,strain){
   const s7=avgKey(recent(slp,7),'performance');
   if(s7!=null) bits.push(`Sleep performance is averaging <b>${Math.round(s7)}%</b> of need.`);
   bits.push(`At 54, recovery capacity is the lever that lets you keep running and playing golf for decades — these numbers are how you protect it.`);
+  return bits.join(' ');
+}
+
+/* ---- WHOOP weekly training analysis (workout routine) ---- */
+function whoopWeekAgg(workouts, weekOffset){
+  const s=tkWeekStart()-weekOffset*7*864e5, e=s+7*864e5;
+  const items=(workouts||[]).filter(x=>{ const ts=new Date((x.date||'')+'T00:00:00').getTime(); return ts>=s && ts<e; });
+  return {
+    count:items.length,
+    strain:items.reduce((a,b)=>a+(b.strain||0),0),
+    durMs:items.reduce((a,b)=>a+(b.durationMs||0),0),
+    distM:items.reduce((a,b)=>a+(b.distanceM||0),0),
+    kj:items.reduce((a,b)=>a+(b.kilojoule||0),0),
+    items
+  };
+}
+function whoopTraining(w){
+  const wk=w.workouts||[];
+  if(!wk.length) return '';
+  const fmtHM=ms=>{ if(!ms)return'0m'; const h=Math.floor(ms/3600000),m=Math.round((ms%3600000)/60000); return h?`${h}h ${String(m).padStart(2,'0')}m`:`${m}m`; };
+  const thisW=whoopWeekAgg(wk,0), lastW=whoopWeekAgg(wk,1);
+  const delta=(a,b)=>{ if(!b){ return a>0?`<span style="color:var(--good);font-family:var(--mono);font-size:11px">▲ new vs last wk</span>`:''; }
+    const d=Math.round((a-b)/b*100); const col=d>0?'var(--good)':d<0?'var(--bad)':'var(--ink-faint)';
+    return `<span style="color:${col};font-family:var(--mono);font-size:11px">${d>0?'▲':d<0?'▼':'■'} ${Math.abs(d)}% vs last wk</span>`; };
+  const tiles=[
+    {bar:'var(--terra)',lbl:'Sessions',num:thisW.count,sub:delta(thisW.count,lastW.count)},
+    {bar:'var(--sage)',lbl:'Total strain',num:thisW.strain.toFixed(1),sub:delta(thisW.strain,lastW.strain)},
+    {bar:'var(--sky)',lbl:'Active time',num:fmtHM(thisW.durMs),sub:delta(thisW.durMs,lastW.durMs)},
+    {bar:'var(--gold)',lbl:'Distance',num:(thisW.distM/1000).toFixed(1)+'<small> km</small>',sub:delta(thisW.distM,lastW.distM)},
+  ];
+  const tilesHtml=tiles.map(t=>`<div class="card tile"><div class="accent-bar" style="background:${t.bar}"></div><div class="lbl">${t.lbl}</div><div class="num" style="font-size:28px">${t.num}</div><div class="foot" style="font-style:normal">${t.sub||'&nbsp;'}</div></div>`).join('');
+  // last 8 weeks load (total strain)
+  const weeks=[]; for(let i=7;i>=0;i--){ const a=whoopWeekAgg(wk,i); weeks.push({label:i===0?'now':i+'w',value:+a.strain.toFixed(1),color:i===0?'var(--terra)':'var(--sage)'}); }
+  const loadChart=barChart(weeks,{h:170,yFmt:v=>Math.round(v),labStep:1});
+  // sport mix — last 4 weeks by strain share
+  const since=tkWeekStart()-3*7*864e5;
+  const recent4=wk.filter(x=>new Date((x.date||'')+'T00:00:00').getTime()>=since);
+  const bySport={}; recent4.forEach(x=>{ const s=(x.sport||'workout'); (bySport[s]=bySport[s]||{n:0,strain:0}).n++; bySport[s].strain+=x.strain||0; });
+  const sports=Object.entries(bySport).sort((a,b)=>b[1].strain-a[1].strain);
+  const totS=sports.reduce((a,b)=>a+b[1].strain,0)||1;
+  const sportHtml=sports.length? sports.map(([name,v],i)=>{ const pct=v.strain/totS*100; const c=TK_PALETTE[i%TK_PALETTE.length];
+    return `<div style="margin-bottom:11px">
+      <div style="display:flex;justify-content:space-between;font-family:var(--serif);font-size:13.5px;margin-bottom:5px"><span style="text-transform:capitalize">${tkEsc(name)}</span><span style="font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)">${v.n}× · ${Math.round(pct)}%</span></div>
+      <div class="tk-bar" style="margin:0"><i style="width:${pct}%;background:${c}"></i></div></div>`; }).join('')
+    : '<div class="empty">No sessions in the last 4 weeks.</div>';
+
+  return `<div class="card card-pad" style="margin-bottom:22px">
+     <div class="kicker">Training</div><div class="h-sec">This week's routine<span class="sub">Mon–Sun, vs last week</span></div>
+     <div class="grid g4" style="margin-bottom:20px">${tilesHtml}</div>
+     <div class="coach" style="margin-bottom:20px"><div class="q">Coach · routine review</div><p>${whoopRoutineCoach(w,thisW)}</p></div>
+     <div class="grid g2">
+       <div><div class="kicker" style="margin-bottom:10px">8-week training load · total strain</div>${loadChart}</div>
+       <div><div class="kicker" style="margin-bottom:14px">Sport mix · last 4 weeks</div>${sportHtml}</div>
+     </div></div>`;
+}
+function whoopRoutineCoach(w,thisW){
+  const wk=w.workouts||[]; const bits=[];
+  const last4=[0,1,2,3].map(i=>whoopWeekAgg(wk,i).count); const avg4=last4.reduce((a,b)=>a+b,0)/4;
+  if(thisW.count===0) bits.push(`No sessions logged this week yet. At 54 the win is <b>consistency</b> — even two quality sessions defends the fitness you've built.`);
+  else if(thisW.count>=avg4) bits.push(`<b>${thisW.count} session${thisW.count>1?'s':''}</b> this week, at or above your 4-week average of ${avg4.toFixed(1)} — consistency is trending the right way.`);
+  else bits.push(`<b>${thisW.count} session${thisW.count>1?'s':''}</b> this week vs a 4-week average of ${avg4.toFixed(1)}. Don't let it drift — one more easy session keeps the rhythm intact.`);
+  const rec7=avgKey(recent(w.recovery,7),'recovery');
+  if(rec7!=null && thisW.count>0){
+    const perSession=thisW.strain/thisW.count;
+    if(rec7<50 && perSession>14) bits.push(`Recovery is averaging <b>${Math.round(rec7)}%</b> while your sessions are high-strain — that's the overreaching zone. Trade one hard day for zone-2 or mobility this week.`);
+    else if(rec7>=67 && perSession<9) bits.push(`Recovery is strong (<b>${Math.round(rec7)}%</b>) but strain is light — your body has room to push one session harder.`);
+    else bits.push(`Strain and recovery look balanced (recovery <b>${Math.round(rec7)}%</b>). Keep the hard days hard and the easy days genuinely easy.`);
+  }
+  const since=tkWeekStart()-3*7*864e5;
+  const sportSet=new Set(wk.filter(x=>new Date((x.date||'')+'T00:00:00').getTime()>=since).map(x=>x.sport||'workout'));
+  const hasStrength=[...sportSet].some(s=>/strength|weight|gym|functional/i.test(s));
+  if(thisW.count>0 && sportSet.size<=1) bits.push(`Your training sits in a single discipline. Adding one <b>strength or mobility</b> session a week is the highest-leverage change for staying durable into your late 50s.`);
+  else if(thisW.count>0 && !hasStrength) bits.push(`Good variety — the one gap is <b>resistance work</b>. A weekly strength session is what preserves muscle and bone as you keep running and golfing.`);
   return bits.join(' ');
 }
 

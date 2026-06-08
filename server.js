@@ -47,27 +47,52 @@ const AUTH = 'https://api.prod.whoop.com/oauth/oauth2/auth';
 const TOKEN = 'https://api.prod.whoop.com/oauth/oauth2/token';
 const API = 'https://api.prod.whoop.com/developer';
 const SCOPES = ['read:recovery','read:cycles','read:workout','read:sleep','read:profile','offline'].join(' ');
-const TOKEN_FILE = './tokens.json';
+
+// ---- DURABLE TOKEN STORAGE (the fix for the HTTP 500 on sync) -------------
+// WHOOP refresh tokens are SINGLE-USE: every refresh returns a brand-new refresh
+// token and invalidates the old one. Railway/Render filesystems are EPHEMERAL —
+// wiped on every redeploy/restart — so writing tokens.json to the project root
+// loses the rotated token, and the static WHOOP_REFRESH_TOKEN env seed gets burned
+// after the first refresh. The next restart then reuses a dead token => HTTP 500.
+//
+// Fix: write tokens to a MOUNTED PERSISTENT VOLUME. On Railway, attach a volume
+// and it exposes RAILWAY_VOLUME_MOUNT_PATH (e.g. /data); we store tokens there so
+// the rotated refresh token survives restarts and the proxy self-maintains.
+const DATA_DIR = (process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || '.').replace(/\/+$/, '');
+const TOKEN_FILE = process.env.TOKEN_FILE || (DATA_DIR + '/tokens.json');
 
 const app = express();
 app.use(cors({ origin: ALLOW_ORIGIN }));
 app.use(express.json());
 
-// Token persistence. Locally we use a file. On an ephemeral host (Railway/Render)
-// the file is wiped on redeploy, so we ALSO seed from WHOOP_REFRESH_TOKEN env var
-// and log the refresh token after login so you can paste it into the host's env.
+// Token persistence. Tokens are read from (and rotated tokens written back to)
+// TOKEN_FILE — point this at a persistent volume on a host (see above). The static
+// WHOOP_REFRESH_TOKEN env var is only a FIRST-BOOT seed; once a real refresh happens
+// the rotated token is saved to the volume and used from then on.
 let tokens = null;
-try { if (fs.existsSync(TOKEN_FILE)) tokens = JSON.parse(fs.readFileSync(TOKEN_FILE)); } catch (e) {}
+let tokenSource = 'none';
+try {
+  if (fs.existsSync(TOKEN_FILE)) { tokens = JSON.parse(fs.readFileSync(TOKEN_FILE)); tokenSource = 'volume file (' + TOKEN_FILE + ')'; }
+} catch (e) { console.log('[TOKENS] could not read', TOKEN_FILE, '-', e.message); }
 if (!tokens && process.env.WHOOP_REFRESH_TOKEN) {
   tokens = { refresh_token: process.env.WHOOP_REFRESH_TOKEN, access_token: null, expires_in: 0, obtained_at: 0 };
-  console.log('[TOKENS] Seeded refresh token from environment.');
+  tokenSource = 'WHOOP_REFRESH_TOKEN env seed';
+  console.log('[TOKENS] Seeded refresh token from environment (first boot).');
 }
+console.log('[TOKENS] storage =', TOKEN_FILE, '| source =', tokenSource);
 const saveTokens = t => {
   tokens = t;
-  try { fs.writeFileSync(TOKEN_FILE, JSON.stringify(t, null, 2)); } catch (e) { /* read-only FS on host: fine */ }
+  try {
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(t, null, 2));
+    console.log('[TOKENS] saved to', TOKEN_FILE);
+  } catch (e) {
+    // If this logs on every refresh, your storage is NOT persistent — tokens will be
+    // lost on the next restart and sync will eventually 500. Attach a volume and set DATA_DIR.
+    console.log('[TOKENS] WARNING could not persist tokens to', TOKEN_FILE, '-', e.message);
+  }
   if (t && t.refresh_token) {
-    console.log('[TOKENS] New refresh token (save as WHOOP_REFRESH_TOKEN env var to persist across restarts):');
-    console.log('[TOKENS] ' + t.refresh_token);
+    console.log('[TOKENS] (backup) current refresh token:', t.refresh_token);
   }
 };
 
@@ -118,7 +143,12 @@ async function freshToken() {
     client_id: WHOOP_CLIENT_ID, client_secret: WHOOP_CLIENT_SECRET, scope: SCOPES
   });
   const r = await fetch(TOKEN, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
-  if (!r.ok) throw new Error('token refresh failed: ' + await r.text());
+  if (!r.ok) {
+    const detail = await r.text();
+    // The usual cause here: the stored refresh token was already used once (WHOOP
+    // rotates them) and storage isn't persistent, so we tried a dead token. Re-auth.
+    throw new Error('token refresh failed (re-connect WHOOP at /auth/login, and make sure tokens are stored on a persistent volume): ' + detail);
+  }
   const t = await r.json(); t.obtained_at = Date.now();
   if (!t.refresh_token) t.refresh_token = tokens.refresh_token;
   saveTokens(t);
@@ -282,5 +312,19 @@ function serveApp(req, res){
 }
 app.get('/', serveApp);
 app.get('/app', serveApp);
-app.get('/status', (req, res) => res.send('LifePlatform proxy running. WHOOP authenticated: ' + (!!tokens) + '. Routes: /whoop/*, /news, /traffic, /calendar. Visit /auth/login to connect WHOOP.'));
+app.get('/status', (req, res) => {
+  let persistent = false;
+  try { if (DATA_DIR && DATA_DIR !== '.') { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.accessSync(DATA_DIR, fs.constants.W_OK); persistent = true; } } catch (e) {}
+  res.json({
+    proxy: 'LifePlatform',
+    whoopAuthenticated: !!tokens,
+    tokenStorage: TOKEN_FILE,
+    persistentStorage: persistent,
+    persistentStorageWarning: persistent ? undefined : 'Tokens are NOT on a persistent volume — they will be lost on the next restart and sync will 500. Attach a volume and set DATA_DIR.',
+    calendar: process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'OFF — set ICAL_URL',
+    traffic: process.env.GOOGLE_MAPS_KEY ? 'configured (GOOGLE_MAPS_KEY)' : 'OFF — set GOOGLE_MAPS_KEY',
+    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar'],
+    connect: '/auth/login'
+  });
+});
 app.listen(PORT, () => console.log(`LifePlatform proxy listening on port ${PORT}`));
