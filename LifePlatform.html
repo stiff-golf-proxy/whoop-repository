@@ -348,6 +348,24 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .tk-add button{width:36px;height:36px;font-size:22px}
 .tk-fchip{font-weight:600;border-width:1.5px}
 .tk-newproj{border-width:2.5px;font-size:16px}
+
+/* ---- Coach memory panel ---- */
+.coach-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);flex-shrink:0}
+.coach-tab{font-family:var(--disp);font-size:12px;font-weight:600;color:var(--ink-faint);background:none;border:none;cursor:pointer;padding:10px 16px;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s;flex:1;text-align:center}
+.coach-tab:hover{color:var(--ink-soft)}
+.coach-tab.active{color:var(--terra-deep);border-bottom-color:var(--terra-deep)}
+.mem-panel{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.mem-section{background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.mem-section-head{font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);padding:9px 13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.mem-section-head button{font-family:var(--serif);font-size:11px;color:var(--terra);background:none;border:none;cursor:pointer;padding:0;letter-spacing:0;text-transform:none}
+.mem-textarea{width:100%;background:none;border:none;padding:11px 13px;font-family:var(--serif);font-size:13.5px;color:var(--ink);line-height:1.55;resize:none;min-height:80px;outline:none}
+.mem-textarea:focus{background:rgba(10,138,150,.03)}
+.mem-log-item{padding:10px 13px;border-bottom:1px solid var(--line);font-family:var(--serif);font-size:12.5px;color:var(--ink-soft);line-height:1.5}
+.mem-log-item:last-child{border-bottom:none}
+.mem-log-date{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);margin-bottom:3px}
+.mem-log-del{float:right;background:none;border:none;cursor:pointer;color:var(--line2);font-size:14px;line-height:1;padding:0 2px}
+.mem-log-del:hover{color:var(--rose)}
+.mem-actions{padding:10px 13px;display:flex;gap:8px;border-top:1px solid var(--line);flex-shrink:0}
 </style>
 </head>
 <body>
@@ -406,12 +424,36 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
     <div style="flex:1"><h3>Your Coach</h3><div class="sub">Private · powered by Claude</div></div>
     <button class="x" onclick="closeCoach()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
   </div>
-  <div class="coach-msgs" id="coachMsgs"></div>
-  <div class="coach-sugg" id="coachSugg"></div>
-  <div class="coach-input">
-    <textarea id="coachText" rows="1" placeholder="Ask your coach anything…" onkeydown="coachKey(event)" oninput="coachAutogrow(this)"></textarea>
-    <button class="coach-send" id="coachSend" onclick="coachSend()" title="Send">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
+  <div class="coach-tabs">
+    <button class="coach-tab active" id="ctab-chat" onclick="coachTab('chat')">Chat</button>
+    <button class="coach-tab" id="ctab-about" onclick="coachTab('about')">About Stuart</button>
+    <button class="coach-tab" id="ctab-log" onclick="coachTab('log')">Session Log</button>
+  </div>
+  <!-- Chat panel -->
+  <div id="cpanel-chat" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+    <div class="coach-msgs" id="coachMsgs"></div>
+    <div class="coach-sugg" id="coachSugg"></div>
+    <div class="coach-input">
+      <textarea id="coachText" rows="1" placeholder="Ask your coach anything…" onkeydown="coachKey(event)" oninput="coachAutogrow(this)"></textarea>
+      <button class="coach-send" id="coachSend" onclick="coachSend()" title="Send">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
+    </div>
+  </div>
+  <!-- About Stuart panel -->
+  <div id="cpanel-about" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="mem-panel" id="aboutPanel"></div>
+    <div class="mem-actions">
+      <button class="btn primary" onclick="saveAbout()" style="flex:1;justify-content:center">Save</button>
+      <button class="btn" onclick="coachTab('chat')">Back to chat</button>
+    </div>
+  </div>
+  <!-- Session log panel -->
+  <div id="cpanel-log" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="mem-panel" id="logPanel"></div>
+    <div class="mem-actions">
+      <button class="btn primary" onclick="saveSessionNote()" style="flex:1;justify-content:center">Save note</button>
+      <button class="btn" onclick="coachTab('chat')">Back to chat</button>
+    </div>
   </div>
 </aside>
 <script>
@@ -2677,7 +2719,305 @@ function whoopRoutineCoach(w,thisW){
    The proxy holds ANTHROPIC_API_KEY; we send recent messages + a compact
    personal snapshot so advice is grounded in the real numbers.
    ============================================================ */
+/* ============================================================
+   COACH MEMORY SYSTEM
+   Three-layer context fed to every session:
+   1. Live snapshot (WHOOP, tasks, finance) — auto-built
+   2. About Stuart — a living profile the user edits and refines
+   3. Session log — accumulated summaries of past conversations
+   ============================================================ */
+
 let _coachHistory=[]; let _coachBusy=false;
+
+/* ---- memory storage ---- */
+function coachMem(){
+  if(!DB.coachMem) DB.coachMem={
+    about: `Name: Stuart Brian Harris. Age: 54. Based in Cape Town (Constantia).
+
+HEALTH & BODY
+- Runs regularly; goal is longevity and sustained performance into his 60s.
+- Uses WHOOP for recovery, sleep and strain tracking.
+- Key blood markers to watch: LDL (elevated, tracking), Vitamin D (improving), cholesterol.
+- Targets 8+ hours sleep, recovery above 67%.
+
+FINANCIAL REALITY
+- INN8 Retirement Annuity: ~R2.7m (STANLIB / 1NVEST blend).
+- Alexforbes GGG Pension: ~R6.6m (Ninety One / Allan Gray).
+- Harris Billings Inc: 31% private equity stake, valued ~R3.1m.
+- Net investable wealth: ~R12.4m across pension, RA, and private equity.
+- SBH Family Trust structure holds QS485 (property + GGG 18% stake ~R66m notional).
+- Target: retire at 60 (2032); GGG normal retirement 2037.
+- Financial adviser: Ryan Argue.
+- Monthly revenue streams: R202k across GGG distribution, property rentals, consulting.
+
+PROFESSIONAL
+- Involved with GGG Holdings group (major employer and asset base).
+- Connected to Stiff.Golf commercial development.
+- Actively managing a property portfolio (Constantia, Tokai, Newlands, Fourways).
+- Focuses on strategic clarity, commercial execution, and effective leadership.
+
+GOLF
+- Active golfer; uses Garmin for tracking. Scoring avg mid-70s to low-80s.
+- Range work: 2-iron, irons. Focused on distance and dispersion improvement.
+
+WHAT MATTERS TO HIM
+- Building long-term financial security for his family.
+- Maintaining physical capability and health into later life.
+- Acting with integrity and being the person he wants to become.
+- Making clear, decisive progress on what matters — not just staying busy.`,
+    log: []
+  };
+  return DB.coachMem;
+}
+
+/* ---- tab switching ---- */
+function coachTab(tab){
+  ['chat','about','log'].forEach(t=>{
+    document.getElementById('ctab-'+t).classList.toggle('active',t===tab);
+    document.getElementById('cpanel-'+t).style.display=t===tab?'flex':'none';
+  });
+  if(tab==='about') renderAboutPanel();
+  if(tab==='log') renderLogPanel();
+}
+
+/* ---- About Stuart panel ---- */
+function renderAboutPanel(){
+  const m=coachMem();
+  const panel=document.getElementById('aboutPanel');
+  panel.innerHTML='';
+  const sec=document.createElement('div'); sec.className='mem-section';
+  const head=document.createElement('div'); head.className='mem-section-head';
+  const headLabel=document.createElement('span'); headLabel.textContent='About Stuart · feeds every conversation';
+  const backBtn=document.createElement('button'); backBtn.textContent='← Back'; backBtn.onclick=function(){coachTab('chat');};
+  head.appendChild(headLabel); head.appendChild(backBtn);
+  const ta=document.createElement('textarea'); ta.className='mem-textarea'; ta.id='aboutText';
+  ta.rows=22; ta.style.minHeight='340px';
+  ta.placeholder='Write freely — this travels with every coaching session…';
+  ta.value=m.about||'';
+  sec.appendChild(head); sec.appendChild(ta);
+  const hint=document.createElement('div');
+  hint.style.cssText='font-family:var(--serif);font-style:italic;font-size:12px;color:var(--ink-faint);padding:4px 2px';
+  hint.textContent='Edit freely. The more accurate and specific this is, the better the coaching. Update it as things change.';
+  panel.appendChild(sec); panel.appendChild(hint);
+}
+function saveAbout(){
+  const t=document.getElementById('aboutText');
+  if(!t)return;
+  coachMem().about=t.value.trim();
+  save(); toast('About Stuart saved — all future sessions will use this.');
+  coachTab('chat');
+}
+
+/* ---- Session log panel ---- */
+function renderLogPanel(){
+  const m=coachMem();
+  const log=m.log||[];
+  const panel=document.getElementById('logPanel');
+  panel.innerHTML='';
+
+  // Log section
+  const logSec=document.createElement('div'); logSec.className='mem-section'; logSec.style.cssText='flex:1;overflow-y:auto';
+  const lh=document.createElement('div'); lh.className='mem-section-head';
+  const lhSpan=document.createElement('span'); lhSpan.textContent='Session summaries · '+log.length+' saved';
+  const genBtn=document.createElement('button'); genBtn.textContent='✦ Generate from this chat';
+  genBtn.onclick=generateSessionSummary;
+  lh.appendChild(lhSpan); lh.appendChild(genBtn); logSec.appendChild(lh);
+  if(!log.length){
+    const empty=document.createElement('div');
+    empty.style.cssText='padding:18px 13px;font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px';
+    empty.textContent='No session logs yet. After a meaningful conversation, tap ✦ Generate to summarise it and add it to the log.';
+    logSec.appendChild(empty);
+  } else {
+    log.slice().reverse().forEach((entry,ri)=>{
+      const i=log.length-1-ri;
+      const item=document.createElement('div'); item.className='mem-log-item';
+      const dateRow=document.createElement('div'); dateRow.className='mem-log-date'; dateRow.textContent=entry.date||'';
+      const del=document.createElement('button'); del.className='mem-log-del'; del.textContent='×'; del.title='Delete';
+      del.onclick=function(){deleteLogEntry(i);};
+      dateRow.appendChild(del);
+      const body=document.createElement('div'); body.textContent=entry.text;
+      item.appendChild(dateRow); item.appendChild(body); logSec.appendChild(item);
+    });
+  }
+
+  // Note section
+  const noteSec=document.createElement('div'); noteSec.className='mem-section';
+  const nh=document.createElement('div'); nh.className='mem-section-head';
+  const nhSpan=document.createElement('span'); nhSpan.textContent='Add a note manually';
+  nh.appendChild(nhSpan); noteSec.appendChild(nh);
+  const ta=document.createElement('textarea'); ta.className='mem-textarea'; ta.id='logText';
+  ta.rows=3; ta.placeholder='Add any note, decision, or insight to your log…';
+  noteSec.appendChild(ta);
+
+  panel.appendChild(logSec); panel.appendChild(noteSec);
+}
+function saveSessionNote(){
+  const t=document.getElementById('logText');
+  if(!t||!t.value.trim())return;
+  const m=coachMem();
+  m.log=m.log||[];
+  m.log.push({date:new Date().toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}),text:t.value.trim()});
+  // keep last 60 entries
+  if(m.log.length>60) m.log=m.log.slice(-60);
+  save(); toast('Note saved to session log.');
+  renderLogPanel();
+}
+function deleteLogEntry(i){
+  const m=coachMem(); m.log=m.log||[];
+  m.log.splice(i,1); save(); renderLogPanel();
+}
+async function generateSessionSummary(){
+  if(_coachHistory.length<2){toast('Have a conversation first, then generate a summary.');return;}
+  const base=proxyBase();
+  if(!base){toast('Proxy not connected.');return;}
+  const btn=document.querySelector('.mem-section-head button');
+  if(btn){btn.textContent='Generating…';btn.disabled=true;}
+  try{
+    const transcript=_coachHistory.map(m=>(m.role==='user'?'Stuart: ':'Coach: ')+m.content).join('\n\n').slice(0,6000);
+    const summaryPrompt='Summarise this coaching conversation in 3-5 bullet points. Focus on key decisions, insights, commitments, concerns, and anything important to remember for future sessions. Be specific — use names, numbers, dates where they appeared. Be concise.\n\n'+transcript;
+    const r=await fetch(base+'/coach',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        messages:[{role:'user',content:summaryPrompt}],
+        context:''
+      })
+    });
+    const j=await r.json();
+    const summary=j.reply||'Could not generate summary.';
+    const m=coachMem(); m.log=m.log||[];
+    m.log.push({
+      date:new Date().toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),
+      text:summary,
+      auto:true
+    });
+    if(m.log.length>60) m.log=m.log.slice(-60);
+    save(); renderLogPanel(); toast('Session summary saved to log.');
+  }catch(e){toast('Could not generate summary: '+e.message);}
+  if(btn){btn.textContent='✦ Generate from this chat';btn.disabled=false;}
+}
+
+/* ---- full context builder ---- */
+function buildCoachContext(){
+  const m=coachMem();
+  const parts=[];
+
+  // About Stuart (living profile)
+  if(m.about && m.about.trim()){
+    parts.push('=== ABOUT STUART ===\n'+m.about.trim());
+  }
+
+  // Recent session log (last 8 entries, most recent first)
+  const recentLog=(m.log||[]).slice(-8).reverse();
+  if(recentLog.length){
+    parts.push('=== RECENT SESSION LOG (newest first) ===\n'+recentLog.map(e=>'['+e.date+'] '+e.text).join('\n\n'));
+  }
+
+  // Live data snapshot
+  try{
+    const w=(DB.whoop||{}); const rec=w.recovery||[], slp=w.sleep||[], wk=w.workouts||[];
+    const lastRec=rec[rec.length-1]||{};
+    const r7=avgKey(recent(rec,7),'recovery'), s7=avgKey(recent(slp,7),'performance');
+    const cfg=morningCfg(); const tasks=(cfg.tasks||[]);
+    const openT=tasks.filter(t=>!t.done);
+    const today=todayISO(); const overdue=openT.filter(t=>t.due&&t.due<today).length;
+    const topTasks=openT.slice().sort(tkSortOpen).slice(0,5).map(t=>t.text);
+    const thisW=(typeof whoopWeekAgg==='function')?whoopWeekAgg(wk,0):null;
+    const live=[];
+    live.push('Today: '+new Date().toDateString()+'.');
+    if(lastRec.recovery!=null) live.push('WHOOP recovery today: '+Math.round(lastRec.recovery)+'%'+(r7!=null?' (7-day avg '+Math.round(r7)+'%)':'')+'. HRV: '+(lastRec.hrv!=null?Math.round(lastRec.hrv)+' ms':'—')+'. RHR: '+(lastRec.rhr!=null?Math.round(lastRec.rhr)+' bpm':'—')+'.');
+    if(s7!=null) live.push('Sleep performance 7-day avg: '+Math.round(s7)+'%.');
+    if(thisW) live.push('Training this week: '+thisW.count+' sessions, strain '+thisW.strain.toFixed(1)+'.');
+    if(openT.length) live.push('Tasks: '+openT.length+' open'+(overdue?', '+overdue+' overdue':'')+'.'+(topTasks.length?' Priority: '+topTasks.join('; ').slice(0,200)+'.':''));
+    const pf=DB.profFocus;
+    if(pf&&(pf.strategic||pf.decision||pf.followup)){
+      live.push('Professional focus — Strategic: '+(pf.strategic||'—')+'. Decision: '+(pf.decision||'—')+'. Follow-up: '+(pf.followup||'—')+'.');
+    }
+    try{ const nw=netWorth(); if(nw) live.push('Net investable wealth (RA+pension+HBI): '+ZARk(nw)+'.'); }catch(e){}
+    if(cfg.oneThing) live.push("Today's one move: "+cfg.oneThing+'.');
+    parts.push('=== LIVE SNAPSHOT ===\n'+live.join(' '));
+  }catch(e){}
+
+  return parts.join('\n\n');
+}
+
+/* ---- opening greeting ---- */
+function coachGreeting(){
+  const m=coachMem();
+  const log=m.log||[];
+  const lastEntry=log[log.length-1];
+  let greeting='Hi Stuart.';
+  if(lastEntry){
+    greeting+=' Last time we spoke: '+lastEntry.text.split('\n')[0].slice(0,120)+(lastEntry.text.length>120?'…':'')+' What is on today?';
+  } else {
+    greeting+=' I can see your recovery, sleep, training, tasks, finances, and goals — and I have context from your profile. What matters today?';
+  }
+  coachPush('bot',greeting);
+  // dynamic suggestions based on context
+  const sugg=buildSuggestions();
+  document.getElementById('coachSugg').innerHTML=sugg.map(s=>'<button onclick="coachQuick(this)">'+tkEsc(s)+'</button>').join('');
+}
+
+function buildSuggestions(){
+  const w=(DB.whoop||{}); const rec=w.recovery||[];
+  const lastRec=rec[rec.length-1];
+  const rv=lastRec&&lastRec.recovery!=null?lastRec.recovery:null;
+  const pf=DB.profFocus||{};
+  const suggs=[];
+  if(rv!=null){
+    suggs.push(rv>=67?'My recovery is good — how should I train today?':'Recovery is low — what should I prioritise today?');
+  }
+  if(pf.strategic) suggs.push('Help me think through: '+pf.strategic.slice(0,50));
+  suggs.push('Am I on track for retirement?');
+  suggs.push('What should I focus on this week?');
+  return suggs.slice(0,4);
+}
+
+function openCoach(){
+  const dr=document.getElementById('coachDrawer');
+  dr.classList.add('open'); document.getElementById('coachBackdrop').classList.add('show'); dr.setAttribute('aria-hidden','false');
+  if(!_coachHistory.length) coachGreeting();
+  setTimeout(()=>{const t=document.getElementById('coachText'); if(t)t.focus();},300);
+}
+function closeCoach(){
+  document.getElementById('coachDrawer').classList.remove('open');
+  document.getElementById('coachBackdrop').classList.remove('show');
+  document.getElementById('coachDrawer').setAttribute('aria-hidden','true');
+}
+function coachAutogrow(el){ el.style.height='auto'; el.style.height=Math.min(120,el.scrollHeight)+'px'; }
+function coachKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); coachSend(); } }
+function coachFmt(s){ return tkEsc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>'); }
+function coachPush(role,text){
+  const box=document.getElementById('coachMsgs');
+  const d=document.createElement('div'); d.className='cm '+(role==='user'?'user':'bot'); d.innerHTML=coachFmt(text);
+  box.appendChild(d); box.scrollTop=box.scrollHeight;
+}
+function coachQuick(btn){ document.getElementById('coachText').value=btn.textContent; coachSend(); }
+function coachContext(){ return buildCoachContext(); }
+
+async function coachSend(){
+  const t=document.getElementById('coachText'); const text=(t.value||'').trim();
+  if(!text||_coachBusy) return;
+  const base=proxyBase();
+  coachPush('user',text); _coachHistory.push({role:'user',content:text});
+  t.value=''; coachAutogrow(t); document.getElementById('coachSugg').innerHTML='';
+  if(!base){ coachPush('bot','I need your proxy connected to reach Claude. Open Settings → Configure WHOOP connection, set your proxy URL, then try again.'); return; }
+  _coachBusy=true; const send=document.getElementById('coachSend'); send.disabled=true;
+  const box=document.getElementById('coachMsgs');
+  const typing=document.createElement('div'); typing.className='cm-typing'; typing.textContent='Coach is thinking…'; box.appendChild(typing); box.scrollTop=box.scrollHeight;
+  try{
+    const r=await fetch(base+'/coach',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messages:_coachHistory.slice(-16), context:buildCoachContext()})});
+    let j={}; try{ j=await r.json(); }catch(e){}
+    typing.remove();
+    if(!r.ok||j.error){ coachPush('bot', j.error?('Coach unavailable: '+j.error):'Coach is unavailable. Make sure ANTHROPIC_API_KEY is set on the proxy.'); }
+    else {
+      const reply=j.reply||'(no reply)';
+      coachPush('bot',reply);
+      _coachHistory.push({role:'assistant',content:reply});
+    }
+  }catch(e){ typing.remove(); coachPush('bot','Could not reach the coach (network). Try again in a moment.'); }
+  _coachBusy=false; send.disabled=false;
+  setTimeout(()=>{const el=document.getElementById('coachText'); if(el)el.focus();},50);
+}
 function openCoach(){
   const dr=document.getElementById('coachDrawer');
   dr.classList.add('open'); document.getElementById('coachBackdrop').classList.add('show'); dr.setAttribute('aria-hidden','false');

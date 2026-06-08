@@ -365,15 +365,15 @@ app.post('/coach', async (req, res) => {
     if (!key) return res.status(501).json({ error: 'ANTHROPIC_API_KEY not set on the proxy' });
     const { messages = [], context = '' } = req.body || {};
     const clean = (Array.isArray(messages) ? messages : [])
-      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .slice(-12)
-      .map(m => ({ role: m.role, content: m.content.slice(0, 4000) }));
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && (typeof m.content === 'string' || Array.isArray(m.content)))
+      .slice(-16)
+      .map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content.slice(0, 4000) : m.content }));
     if (!clean.length) return res.status(400).json({ error: 'no messages' });
-    const system = COACH_SYSTEM + (context ? `\n\n--- Stuart's current snapshot ---\n${String(context).slice(0, 2000)}` : '');
+    const system = COACH_SYSTEM + (context ? `\n\n${String(context).slice(0, 5000)}` : '');
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 1024, system, messages: clean })
+      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 1500, system, messages: clean })
     });
     const text = await r.text();
     if (!r.ok) { console.log('[COACH] API error', r.status, text); return res.status(502).json({ error: `Claude API ${r.status}` }); }
