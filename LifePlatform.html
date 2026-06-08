@@ -355,26 +355,27 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
       <div class="date" id="todayStr"></div>
     </div>
     <div class="top-actions">
-      <button class="btn" onclick="exportData()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>Backup</button>
-      <button class="btn" onclick="document.getElementById('restoreFile').click()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14"/></svg>Restore</button>
+      <button class="btn" onclick="openSettings()" title="Settings & data management">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Settings</button>
       <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restoreData(this)">
     </div>
   </div>
 
   <nav class="nav">
     <button class="active" data-pane="home"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-8 9 8M5 9v11h14V9"/></svg>Today</button>
-    <button data-pane="finance"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-5 4 3 8-9M16 6h5v5"/></svg>Finance</button>
-    <button data-pane="golf"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 18V4l7 3-7 3"/><circle cx="12" cy="20" r="1.5"/></svg>Golf</button>
+    <button data-pane="whoop"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>Body</button>
     <button data-pane="run"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 4a1.5 1.5 0 100 0M7 21l3-6 3 2 1 4M10 9l3-2 3 3 3 1M5 13l3-1"/></svg>Running</button>
+    <button data-pane="golf"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 18V4l7 3-7 3"/><circle cx="12" cy="20" r="1.5"/></svg>Golf</button>
     <button data-pane="health"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg>Health</button>
-    <button data-pane="whoop"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>WHOOP</button>
     <button data-pane="goals"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4h12l-2.5 4L17 12H5"/></svg>Goals</button>
+    <button data-pane="finance"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>Wealth</button>
+    <button data-pane="retire"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22a10 10 0 100-20 10 10 0 000 20zM12 6v6l4 2"/></svg>Retire</button>
   </nav>
 
   <section id="pane-home" class="pane active"></section>
   <section id="pane-finance" class="pane">
     <div class="seg" role="tablist">
-      <button class="seg-btn active" id="seg-sbh" onclick="finTab('sbh')">SBH</button>
+      <button class="seg-btn active" id="seg-sbh" onclick="finTab('sbh')">SBH Family</button>
       <button class="seg-btn" id="seg-trusts" onclick="finTab('trusts')">Trusts</button>
     </div>
     <iframe id="famFrame" title="SBH Family Portfolio" src="about:blank"
@@ -385,6 +386,8 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   <section id="pane-health" class="pane"></section>
   <section id="pane-whoop" class="pane"></section>
   <section id="pane-goals" class="pane"></section>
+  <section id="pane-wealth" class="pane"></section>
+  <section id="pane-retire" class="pane"></section>
 </div>
 
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
@@ -566,11 +569,11 @@ function renderHome(){
   const P=document.getElementById('pane-home');
   P.innerHTML=`
    ${heroHome()}
-   <div class="coach" id="mrBriefing"><div class="q">${dateline} · your morning report</div>
+   <div class="coach" id="mrBriefing"><div class="q">${dateline} · your morning brief</div>
      <p>${morningBriefing()}</p></div>
    ${proxyBase()?'':`<div class="card card-pad" style="margin-bottom:18px;border-left:3px solid var(--gold);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
      <div style="flex:1;min-width:240px"><div style="font-family:var(--disp);font-weight:700;font-size:16px">Live feeds are offline</div>
-       <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);margin-top:3px">WHOOP recovery, drive time, calendar and news need your proxy. Reconnect once and it sticks — it's saved separately from your data.</div></div>
+       <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);margin-top:3px">WHOOP recovery, calendar and news need your proxy.</div></div>
      <button class="btn primary" onclick="openWhoopSettings()">Reconnect proxy</button>
    </div>`}
 
@@ -579,21 +582,100 @@ function renderHome(){
      ${cardTraining()}
    </div>
    ${cardTasks()}
+   ${cardProfessionalFocus()}
    <div class="grid g2" style="margin-bottom:18px">
      ${cardCalendar()}
      ${cardMarkets()}
    </div>
    <div style="margin-bottom:18px">${cardNews()}</div>
+   <div style="margin-bottom:18px">${cardDailyClose()}</div>
    <div style="margin-bottom:8px">${cardKentridge()}</div>
    <div style="text-align:right;margin-top:10px">
      <button class="btn" onclick="refreshMorning()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>Refresh feeds</button>
    </div>`;
-  // kick off live fetches (non-blocking; cards update in place)
-  // Kick off background feeds ONCE — re-renders (after each feed resolves) must not
-  // refire these, otherwise traffic/news/calendar hammer the proxy on every redraw.
   if(!window._feedsKicked){ window._feedsKicked=true;
     fetchCurrency(); if(proxyBase()){ fetchNews(); fetchResearch(); fetchCalendar(); fetchKentridge(); } }
 }
+
+/* ---- Professional Focus panel ---- */
+function profFocusCfg(){
+  DB.profFocus=DB.profFocus||{strategic:'',decision:'',leadership:'',financial:'',followup:'',updatedAt:null};
+  return DB.profFocus;
+}
+function cardProfessionalFocus(){
+  const f=profFocusCfg();
+  const fields=[
+    {key:'strategic',label:'Strategic Priority',placeholder:'e.g. Finalise Stiff.Golf commercial direction'},
+    {key:'decision',label:'Key Decision Pending',placeholder:'e.g. Capital allocation for FY2026'},
+    {key:'leadership',label:'People / Leadership',placeholder:'e.g. Address quiet resistance constructively'},
+    {key:'financial',label:'Financial / Group Focus',placeholder:'e.g. Review group cash and return on capital'},
+    {key:'followup',label:'One Follow-Up That Cannot Miss',placeholder:'e.g. Supplier response / developer instruction'},
+  ];
+  const rows=fields.map(({key,label,placeholder})=>{
+    const val=f[key]||'';
+    return `<div style="display:grid;grid-template-columns:180px 1fr;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);align-items:start">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);padding-top:3px">${label}</div>
+      <div contenteditable="true" data-pfkey="${key}" onblur="saveProfField(this)" style="font-family:var(--serif);font-size:14px;color:var(--ink);min-height:22px;outline:none;border-radius:6px;padding:2px 6px;transition:.15s" onfocus="this.style.background='var(--paper2)'" placeholder="${placeholder}">${tkEsc(val)||`<span style='color:var(--ink-faint);font-style:italic'>${placeholder}</span>`}</div>
+    </div>`;
+  }).join('');
+  const when=f.updatedAt?` · updated ${fmtDate(f.updatedAt.slice(0,10))}`:'';
+  return `<div class="card card-pad" style="margin-bottom:18px">
+    <div class="kicker">This week${when}</div>
+    <div class="h-sec">Professional Focus</div>
+    ${rows}
+  </div>`;
+}
+function saveProfField(el){
+  const key=el.dataset.pfkey; if(!key)return;
+  const val=el.innerText.trim();
+  profFocusCfg()[key]=val; profFocusCfg().updatedAt=new Date().toISOString();
+  el.innerHTML=val||`<span style='color:var(--ink-faint);font-style:italic'>${el.getAttribute('placeholder')}</span>`;
+  el.style.background='';
+  save();
+}
+
+/* ---- Daily Close / Evening Review ---- */
+function dailyCloseCfg(){
+  const today=todayISO(); DB.dailyClose=DB.dailyClose||{};
+  if(!DB.dailyClose[today]) DB.dailyClose[today]={wentWell:'',avoided:'',trained:null,acted:null,tomorrowFirst:'',completedAt:null};
+  return DB.dailyClose[today];
+}
+function cardDailyClose(){
+  const d=dailyCloseCfg();
+  const done=d.completedAt;
+  const hour=new Date().getHours();
+  if(hour<17&&!done) return ''; // only show in evenings or if already completed
+  const chk=(val,label,key)=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick="toggleCloseCheck('${key}')">
+    <div style="width:22px;height:22px;border-radius:7px;border:2px solid ${val?'var(--good)':'var(--line2)'};background:${val?'var(--good)':'transparent'};display:grid;place-items:center;flex:none;transition:.15s">
+      ${val?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}
+    </div>
+    <span style="font-family:var(--serif);font-size:14px;color:var(--ink)">${label}</span>
+  </div>`;
+  return `<div class="card card-pad" style="margin-bottom:18px">
+    <div class="kicker">Evening · daily close${done?' · ✓ completed':''}</div>
+    <div class="h-sec">End of Day Review</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px">What went well today?</div>
+        <textarea onblur="saveCloseField('wentWell',this.value)" style="width:100%;background:var(--paper);border:1px solid var(--line2);border-radius:10px;padding:10px;font-family:var(--serif);font-size:13.5px;resize:vertical;min-height:70px" placeholder="3 things that moved forward…">${tkEsc(d.wentWell||'')}</textarea>
+      </div>
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px">What did I avoid or drift on?</div>
+        <textarea onblur="saveCloseField('avoided',this.value)" style="width:100%;background:var(--paper);border:1px solid var(--line2);border-radius:10px;padding:10px;font-family:var(--serif);font-size:13.5px;resize:vertical;min-height:70px" placeholder="Be honest…">${tkEsc(d.avoided||'')}</textarea>
+      </div>
+    </div>
+    ${chk(d.trained,'I trained today','trained')}
+    ${chk(d.acted,'I acted like the person I want to become','acted')}
+    <div style="padding:12px 0">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px">Tomorrow's first move</div>
+      <input onblur="saveCloseField('tomorrowFirst',this.value)" value="${tkEsc(d.tomorrowFirst||'')}" placeholder="The very first thing tomorrow morning…" style="width:100%;background:var(--paper);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;font-family:var(--serif);font-size:13.5px">
+    </div>
+    <button class="btn primary" onclick="completeClose()" style="width:100%;justify-content:center">${done?'✓ Day complete — well done':'Complete the day'}</button>
+  </div>`;
+}
+function saveCloseField(key,val){ dailyCloseCfg()[key]=val; save(); }
+function toggleCloseCheck(key){ const d=dailyCloseCfg(); d[key]=!d[key]; save(); renderHome(); }
+function completeClose(){ dailyCloseCfg().completedAt=new Date().toISOString(); save(); renderHome(); toast('Day complete. Good work.'); }
 
 /* ---- coach briefing weaves WHOOP + day together ---- */
 function morningBriefing(){
@@ -2060,22 +2142,24 @@ function finTab(which){
   if(s1) s1.classList.toggle('active', v==='sbh');
   if(s2) s2.classList.toggle('active', v==='trusts');
 }
-document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{
-  document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
-  document.getElementById('pane-'+b.dataset.pane).classList.add('active');
-  // lazy-load the family dashboard the first time Finance is opened
-  if(b.dataset.pane==='finance'){ const f=document.getElementById('famFrame'); if(f && (!f.src || /about:blank/.test(f.src))) finTab('sbh'); }
-  window.scrollTo({top:0,behavior:'smooth'});
-}));
-
 function exportData(){ const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`stuart-life-backup-${TODAY}.json`;a.click(); toast('Backup downloaded'); }
 function restoreData(input){ const f=input.files[0];if(!f)return;const r=new FileReader();
   r.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d.profile||!d.finance)throw 0;
     if(!confirm('Restore from backup? This replaces current data.'))return; DB=d;save();renderAll();toast('Data restored');}
     catch(err){toast('Invalid backup file');}}; r.readAsText(f); input.value=''; }
+function openSettings(){
+  showModal(`<div class="modal-head"><div><h2>Settings</h2><div class="ms">Data management & configuration</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div style="font-family:var(--disp);font-weight:700;font-size:15px;margin-bottom:12px">Data Management</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px">
+        <button class="btn" onclick="exportData();closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>Backup data</button>
+        <button class="btn" onclick="document.getElementById('restoreFile').click();closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14"/></svg>Restore backup</button>
+      </div>
+      <div style="font-family:var(--disp);font-weight:700;font-size:15px;margin-bottom:12px">WHOOP Proxy</div>
+      <button class="btn" onclick="closeModal();openWhoopSettings()">Configure WHOOP connection</button>
+    </div>`);
+}
 
 let tt;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
@@ -2609,21 +2693,89 @@ function heroHome(){
   const dateline=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long'});
   const w=DB.whoop||{}; const rec=(w.recovery||[]); const lastRec=rec[rec.length-1];
   const slp=(w.sleep||[]); const lastSlp=slp[slp.length-1];
-  const recV=lastRec&&lastRec.recovery!=null?Math.round(lastRec.recovery)+'%':'—';
-  const slpV=lastSlp&&lastSlp.performance!=null?Math.round(lastSlp.performance)+'%':'—';
-  const openT=(morningCfg().tasks||[]).filter(t=>!t.done).length;
+  const recV=lastRec&&lastRec.recovery!=null?Math.round(lastRec.recovery):null;
+  const slpV=lastSlp&&lastSlp.performance!=null?Math.round(lastSlp.performance):null;
+  const slpH=lastSlp&&lastSlp.durationMs?fmtDur(lastSlp.durationMs):null;
   const wk=(w.workouts||[]); const sess=(typeof whoopWeekAgg==='function')?whoopWeekAgg(wk,0).count:0;
+  const openT=(morningCfg().tasks||[]).filter(t=>!t.done).length;
+  const overdue=(morningCfg().tasks||[]).filter(t=>!t.done&&t.due&&t.due<todayISO()).length;
+  // Recovery status
+  const recColor=recV==null?'rgba(255,255,255,.6)':recV>=67?'#6ee7b7':recV>=34?'#fcd34d':'#fca5a5';
+  const recLabel=recV==null?'No data':recV>=67?'Ready to push':recV>=34?'Moderate day':'Rest & recover';
+  // Operating status narrative
+  const status=recV==null
+    ? 'No WHOOP data yet today. Check your recovery, then set your one priority for the morning.'
+    : recV>=67
+      ? `Recovery is solid at <b>${recV}%</b>. Today is a day for deliberate effort${slpH?' — you slept '+slpH+'':''}.`
+      : recV>=34
+        ? `Recovery is moderate at <b>${recV}%</b>. Train if you planned to, but keep it controlled.`
+        : `Recovery is low at <b>${recV}%</b>. Protect your energy today — one high-value task, early shutdown.`;
+  // One Thing
+  const cfg=morningCfg();
+  const oneThing=cfg.oneThing||'';
   return `<div class="hero">
-    <div class="h-hi">${greet}</div><div class="h-date">${dateline}</div>
-    <div class="hero-stats" style="grid-template-columns:repeat(3,1fr)">
-      <div class="hero-stat"><div class="v">${recV}</div><div class="l">Recovery</div></div>
-      <div class="hero-stat"><div class="v">${slpV}</div><div class="l">Sleep</div></div>
-      <div class="hero-stat"><div class="v">${openT}</div><div class="l">Open tasks</div></div>
-    </div></div>`;
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+      <div>
+        <div class="h-hi">${greet}</div>
+        <div class="h-date">${dateline}</div>
+      </div>
+      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:10px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.5px;opacity:.9">
+        Operating Status
+      </div>
+    </div>
+    <div style="font-family:var(--serif);font-size:15px;line-height:1.6;margin-bottom:20px;color:rgba(255,255,255,.92);position:relative">${status}</div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="v" style="color:${recColor}">${recV!=null?recV+'%':'—'}</div>
+        <div class="l">Recovery</div>
+        <div style="font-family:var(--serif);font-size:11px;margin-top:3px;opacity:.75">${recLabel}</div>
+      </div>
+      <div class="hero-stat">
+        <div class="v">${slpH||'—'}</div>
+        <div class="l">Sleep</div>
+        <div style="font-family:var(--serif);font-size:11px;margin-top:3px;opacity:.75">${slpV!=null?slpV+'% of need':'No data'}</div>
+      </div>
+      <div class="hero-stat">
+        <div class="v">${sess}</div>
+        <div class="l">Sessions this week</div>
+        <div style="font-family:var(--serif);font-size:11px;margin-top:3px;opacity:.75">WHOOP workouts</div>
+      </div>
+      <div class="hero-stat" style="cursor:pointer" onclick="editOneThing()">
+        <div class="v" style="font-size:${oneThing?'13px':'23px'}">${oneThing||'+'}</div>
+        <div class="l">Today's One Move</div>
+        <div style="font-family:var(--serif);font-size:11px;margin-top:3px;opacity:.75">${oneThing?'tap to edit':'Set your priority'}</div>
+      </div>
+    </div>
+    ${overdue?`<div style="margin-top:14px;background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.35);border-radius:10px;padding:10px 14px;font-family:var(--serif);font-size:13px;color:#fecaca">⚠ <b>${overdue} overdue task${overdue>1?'s':''}</b> — these need attention before new work starts.</div>`:''}
+  </div>`;
 }
+function editOneThing(){
+  const cfg=morningCfg();
+  showModal(`<div class="modal-head"><div><h2>Today's One Move</h2><div class="ms">The single action that would make today a success</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>What is the one thing?</label><input id="ot_inp" value="${tkEsc(cfg.oneThing||'')}" placeholder="e.g. Close the Gerber decision before 11am" autofocus></div>
+      <button class="btn primary" onclick="saveOneThing()">Set it</button>
+      ${cfg.oneThing?`<button class="btn" onclick="clearOneThing()">Clear</button>`:''}
+    </div>`);
+  setTimeout(()=>document.getElementById('ot_inp')&&document.getElementById('ot_inp').focus(),80);
+}
+function saveOneThing(){ morningCfg().oneThing=document.getElementById('ot_inp').value.trim(); save(); closeModal(); renderHome(); }
+function clearOneThing(){ morningCfg().oneThing=''; save(); closeModal(); renderHome(); }
 
-function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals(); }
+function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire(); }
 document.getElementById('todayStr').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+// Handle nav for wealth & retire panes (lazy render already done in renderAll)
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  const paneId='pane-'+b.dataset.pane;
+  const pane=document.getElementById(paneId);
+  if(pane){ pane.classList.add('active'); }
+  // lazy-load the family dashboard the first time Finance/Wealth is opened
+  if(b.dataset.pane==='finance'){ const f=document.getElementById('famFrame'); if(f && (!f.src || /about:blank/.test(f.src))) finTab('sbh'); }
+  window.scrollTo({top:0,behavior:'smooth'});
+}));
 renderAll();
 </script>
 </body>
