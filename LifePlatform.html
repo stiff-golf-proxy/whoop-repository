@@ -294,6 +294,41 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .coach-backdrop{position:fixed;inset:0;background:rgba(20,40,40,.28);backdrop-filter:blur(2px);z-index:75;display:none}
 .coach-backdrop.show{display:block}
 @media(max-width:560px){ .coach-fab{right:16px;bottom:16px;padding:13px 17px} .coach-drawer{width:100vw} }
+
+/* ---- Goals (screen-privacy gated) ---- */
+.lock-wrap{max-width:420px;margin:40px auto;text-align:center}
+.lock-card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow-lg);padding:38px 30px}
+.lock-ic{width:54px;height:54px;border-radius:16px;margin:0 auto 18px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--terra),var(--sage-deep))}
+.lock-card h2{font-family:var(--disp);font-weight:700;font-size:22px;letter-spacing:-.3px;margin-bottom:6px}
+.lock-card p{font-family:var(--serif);font-size:13.5px;color:var(--ink-faint);line-height:1.5;margin-bottom:20px}
+.lock-card input{width:100%;background:var(--paper);border:1px solid var(--line2);border-radius:12px;padding:13px 15px;font-family:var(--serif);font-size:16px;color:var(--ink);text-align:center;letter-spacing:2px;margin-bottom:14px}
+.lock-card input:focus{outline:none;border-color:var(--terra);box-shadow:0 0 0 3px rgba(10,138,150,.16)}
+.lock-note{font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:16px;letter-spacing:.3px}
+.goal-card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:20px 22px;display:flex;flex-direction:column;gap:10px}
+.goal-cat{font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;padding:4px 10px;border-radius:20px;align-self:flex-start}
+.goal-title{font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:-.2px;line-height:1.2}
+.goal-meta{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+.goal-notes{font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);line-height:1.5}
+.goal-bar{height:8px;border-radius:8px;background:var(--line2);overflow:hidden}
+.goal-bar>i{display:block;height:100%;border-radius:8px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.goal-actions{display:flex;gap:14px;margin-top:2px}
+.goal-actions a{font-family:var(--serif);font-size:12.5px;color:var(--ink-faint);cursor:pointer}
+.goal-actions a:hover{color:var(--terra)}
+
+/* ---- stronger landing hero ---- */
+.hero{position:relative;overflow:hidden;border-radius:22px;padding:30px 32px;margin-bottom:20px;
+  background:linear-gradient(135deg,var(--terra-deep),var(--sage-deep) 92%);color:#fff;
+  box-shadow:0 10px 34px rgba(10,80,88,.30)}
+.hero::after{content:"";position:absolute;right:-60px;top:-60px;width:280px;height:280px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.16),transparent 70%)}
+.hero .h-hi{font-family:var(--disp);font-weight:800;font-size:30px;letter-spacing:-.6px;line-height:1.05;position:relative}
+.hero .h-date{font-family:var(--mono);font-size:11.5px;letter-spacing:1px;opacity:.85;margin-top:6px;position:relative;text-transform:uppercase}
+.hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;position:relative;margin-top:22px}
+.hero-stat{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:13px 15px;backdrop-filter:blur(4px)}
+.hero-stat .v{font-family:var(--disp);font-weight:700;font-size:23px;letter-spacing:-.4px;line-height:1}
+.hero-stat .l{font-family:var(--mono);font-size:9px;letter-spacing:1.1px;text-transform:uppercase;opacity:.82;margin-top:6px}
+@media(max-width:760px){ .hero-stats{grid-template-columns:repeat(2,1fr)} .hero{padding:24px 22px} .hero .h-hi{font-size:25px} }
+@media(max-width:560px){ .hero-stats{grid-template-columns:1fr 1fr;gap:10px} }
 </style>
 </head>
 <body>
@@ -317,6 +352,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
     <button data-pane="run"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 4a1.5 1.5 0 100 0M7 21l3-6 3 2 1 4M10 9l3-2 3 3 3 1M5 13l3-1"/></svg>Running</button>
     <button data-pane="health"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg>Health</button>
     <button data-pane="whoop"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>WHOOP</button>
+    <button data-pane="goals"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4h12l-2.5 4L17 12H5"/></svg>Goals</button>
   </nav>
 
   <section id="pane-home" class="pane active"></section>
@@ -332,6 +368,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   <section id="pane-run" class="pane"></section>
   <section id="pane-health" class="pane"></section>
   <section id="pane-whoop" class="pane"></section>
+  <section id="pane-goals" class="pane"></section>
 </div>
 
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
@@ -512,6 +549,7 @@ function renderHome(){
 
   const P=document.getElementById('pane-home');
   P.innerHTML=`
+   ${heroHome()}
    <div class="coach" id="mrBriefing"><div class="q">${dateline} · your morning report</div>
      <p>${morningBriefing()}</p></div>
    ${proxyBase()?'':`<div class="card card-pad" style="margin-bottom:18px;border-left:3px solid var(--gold);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
@@ -2363,7 +2401,110 @@ async function coachSend(){
   setTimeout(()=>{const el=document.getElementById('coachText'); if(el)el.focus();},50);
 }
 
-function renderAll(){ renderHome();renderWealth();renderRetire();renderGolf();renderRun();renderHealth();renderWhoop(); }
+/* ============================================================
+   GOALS — structured goals behind a screen-privacy password gate.
+   NOTE: this is screen-privacy (deters over-the-shoulder viewing),
+   not encryption — data still lives in the browser like the rest.
+   ============================================================ */
+const GOAL_CATS={Health:'var(--good)',Wealth:'var(--gold)',Career:'var(--terra)',Personal:'var(--sage)',Relationships:'var(--rose)',Adventure:'var(--sky)'};
+function goalsCfg(){ DB.goals=DB.goals||{pwHash:null,items:[]}; if(!Array.isArray(DB.goals.items))DB.goals.items=[]; return DB.goals; }
+function goalsHash(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return 'h'+(h>>>0); }
+function lockSvg(){ return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>'; }
+let _goalsUnlocked=false;
+function renderGoals(){
+  const g=goalsCfg(); const P=document.getElementById('pane-goals'); if(!P)return;
+  if(!g.pwHash){
+    P.innerHTML=`<div class="lock-wrap"><div class="lock-card"><div class="lock-ic">${lockSvg()}</div>
+      <h2>Protect your goals</h2><p>Set a password to keep this section private on shared screens.</p>
+      <input id="g_set1" type="password" placeholder="Choose a password" onkeydown="if(event.key==='Enter')document.getElementById('g_set2').focus()">
+      <input id="g_set2" type="password" placeholder="Confirm password" onkeydown="if(event.key==='Enter')setGoalsPw()">
+      <button class="btn primary" style="width:100%;justify-content:center" onclick="setGoalsPw()">Set password</button>
+      <div class="lock-note">Screen-privacy only — not encryption.</div></div></div>`;
+    return;
+  }
+  if(!_goalsUnlocked){
+    P.innerHTML=`<div class="lock-wrap"><div class="lock-card"><div class="lock-ic">${lockSvg()}</div>
+      <h2>Goals locked</h2><p>Enter your password to view your goals.</p>
+      <input id="g_pw" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')unlockGoals()">
+      <button class="btn primary" style="width:100%;justify-content:center" onclick="unlockGoals()">Unlock</button>
+      <div class="lock-note">Screen-privacy only — not encryption.</div></div></div>`;
+    setTimeout(()=>{const el=document.getElementById('g_pw');if(el)el.focus();},200);
+    return;
+  }
+  const items=g.items.slice().sort((a,b)=>(a.progress||0)-(b.progress||0));
+  const active=items.filter(x=>(x.progress||0)<100), done=items.filter(x=>(x.progress||0)>=100);
+  const card=x=>{ const c=GOAL_CATS[x.category]||'var(--ink-faint)';
+    return `<div class="goal-card">
+      <span class="goal-cat" style="background:${c}22;color:${c}">${tkEsc(x.category||'Goal')}</span>
+      <div class="goal-title">${tkEsc(x.title)}</div>
+      <div class="goal-meta">${x.target?('Target '+tkEsc(x.target)):'No target date'}</div>
+      <div class="goal-bar"><i style="width:${x.progress||0}%;background:${c}"></i></div>
+      <div class="goal-meta" style="display:flex;justify-content:space-between"><span>${x.progress||0}% complete</span>${(x.progress||0)>=100?'<span style="color:var(--good)">Achieved ✓</span>':''}</div>
+      ${x.notes?`<div class="goal-notes">${tkEsc(x.notes)}</div>`:''}
+      <div class="goal-actions"><a onclick="editGoal('${x.id}')">Edit</a><a onclick="delGoal('${x.id}')">Delete</a></div></div>`; };
+  P.innerHTML=`<div class="coach"><div class="q">Your goals</div><p>${goalsCoach(items)}</p></div>
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+      <button class="btn primary" onclick="addGoal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New goal</button>
+      <button class="btn" onclick="lockGoals()">${lockSvg().replace('width="26" height="26"','width="15" height="15"')}Lock</button>
+      <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${active.length} active · ${done.length} achieved</span></div>
+    ${items.length? `<div class="grid g3">${active.map(card).join('')}${done.map(card).join('')}</div>` : '<div class="empty" style="padding:46px">No goals yet — add your first above.</div>'}`;
+}
+function setGoalsPw(){ const a=document.getElementById('g_set1').value, b=document.getElementById('g_set2').value;
+  if(!a||a.length<3){toast('Use at least 3 characters');return;} if(a!==b){toast("Passwords don't match");return;}
+  goalsCfg().pwHash=goalsHash(a); _goalsUnlocked=true; save(); renderGoals(); toast('Goals protected'); }
+function unlockGoals(){ const v=document.getElementById('g_pw').value||''; if(goalsHash(v)===goalsCfg().pwHash){ _goalsUnlocked=true; renderGoals(); } else toast('Wrong password'); }
+function lockGoals(){ _goalsUnlocked=false; renderGoals(); }
+function goalsCoach(items){
+  if(!items.length) return `Goals turn intention into progress. Add three you want to move this quarter — specific and time-bound.`;
+  const avg=Math.round(items.reduce((s,x)=>s+(x.progress||0),0)/items.length);
+  const done=items.filter(x=>(x.progress||0)>=100).length;
+  return `You're tracking <b>${items.length}</b> goal${items.length>1?'s':''}, averaging <b>${avg}%</b>${done?`, with ${done} achieved`:''}. Pick the one that matters most this week and give it a concrete next action.`;
+}
+function addGoal(){ goalModal(null); }
+function editGoal(id){ goalModal(id); }
+function goalModal(id){
+  const g=goalsCfg(); const x=id?g.items.find(i=>i.id===id):null;
+  const cats=Object.keys(GOAL_CATS).map(c=>`<option ${x&&x.category===c?'selected':''}>${c}</option>`).join('');
+  showModal(`<div class="modal-head"><div><h2>${x?'Edit goal':'New goal'}</h2><div class="ms">Make it specific and time-bound</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Goal</label><input id="gm_title" value="${x?tkEsc(x.title):''}" placeholder="e.g. Run a sub-4:30 marathon"></div>
+      <div class="row2">
+        <div class="field"><label>Category</label><select id="gm_cat">${cats}</select></div>
+        <div class="field"><label>Target month</label><input id="gm_target" type="month" value="${x&&x.target?x.target:''}"></div></div>
+      <div class="field"><label>Progress — <b id="gm_pl">${x?(x.progress||0):0}</b>%</label>
+        <input id="gm_prog" type="range" min="0" max="100" value="${x?(x.progress||0):0}" oninput="document.getElementById('gm_pl').textContent=this.value"></div>
+      <div class="field"><label>Notes</label><textarea id="gm_notes" style="width:100%;min-height:90px;background:var(--paper);border:1px solid var(--line2);border-radius:10px;padding:11px;font-family:var(--serif);font-size:14px;color:var(--ink)">${x?tkEsc(x.notes||''):''}</textarea></div>
+      <div style="display:flex;gap:10px"><button class="btn primary" onclick="saveGoal(${id?`'${id}'`:'null'})">Save</button>${x?`<button class="btn" onclick="delGoal('${id}');closeModal()">Delete</button>`:''}</div></div>`);
+}
+function saveGoal(id){
+  const g=goalsCfg(); const title=document.getElementById('gm_title').value.trim(); if(!title){toast('Enter a goal');return;}
+  const obj={ title, category:document.getElementById('gm_cat').value, target:document.getElementById('gm_target').value||'', progress:+document.getElementById('gm_prog').value||0, notes:document.getElementById('gm_notes').value.trim() };
+  if(id){ const x=g.items.find(i=>i.id===id); if(x)Object.assign(x,obj); } else { obj.id='g'+Date.now(); obj.createdAt=Date.now(); g.items.push(obj); }
+  save(); closeModal(); renderGoals();
+}
+function delGoal(id){ const g=goalsCfg(); g.items=g.items.filter(i=>i.id!==id); save(); renderGoals(); }
+
+/* ---- stronger landing hero ---- */
+function heroHome(){
+  const hour=new Date().getHours();
+  const greet=(hour<12?'Good morning':hour<18?'Good afternoon':'Good evening')+', Stuart';
+  const dateline=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long'});
+  const w=DB.whoop||{}; const rec=(w.recovery||[]); const lastRec=rec[rec.length-1];
+  const recV=lastRec&&lastRec.recovery!=null?Math.round(lastRec.recovery)+'%':'—';
+  const openT=(morningCfg().tasks||[]).filter(t=>!t.done).length;
+  const fx=morningCfg().currency; const fxV=fx&&fx.usdzar?('R'+fx.usdzar.toFixed(2)):'—';
+  let nwV='—'; try{ nwV=ZARk(netWorth()); }catch(e){}
+  return `<div class="hero">
+    <div class="h-hi">${greet}</div><div class="h-date">${dateline}</div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="v">${recV}</div><div class="l">Recovery</div></div>
+      <div class="hero-stat"><div class="v">${openT}</div><div class="l">Open tasks</div></div>
+      <div class="hero-stat"><div class="v">${fxV}</div><div class="l">USD / ZAR</div></div>
+      <div class="hero-stat"><div class="v">${nwV}</div><div class="l">Net worth</div></div>
+    </div></div>`;
+}
+
+function renderAll(){ renderHome();renderWealth();renderRetire();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals(); }
 document.getElementById('todayStr').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 renderAll();
 </script>
