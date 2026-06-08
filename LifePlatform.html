@@ -1338,60 +1338,70 @@ function renderWealth(){
 }
 function shortName(n){ return n.replace('Retirement Annuity','RA').replace('Alexforbes ','').replace(' Pension','').replace('Harris Billings Inc','Harris Billings'); }
 /* ============ RETIREMENT (income projection) ============ */
-const RET_DEFAULTS = {growth:8, inflation:5, contribMonthly:25000, drawdown:4, includeHBI:50};
+const RET_DEFAULTS = {growth:8, inflation:5, contribMonthly:25000, drawdown:4, includeHBI:50,
+  rentalFourways:75000, rentalTokai:30000, rentalGrowth:6};
 function getRet(){ DB.retire = Object.assign({}, RET_DEFAULTS, DB.retire||{}); return DB.retire; }
 
 function projectRetirement(){
   const r=getRet();
   const yrs=yearsBetween(TODAY,DB.profile.targetRetirementDate);
-  // retirement-accessible capital: RA + GGG fully; HBI partially (slider %)
   const ra=DB.finance.accounts.find(a=>a.id==='inn8').value;
   const ggg=DB.finance.accounts.find(a=>a.id==='ggg').value;
   const hbi=DB.finance.accounts.find(a=>a.id==='hbi').value*(r.includeHBI/100);
   const startCapital=ra+ggg+hbi;
-  // grow lump sum + monthly contributions to retirement-investable pots (RA+GGG)
   const g=r.growth/100, gm=Math.pow(1+g,1/12)-1;
   const months=Math.round(yrs*12);
   let fv=startCapital;
   for(let m=0;m<months;m++){ fv=fv*(1+gm)+r.contribMonthly; }
-  // real (today's money) value
   const realFactor=Math.pow(1+r.inflation/100, yrs);
   const fvReal=fv/realFactor;
-  // sustainable annual income via drawdown rate, then monthly
   const annual=fv*(r.drawdown/100);
   const monthly=annual/12;
   const monthlyReal=monthly/realFactor;
-  return {yrs,startCapital,fv,fvReal,annual,monthly,monthlyReal,ra,ggg,hbi};
+  // Property rental income at retirement — grow at rentalGrowth% pa for yrs years
+  const rg=r.rentalGrowth/100;
+  const rentalAtRetire=(r.rentalFourways+r.rentalTokai)*Math.pow(1+rg,yrs);
+  const rentalAtRetireReal=rentalAtRetire/realFactor;
+  // Total income at retirement
+  const totalMonthlyReal=monthlyReal+rentalAtRetireReal;
+  return {yrs,startCapital,fv,fvReal,annual,monthly,monthlyReal,ra,ggg,hbi,
+    rentalToday:r.rentalFourways+r.rentalTokai,
+    rentalAtRetire,rentalAtRetireReal,totalMonthlyReal};
 }
 
+/* ── Split render: full scaffold drawn once, outputs patched on slider change ── */
+let _retireRendered=false;
 function renderRetire(){
   const r=getRet(); const p=projectRetirement();
   const P=document.getElementById('pane-retire');
-  // build trajectory chart (nominal capital over time)
+  if(!P) return;
+
+  // Build chart data
   const g=r.growth/100, gm=Math.pow(1+g,1/12)-1, months=Math.round(p.yrs*12);
-  let fv=p.startCapital, pts=[]; const startYear=new Date().getFullYear()+ new Date().getMonth()/12;
+  let fv=p.startCapital, pts=[]; const startYear=new Date().getFullYear()+new Date().getMonth()/12;
   for(let m=0;m<=months;m++){ if(m%3===0) pts.push({x:startYear+m/12,y:fv}); fv=fv*(1+gm)+r.contribMonthly; }
   const chart=lineChart([{name:'Projected capital',color:'var(--terra)',points:pts}],
     {h:240,area:true,dots:false,minY:0,yFmt:v=>ZARk(v),xFmt:v=>Math.round(v),maxXLabels:7});
 
+  // Always redraw the full scaffold (only called on first render or tab switch)
   P.innerHTML=`
    <div class="coach"><div class="q">The number that matters</div>
-     <p>Retirement isn't a finish line, it's a paycheck you give yourself. Below is an estimate of the <b>monthly income</b> your capital could sustainably produce from age 60, in today's money. Move the sliders to see how your choices — saving more, retiring later, drawing less — change the answer. These are planning estimates, not guarantees or advice.</p></div>
+     <p>Retirement income comes from two sources: drawdown from your invested capital, and property rental. Both are shown below — in today's money. Move the sliders to see how your choices change the answer. Planning estimates only, not financial advice.</p></div>
 
    <div class="card card-pad" style="margin-bottom:22px">
      <div class="big-income">
-       <div class="pre">Estimated sustainable income at 60</div>
-       <div class="amt">${ZAR(p.monthlyReal)}<span style="font-size:24px;color:var(--ink-faint)">/mo</span></div>
-       <div class="post">in today's money · ${ZAR(p.monthly)}/mo nominal · ${ZARk(p.fv)} projected capital</div>
+       <div class="pre">Total estimated monthly income at 60</div>
+       <div class="amt" id="ret-total">${ZAR(p.totalMonthlyReal)}<span style="font-size:24px;color:var(--ink-faint)">/mo</span></div>
+       <div class="post" id="ret-post">Capital drawdown ${ZAR(p.monthlyReal)}/mo + property rental ${ZAR(p.rentalAtRetireReal)}/mo · today's money</div>
      </div>
-     <div class="chart-box" style="margin-top:10px">${chart}</div>
+     <div class="chart-box" style="margin-top:10px" id="ret-chart">${chart}</div>
      <div class="legend"><span><span class="dot" style="background:var(--terra)"></span>Projected capital growth to age 60</span></div>
    </div>
 
    <div class="grid g2">
      <div class="card card-pad">
        <div class="kicker">Your assumptions</div><div class="h-sec">Tune the plan</div>
-       <div class="slider-row"><label>Annual growth (return) <b id="lg">${r.growth}%</b></label>
+       <div class="slider-row"><label>Annual investment return <b id="lg">${r.growth}%</b></label>
          <input type="range" min="3" max="13" step="0.5" value="${r.growth}" oninput="setRet('growth',+this.value)"></div>
        <div class="slider-row"><label>Inflation <b id="li">${r.inflation}%</b></label>
          <input type="range" min="2" max="9" step="0.5" value="${r.inflation}" oninput="setRet('inflation',+this.value)"></div>
@@ -1401,34 +1411,70 @@ function renderRetire(){
          <input type="range" min="2.5" max="6" step="0.25" value="${r.drawdown}" oninput="setRet('drawdown',+this.value)"></div>
        <div class="slider-row"><label>Include Harris Billings stake <b id="lh">${r.includeHBI}%</b></label>
          <input type="range" min="0" max="100" step="5" value="${r.includeHBI}" oninput="setRet('includeHBI',+this.value)"></div>
+       <div style="height:1px;background:var(--line);margin:16px 0"></div>
+       <div class="kicker" style="margin-bottom:10px">Property rental income</div>
+       <div class="slider-row"><label>Fourways rental today <b id="lrf">${ZAR(r.rentalFourways)}/mo</b></label>
+         <input type="range" min="0" max="150000" step="5000" value="${r.rentalFourways}" oninput="setRet('rentalFourways',+this.value)"></div>
+       <div class="slider-row"><label>Tokai cottage today <b id="lrt">${ZAR(r.rentalTokai)}/mo</b></label>
+         <input type="range" min="0" max="100000" step="2500" value="${r.rentalTokai}" oninput="setRet('rentalTokai',+this.value)"></div>
+       <div class="slider-row"><label>Rental escalation rate <b id="lrg">${r.rentalGrowth}% pa</b></label>
+         <input type="range" min="2" max="12" step="0.5" value="${r.rentalGrowth}" oninput="setRet('rentalGrowth',+this.value)"></div>
        <div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-faint);margin-top:4px">
-         The company stake is illiquid; the slider lets you model how much of it you'd realistically convert to retirement capital.</div>
+         Rental income is grown at the escalation rate then deflated to today's money. HBI stake is illiquid — slider sets how much converts to capital.</div>
      </div>
      <div class="card card-pad">
-       <div class="kicker">The mechanics</div><div class="h-sec">How we got there</div>
-       <table class="clean">
-         <tr><td>Years until age 60</td><td class="r mono">${p.yrs.toFixed(1)}</td></tr>
-         <tr><td>RA + Pension today</td><td class="r mono">${ZARk(p.ra+p.ggg)}</td></tr>
-         <tr><td>Company stake included</td><td class="r mono">${ZARk(p.hbi)}</td></tr>
-         <tr><td>Starting capital</td><td class="r mono">${ZARk(p.startCapital)}</td></tr>
-         <tr><td>+ Contributions over ${p.yrs.toFixed(0)} yrs</td><td class="r mono">${ZARk(r.contribMonthly*12*p.yrs)}</td></tr>
-         <tr><td>Projected capital at 60</td><td class="r mono"><b>${ZARk(p.fv)}</b></td></tr>
-         <tr><td>In today's money</td><td class="r mono">${ZARk(p.fvReal)}</td></tr>
-         <tr><td>Annual income @ ${r.drawdown}%</td><td class="r mono">${ZARk(p.annual)}</td></tr>
-         <tr><td>Monthly (today's money)</td><td class="r mono" style="color:var(--terra-deep)"><b>${ZAR(p.monthlyReal)}</b></td></tr>
+       <div class="kicker">The mechanics</div><div class="h-sec" id="ret-mech-head">How we got there</div>
+       <table class="clean" id="ret-table">
+         ${retMechRows(r,p)}
        </table>
        <div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-faint);margin-top:14px">
-         Note: at 60 you reach your <b>self-set</b> target — five years before the GGG fund's normal retirement date of ${fmtDate(DB.profile.gggNormalRetirement)}. Retiring earlier means fewer contributing years and more drawdown years, which is exactly the tension these sliders let you feel.</div>
+         Note: at 60 you reach your <b>self-set</b> target — five years before the GGG normal retirement date of ${fmtDate(DB.profile.gggNormalRetirement)}.</div>
      </div>
    </div>`;
+  _retireRendered=true;
 }
-function setRet(k,v){ getRet()[k]=v; save();
-  const map={growth:'lg',inflation:'li',drawdown:'ld'};
-  if(k==='contribMonthly') document.getElementById('lc').textContent=ZAR(v);
-  else if(k==='includeHBI') document.getElementById('lh').textContent=v+'%';
-  else document.getElementById(map[k]).textContent=v+'%';
-  // re-render only the outputs (cheap: full re-render keeps it simple & correct)
-  renderRetire();
+
+function retMechRows(r,p){
+  return `<tr><td>Years until age 60</td><td class="r mono">${p.yrs.toFixed(1)}</td></tr>
+    <tr><td>RA + Pension today</td><td class="r mono">${ZARk(p.ra+p.ggg)}</td></tr>
+    <tr><td>Company stake included</td><td class="r mono">${ZARk(p.hbi)}</td></tr>
+    <tr><td>Starting capital</td><td class="r mono">${ZARk(p.startCapital)}</td></tr>
+    <tr><td>+ Contributions over ${p.yrs.toFixed(0)} yrs</td><td class="r mono">${ZARk(r.contribMonthly*12*p.yrs)}</td></tr>
+    <tr><td>Projected capital at 60</td><td class="r mono"><b>${ZARk(p.fv)}</b></td></tr>
+    <tr><td>In today's money</td><td class="r mono">${ZARk(p.fvReal)}</td></tr>
+    <tr style="border-top:1px solid var(--line2)"><td>Capital drawdown income</td><td class="r mono">${ZAR(p.monthlyReal)}/mo</td></tr>
+    <tr><td>Property rental (today: ${ZAR(p.rentalToday)}/mo)</td><td class="r mono">${ZAR(p.rentalAtRetireReal)}/mo</td></tr>
+    <tr style="background:rgba(10,138,150,.06)"><td><b>Total monthly at 60</b></td><td class="r mono" style="color:var(--terra-deep)"><b>${ZAR(p.totalMonthlyReal)}</b></td></tr>`;
+}
+
+/* setRet: save the value, update only the label and output nodes — never touch the sliders */
+function setRet(k,v){
+  getRet()[k]=v; save();
+  // Update the label next to the slider that moved
+  const labelMap={growth:'lg',inflation:'li',drawdown:'ld',includeHBI:'lh',
+    contribMonthly:'lc',rentalFourways:'lrf',rentalTokai:'lrt',rentalGrowth:'lrg'};
+  const labelEl=document.getElementById(labelMap[k]);
+  if(labelEl){
+    if(k==='contribMonthly') labelEl.textContent=ZAR(v);
+    else if(k==='rentalFourways'||k==='rentalTokai') labelEl.textContent=ZAR(v)+'/mo';
+    else labelEl.textContent=v+'% '+(k==='rentalGrowth'?'pa':'');
+  }
+  // Recompute and patch outputs only (no DOM rebuild — sliders keep their focus/position)
+  const r=getRet(); const p=projectRetirement();
+  const tot=document.getElementById('ret-total');
+  const post=document.getElementById('ret-post');
+  const tbl=document.getElementById('ret-table');
+  if(tot) tot.innerHTML=ZAR(p.totalMonthlyReal)+'<span style="font-size:24px;color:var(--ink-faint)">/mo</span>';
+  if(post) post.textContent='Capital drawdown '+ZAR(p.monthlyReal)+'/mo + property rental '+ZAR(p.rentalAtRetireReal)+'/mo \u00b7 today\'s money';
+  if(tbl) tbl.innerHTML=retMechRows(r,p);
+  // Rebuild chart (it lives in its own div, separate from sliders)
+  const g=r.growth/100, gm=Math.pow(1+g,1/12)-1, months=Math.round(p.yrs*12);
+  let fv=p.startCapital, pts=[]; const sy=new Date().getFullYear()+new Date().getMonth()/12;
+  for(let m=0;m<=months;m++){ if(m%3===0) pts.push({x:sy+m/12,y:fv}); fv=fv*(1+gm)+r.contribMonthly; }
+  const chartEl=document.getElementById('ret-chart');
+  if(chartEl) chartEl.innerHTML=lineChart([{name:'Projected capital',color:'var(--terra)',points:pts}],
+    {h:240,area:true,dots:false,minY:0,yFmt:v=>ZARk(v),xFmt:v=>Math.round(v),maxXLabels:7})+
+    '<div class="legend"><span><span class="dot" style="background:var(--terra)"></span>Projected capital growth to age 60</span></div>';
 }
 /* ============ RUNNING ============ */
 function runYearTotals(){
