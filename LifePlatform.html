@@ -560,7 +560,7 @@ function renderHome(){
 
    <div class="grid g2" style="margin-bottom:18px">
      ${cardReadiness()}
-     ${cardCommute()}
+     ${cardTraining()}
    </div>
    ${cardTasks()}
    <div class="grid g2" style="margin-bottom:18px">
@@ -577,7 +577,7 @@ function renderHome(){
   // Kick off background feeds ONCE — re-renders (after each feed resolves) must not
   // refire these, otherwise traffic/news/calendar hammer the proxy on every redraw.
   if(!window._feedsKicked){ window._feedsKicked=true;
-    fetchCurrency(); if(proxyBase()){ fetchNews(); fetchTraffic(); fetchCalendar(); } }
+    fetchCurrency(); if(proxyBase()){ fetchNews(); fetchCalendar(); } }
 }
 
 /* ---- coach briefing weaves WHOOP + day together ---- */
@@ -632,7 +632,41 @@ function cardReadiness(){
     </div></div>`;
 }
 
-/* ---- commute / traffic card ---- */
+/* ---- home training card (this week's fitness + motivation) ---- */
+function cardTraining(){
+  const w=DB.whoop||{}; const wk=w.workouts||[];
+  if(!wk.length){
+    return `<div class="card card-pad"><div class="kicker">This week</div><div class="h-sec">Training</div>
+      <div class="empty">No workouts yet. <a onclick="go('whoop')" style="color:var(--terra);cursor:pointer;text-decoration:underline">Open WHOOP →</a></div></div>`;
+  }
+  const thisW=whoopWeekAgg(wk,0), lastW=whoopWeekAgg(wk,1);
+  const fmtHM=ms=>{ if(!ms)return'0m'; const h=Math.floor(ms/3600000),m=Math.round((ms%3600000)/60000); return h?`${h}h ${m}m`:`${m}m`; };
+  const last4=[0,1,2,3].map(i=>whoopWeekAgg(wk,i).count); const avg4=last4.reduce((a,b)=>a+b,0)/4;
+  const rec7=avgKey(recent(w.recovery,7),'recovery');
+  const recent3=wk.slice(-3).reverse().map(r=>`<div class="dlin">${sportLabel(r.sport)}<span class="v">${r.strain!=null?r.strain.toFixed(1):'—'}${r.distanceM?(' · '+(r.distanceM/1000).toFixed(1)+'km'):''}</span></div>`).join('');
+  const motivate=()=>{
+    if(thisW.count===0) return `Fresh week, clean slate. One good session today gets the flywheel turning.`;
+    if(thisW.count>=avg4 && thisW.count>=3) return `<b>${thisW.count} sessions</b> banked — ahead of your 4-week pace. This is what consistency looks like; keep stacking.`;
+    if(rec7!=null && rec7>=67) return `Recovery's strong (<b>${Math.round(rec7)}%</b>) with ${thisW.count} session${thisW.count>1?'s':''} in — your body's primed to push one hard today.`;
+    return `<b>${thisW.count} session${thisW.count>1?'s':''}</b> so far. One more keeps the week on track — momentum beats intensity.`;
+  };
+  const dStr=thisW.strain-lastW.strain;
+  const trend = lastW.strain? `<span style="font-family:var(--mono);font-size:11px;color:${dStr>=0?'var(--good)':'var(--ink-faint)'}">${dStr>=0?'▲':'▼'} ${Math.abs(Math.round(dStr/Math.max(1,lastW.strain)*100))}% vs last wk</span>`:'';
+  return `<div class="card card-pad"><div class="kicker">This week · WHOOP</div><div class="h-sec">Training<span class="sub">${trend}</span></div>
+    <div class="grid g3" style="gap:10px;margin-bottom:14px">
+      <div class="card tile" style="padding:13px 6px;text-align:center"><div class="num" style="font-size:27px">${thisW.count}</div><div class="lbl">Sessions</div></div>
+      <div class="card tile" style="padding:13px 6px;text-align:center"><div class="num" style="font-size:27px">${thisW.strain.toFixed(0)}</div><div class="lbl">Strain</div></div>
+      <div class="card tile" style="padding:13px 6px;text-align:center"><div class="num" style="font-size:21px">${fmtHM(thisW.durMs)}</div><div class="lbl">Active</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">${recent3}</div>
+    <div style="padding:13px 16px;background:var(--paper);border-radius:11px;border-left:3px solid var(--sage)">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Coach</div>
+      <div style="font-family:var(--serif);font-size:14px;color:var(--ink-soft);margin-top:4px;line-height:1.5">${motivate()}</div>
+    </div>
+    <div style="text-align:right;margin-top:10px"><a onclick="go('whoop')" style="font-family:var(--serif);font-size:13px;color:var(--terra);cursor:pointer">Full WHOOP →</a></div></div>`;
+}
+
+/* ---- commute / traffic card (kept for reference; no longer shown on home) ---- */
 // Build a Google Maps directions deep-link with live traffic — works with no proxy,
 // opens in the browser or the Maps app and routes around current congestion.
 function mapsDirUrl(from,to){
@@ -1021,7 +1055,7 @@ async function fetchCalendar(){
     morningCfg().calendar=[...evs,...manual]; save(); renderHomeIfActive();
   }catch(e){ /* leave manual entries as-is */ }
 }
-function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); if(proxyBase()){fetchNews();fetchTraffic();fetchCalendar();} fetchWhoopMorning(); }
+function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); if(proxyBase()){fetchNews();fetchCalendar();} fetchWhoopMorning(); }
 async function fetchWhoopMorning(){ if(proxyBase()&&typeof syncWhoop==='function'){ try{await syncWhoop();}catch(e){} renderHomeIfActive(); } }
 function renderHomeIfActive(){ const el=document.getElementById('pane-home'); if(el&&el.classList.contains('active')) renderHome(); }
 function fmtDate(d){ if(!d)return'—'; const x=new Date(d); return x.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}); }
@@ -2490,17 +2524,18 @@ function heroHome(){
   const greet=(hour<12?'Good morning':hour<18?'Good afternoon':'Good evening')+', Stuart';
   const dateline=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long'});
   const w=DB.whoop||{}; const rec=(w.recovery||[]); const lastRec=rec[rec.length-1];
+  const slp=(w.sleep||[]); const lastSlp=slp[slp.length-1];
   const recV=lastRec&&lastRec.recovery!=null?Math.round(lastRec.recovery)+'%':'—';
+  const slpV=lastSlp&&lastSlp.performance!=null?Math.round(lastSlp.performance)+'%':'—';
   const openT=(morningCfg().tasks||[]).filter(t=>!t.done).length;
   const fx=morningCfg().currency; const fxV=fx&&fx.usdzar?('R'+fx.usdzar.toFixed(2)):'—';
-  let nwV='—'; try{ nwV=ZARk(netWorth()); }catch(e){}
   return `<div class="hero">
     <div class="h-hi">${greet}</div><div class="h-date">${dateline}</div>
     <div class="hero-stats">
       <div class="hero-stat"><div class="v">${recV}</div><div class="l">Recovery</div></div>
+      <div class="hero-stat"><div class="v">${slpV}</div><div class="l">Sleep</div></div>
       <div class="hero-stat"><div class="v">${openT}</div><div class="l">Open tasks</div></div>
       <div class="hero-stat"><div class="v">${fxV}</div><div class="l">USD / ZAR</div></div>
-      <div class="hero-stat"><div class="v">${nwV}</div><div class="l">Net worth</div></div>
     </div></div>`;
 }
 
