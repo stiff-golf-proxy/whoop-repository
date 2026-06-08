@@ -300,6 +300,51 @@ app.get('/calendar', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+/* ============================================================
+   COACH — private life coach powered by the Claude (Anthropic) API.
+   Needs ANTHROPIC_API_KEY. The frontend sends recent messages plus a
+   compact personal snapshot (recovery, sleep, training, tasks, finances)
+   so the advice is grounded. Model is configurable via COACH_MODEL.
+   ============================================================ */
+const COACH_MODEL = process.env.COACH_MODEL || 'claude-sonnet-4-6';
+const COACH_SYSTEM = `You are Stuart's personal life coach, embedded in his private life dashboard.
+You are warm, direct, and practical — a blend of an experienced performance coach and a thoughtful friend.
+You have access to a live snapshot of his data (WHOOP recovery/sleep/strain, training, tasks, finances), provided below.
+
+How you coach:
+- Be specific and grounded: reference his actual numbers when relevant, don't speak in generalities.
+- Be concise. Short paragraphs. Lead with the answer, then the why. Use **bold** sparingly for key points.
+- Drive action: usually end with one clear, doable next step or a focused question.
+- Respect that he is 54, runs and plays golf, and cares about longevity and a comfortable retirement.
+- On training: balance ambition with recovery — when recovery is low, steer toward easier work; when it's high, encourage him to use it.
+- You are not a doctor or a licensed financial advisor. For medical or specific investment decisions, give general guidance and suggest he consult a professional. Never give confident buy/sell calls.
+- If he seems stressed or down, be supportive and human first, tactical second.
+Keep replies focused — a few sentences to a short paragraph unless he asks for depth.`;
+
+app.post('/coach', async (req, res) => {
+  try {
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (!key) return res.status(501).json({ error: 'ANTHROPIC_API_KEY not set on the proxy' });
+    const { messages = [], context = '' } = req.body || {};
+    const clean = (Array.isArray(messages) ? messages : [])
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .slice(-12)
+      .map(m => ({ role: m.role, content: m.content.slice(0, 4000) }));
+    if (!clean.length) return res.status(400).json({ error: 'no messages' });
+    const system = COACH_SYSTEM + (context ? `\n\n--- Stuart's current snapshot ---\n${String(context).slice(0, 2000)}` : '');
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 1024, system, messages: clean })
+    });
+    const text = await r.text();
+    if (!r.ok) { console.log('[COACH] API error', r.status, text); return res.status(502).json({ error: `Claude API ${r.status}` }); }
+    const j = JSON.parse(text);
+    const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    res.json({ reply: reply || '(no reply)' });
+  } catch (e) { console.log('[COACH] failed', e.message); res.status(500).json({ error: e.message }); }
+});
+
 // Serve the LifePlatform dashboard itself at / and /app (same origin as the proxy,
 // so the platform auto-detects this URL and CORS is a non-issue).
 import path from 'path';
@@ -323,6 +368,7 @@ app.get('/status', (req, res) => {
     persistentStorageWarning: persistent ? undefined : 'Tokens are NOT on a persistent volume — they will be lost on the next restart and sync will 500. Attach a volume and set DATA_DIR.',
     calendar: process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'OFF — set ICAL_URL',
     traffic: process.env.GOOGLE_MAPS_KEY ? 'configured (GOOGLE_MAPS_KEY)' : 'OFF — set GOOGLE_MAPS_KEY',
+    coach: process.env.ANTHROPIC_API_KEY ? ('configured (' + COACH_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
     routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar'],
     connect: '/auth/login'
   });
