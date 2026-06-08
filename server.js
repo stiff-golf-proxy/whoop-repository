@@ -228,7 +228,9 @@ const BBC_FEEDS = {
   world:      'https://feeds.bbci.co.uk/news/world/rss.xml',
   technology: 'https://feeds.bbci.co.uk/news/technology/rss.xml',
   business:   'https://feeds.bbci.co.uk/news/business/rss.xml',
-  sport:      'https://feeds.bbci.co.uk/sport/rss.xml'
+  sport:      'https://feeds.bbci.co.uk/sport/rss.xml',
+  // AI for business — Google News RSS search (keyless), focused on efficiency/integration/automation
+  ai:         'https://news.google.com/rss/search?q=' + encodeURIComponent('("artificial intelligence" OR "AI") (automation OR integration OR "business efficiency" OR enterprise OR workflow) when:7d') + '&hl=en-US&gl=US&ceid=US:en'
 };
 app.get('/news', async (req, res) => {
   try {
@@ -379,6 +381,33 @@ app.post('/coach', async (req, res) => {
     const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
     res.json({ reply: reply || '(no reply)' });
   } catch (e) { console.log('[COACH] failed', e.message); res.status(500).json({ error: e.message }); }
+});
+
+/* ============================================================
+   KENTRIDGE WATCH — a weekly scheduled task scours SA sites for
+   William Kentridge artworks for sale and POSTs the listings here.
+   Stored on the volume; the dashboard reads GET /kentridge.
+   ============================================================ */
+const KENT_FILE = DATA_DIR + '/kentridge.json';
+app.post('/kentridge', (req, res) => {
+  try {
+    if (CAL_TOKEN && req.get('x-cal-token') !== CAL_TOKEN) return res.status(401).json({ error: 'bad token' });
+    const body = req.body || {};
+    const listings = (Array.isArray(body) ? body : (body.listings || []))
+      .map(x => ({ title: x.title || '', source: x.source || '', price: x.price || '', url: x.url || '', medium: x.medium || '', note: x.note || '' }))
+      .filter(x => x.title);
+    const payload = { listings, updatedAt: new Date().toISOString() };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(KENT_FILE, JSON.stringify(payload));
+    console.log(`[KENTRIDGE] stored ${listings.length} listings`);
+    res.json({ ok: true, stored: listings.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/kentridge', (req, res) => {
+  try {
+    if (fs.existsSync(KENT_FILE)) return res.json(JSON.parse(fs.readFileSync(KENT_FILE)));
+  } catch (e) {}
+  res.json({ listings: [], updatedAt: null });
 });
 
 // Serve the LifePlatform dashboard itself at / and /app (same origin as the proxy,

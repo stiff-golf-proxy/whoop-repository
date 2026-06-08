@@ -329,6 +329,22 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .hero-stat .l{font-family:var(--mono);font-size:9px;letter-spacing:1.1px;text-transform:uppercase;opacity:.82;margin-top:6px}
 @media(max-width:760px){ .hero-stats{grid-template-columns:repeat(2,1fr)} .hero{padding:24px 22px} .hero .h-hi{font-size:25px} }
 @media(max-width:560px){ .hero-stats{grid-template-columns:1fr 1fr;gap:10px} }
+
+/* ---- bolder Tasks module ---- */
+#pane-home .tk-over + .coach + .tk-grid{margin-top:20px}
+.tk-proj{border-top-width:4px;padding-top:16px;transition:transform .15s,box-shadow .15s}
+.tk-proj:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.tk-proj-name{font-size:19px;font-weight:800}
+.tk-pdot{width:13px;height:13px;border-radius:5px}
+.tk-metric .v{font-weight:800;font-size:30px}
+.tk-ring-num{font-weight:800}
+.tk-bar{height:8px}
+.tk-check{width:22px;height:22px;border-width:2.5px}
+.tk-txt{font-size:15px}
+.tk-add input{font-size:14px}
+.tk-add button{width:36px;height:36px;font-size:22px}
+.tk-fchip{font-weight:600;border-width:1.5px}
+.tk-newproj{border-width:2.5px;font-size:16px}
 </style>
 </head>
 <body>
@@ -567,9 +583,8 @@ function renderHome(){
      ${cardCalendar()}
      ${cardMarkets()}
    </div>
-   <div style="margin-bottom:8px">
-     ${cardNews()}
-   </div>
+   <div style="margin-bottom:18px">${cardNews()}</div>
+   <div style="margin-bottom:8px">${cardKentridge()}</div>
    <div style="text-align:right;margin-top:10px">
      <button class="btn" onclick="refreshMorning()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>Refresh feeds</button>
    </div>`;
@@ -577,7 +592,7 @@ function renderHome(){
   // Kick off background feeds ONCE — re-renders (after each feed resolves) must not
   // refire these, otherwise traffic/news/calendar hammer the proxy on every redraw.
   if(!window._feedsKicked){ window._feedsKicked=true;
-    fetchCurrency(); if(proxyBase()){ fetchNews(); fetchCalendar(); } }
+    fetchCurrency(); if(proxyBase()){ fetchNews(); fetchAINews(); fetchCalendar(); fetchKentridge(); } }
 }
 
 /* ---- coach briefing weaves WHOOP + day together ---- */
@@ -863,7 +878,7 @@ function cardTasks(){
     const doneBlock = done.length
       ? `<div class="tk-done-head" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">${done.length} done ▾</div><div style="display:none">${done.map(row).join('')}</div>`
       : '';
-    return `<div class="tk-proj">
+    return `<div class="tk-proj" style="border-top-color:${p.color}">
       <div class="tk-proj-head">
         <div><div class="tk-proj-name"><span class="tk-pdot" style="background:${p.color}"></span>${tkEsc(p.name)}</div></div>
         ${p._virtual?'':`<svg class="tk-gear" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" onclick="editProject('${p.id}')"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`}
@@ -978,15 +993,57 @@ function delProject(id){
 }
 
 /* ---- BBC news card ---- */
+function newsItem(n){
+  const u=(n.link||'').replace(/'/g,"\\'"), t=(n.title||'').replace(/'/g,"\\'");
+  return `<div onclick="openArticle('${u}','${tkEsc(t)}')" style="padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer" onmouseover="this.style.background='var(--paper2)'" onmouseout="this.style.background=''">
+    <div style="font-family:var(--serif);font-size:14px;line-height:1.35;color:var(--ink)">${tkEsc(n.title)}</div>
+    ${(n.pubDate||n.source)?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:3px">${tkEsc(n.pubDate||'')}${n.source?(' · '+tkEsc(n.source)):''}</div>`:''}</div>`;
+}
 function cardNews(){
-  const news=morningCfg().news||[];
-  const body=news.length
-    ? news.slice(0,7).map(n=>`<a href="${n.link||'#'}" target="_blank" rel="noopener" style="display:block;padding:9px 0;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)">
-        <div style="font-family:var(--serif);font-size:14px;line-height:1.35">${n.title}</div>
-        ${n.pubDate?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:3px">${n.pubDate}</div>`:''}</a>`).join('')
-    : (proxyBase()? `<div class="empty" style="padding:18px 0" id="newsEmpty">Loading BBC headlines…</div>`
-       : `<div class="empty" style="padding:18px 0">Connect your proxy (WHOOP tab) to pull the BBC feed.</div>`);
-  return `<div class="card card-pad"><div class="kicker">In the world</div><div class="h-sec">BBC News</div><div id="newsBox">${body}</div></div>`;
+  const bbc=morningCfg().news||[], ai=morningCfg().ainews||[];
+  const col=(items,emptyId,msg)=> items.length? items.slice(0,7).map(newsItem).join('') : `<div class="empty" style="padding:16px 0" id="${emptyId}">${msg}</div>`;
+  return `<div class="card card-pad">
+    <div class="kicker">In the world</div><div class="h-sec">News<span class="sub">tap a headline to read it here</span></div>
+    <div class="grid g2" style="gap:26px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;border-bottom:2px solid var(--line2);padding-bottom:6px">
+          <div style="font-family:var(--disp);font-weight:800;font-size:15px">BBC · Today</div>
+          <a onclick="fetchNews(true)" style="font-family:var(--mono);font-size:10px;color:var(--terra);cursor:pointer">↻ refresh</a></div>
+        <div id="newsBox">${col(bbc,'newsEmpty', proxyBase()?'Loading headlines…':'Connect your proxy to pull news.')}</div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;border-bottom:2px solid var(--line2);padding-bottom:6px">
+          <div style="font-family:var(--disp);font-weight:800;font-size:15px">AI for Business</div>
+          <a onclick="fetchAINews(true)" style="font-family:var(--mono);font-size:10px;color:var(--terra);cursor:pointer">↻ refresh</a></div>
+        <div style="font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-faint);margin-bottom:6px">Efficiency · integration · automation</div>
+        <div id="aiNewsBox">${col(ai,'aiEmpty', proxyBase()?'Loading AI headlines…':'Connect your proxy to pull AI news.')}</div>
+      </div>
+    </div></div>`;
+}
+// In-page popup for a news/article link (iframe, with original-link fallback for sites that block embedding)
+function openArticle(url,title){
+  if(!url) return;
+  showModal(`<div class="modal-head"><div><h2 style="font-size:18px;line-height:1.25">${tkEsc(title||'Article')}</h2>
+      <div class="ms"><a href="${url}" target="_blank" rel="noopener" style="color:var(--terra)">Open original ↗</a></div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body" style="padding:0">
+      <iframe src="${url}" style="width:100%;height:70vh;border:none" referrerpolicy="no-referrer"></iframe>
+      <div style="font-family:var(--serif);font-style:italic;font-size:12px;color:var(--ink-faint);padding:10px 16px">Some publishers block in-page embedding — if it's blank, use “Open original ↗”.</div>
+    </div>`);
+}
+// Kentridge art watch (fed weekly by a scheduled task -> proxy /kentridge)
+function cardKentridge(){
+  const k=DB._kentridge||{listings:[],updatedAt:null}; const items=k.listings||[];
+  const body= items.length
+    ? items.slice(0,10).map(x=>{ const u=(x.url||'').replace(/'/g,"\\'"), t=(x.title||'').replace(/'/g,"\\'");
+        return `<div onclick="openArticle('${u}','${tkEsc(t)}')" style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer" onmouseover="this.style.background='var(--paper2)'" onmouseout="this.style.background=''">
+          <div><div style="font-family:var(--serif);font-size:14px;color:var(--ink)">${tkEsc(x.title)}</div>
+            <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:2px">${tkEsc(x.source||'')}${x.medium?(' · '+tkEsc(x.medium)):''}</div></div>
+          <div style="font-family:var(--mono);font-size:12.5px;color:var(--terra-deep);white-space:nowrap;font-weight:500">${tkEsc(x.price||'')}</div></div>`; }).join('')
+    : `<div class="empty" style="padding:20px 0">No listings yet — the weekly SA search runs Mondays and will fill this in.${proxyBase()?'':' (Connect your proxy.)'}</div>`;
+  const when=k.updatedAt? 'updated '+fmtDate(k.updatedAt.slice(0,10)) : '';
+  return `<div class="card card-pad"><div class="kicker">Art watch · weekly</div><div class="h-sec">William Kentridge — for sale<span class="sub">South Africa · ${when}</span></div>
+    <div id="kentBox">${body}</div></div>`;
 }
 
 /* ---- markets / currency card ---- */
@@ -1028,11 +1085,25 @@ async function fetchCurrency(){
     return;
   }catch(e2){ const el=document.getElementById('fxEmpty'); if(el) el.textContent='Could not load rates (offline?).'; }
 }
-async function fetchNews(){
+async function fetchNews(force){
   const base=proxyBase(); if(!base)return;
-  try{ const r=await fetch(`${base}/news?feed=bbc`); if(!r.ok)throw 0; const j=await r.json();
-    morningCfg().news=(j.items||j||[]).map(x=>({title:x.title,link:x.link,pubDate:x.pubDate||x.published||''})); save(); renderHomeIfActive();
+  if(force) toast('Refreshing news…');
+  try{ const r=await fetch(`${base}/news?feed=bbc${force?('&_='+Date.now()):''}`); if(!r.ok)throw 0; const j=await r.json();
+    morningCfg().news=(j.items||j||[]).map(x=>({title:x.title,link:x.link,pubDate:x.pubDate||x.published||'',source:x.source||''})); save(); renderHomeIfActive();
   }catch(e){ const el=document.getElementById('newsEmpty'); if(el) el.textContent='News route not available on proxy yet.'; }
+}
+async function fetchAINews(force){
+  const base=proxyBase(); if(!base)return;
+  if(force) toast('Refreshing AI news…');
+  try{ const r=await fetch(`${base}/news?feed=ai${force?('&_='+Date.now()):''}`); if(!r.ok)throw 0; const j=await r.json();
+    morningCfg().ainews=(j.items||j||[]).map(x=>({title:x.title,link:x.link,pubDate:x.pubDate||x.published||'',source:x.source||''})); save(); renderHomeIfActive();
+  }catch(e){ const el=document.getElementById('aiEmpty'); if(el) el.textContent='AI news unavailable right now.'; }
+}
+async function fetchKentridge(){
+  const base=proxyBase(); if(!base)return;
+  try{ const r=await fetch(`${base}/kentridge`); if(!r.ok)throw 0; const j=await r.json();
+    DB._kentridge={listings:j.listings||[],updatedAt:j.updatedAt||null}; save(); renderHomeIfActive();
+  }catch(e){}
 }
 async function fetchTraffic(){
   const base=proxyBase(); if(!base)return; const m=morningCfg();
@@ -1055,7 +1126,7 @@ async function fetchCalendar(){
     morningCfg().calendar=[...evs,...manual]; save(); renderHomeIfActive();
   }catch(e){ /* leave manual entries as-is */ }
 }
-function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); if(proxyBase()){fetchNews();fetchCalendar();} fetchWhoopMorning(); }
+function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); if(proxyBase()){fetchNews();fetchAINews();fetchCalendar();fetchKentridge();} fetchWhoopMorning(); }
 async function fetchWhoopMorning(){ if(proxyBase()&&typeof syncWhoop==='function'){ try{await syncWhoop();}catch(e){} renderHomeIfActive(); } }
 function renderHomeIfActive(){ const el=document.getElementById('pane-home'); if(el&&el.classList.contains('active')) renderHome(); }
 function fmtDate(d){ if(!d)return'—'; const x=new Date(d); return x.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}); }
@@ -2528,14 +2599,13 @@ function heroHome(){
   const recV=lastRec&&lastRec.recovery!=null?Math.round(lastRec.recovery)+'%':'—';
   const slpV=lastSlp&&lastSlp.performance!=null?Math.round(lastSlp.performance)+'%':'—';
   const openT=(morningCfg().tasks||[]).filter(t=>!t.done).length;
-  const fx=morningCfg().currency; const fxV=fx&&fx.usdzar?('R'+fx.usdzar.toFixed(2)):'—';
+  const wk=(w.workouts||[]); const sess=(typeof whoopWeekAgg==='function')?whoopWeekAgg(wk,0).count:0;
   return `<div class="hero">
     <div class="h-hi">${greet}</div><div class="h-date">${dateline}</div>
-    <div class="hero-stats">
+    <div class="hero-stats" style="grid-template-columns:repeat(3,1fr)">
       <div class="hero-stat"><div class="v">${recV}</div><div class="l">Recovery</div></div>
       <div class="hero-stat"><div class="v">${slpV}</div><div class="l">Sleep</div></div>
       <div class="hero-stat"><div class="v">${openT}</div><div class="l">Open tasks</div></div>
-      <div class="hero-stat"><div class="v">${fxV}</div><div class="l">USD / ZAR</div></div>
     </div></div>`;
 }
 
