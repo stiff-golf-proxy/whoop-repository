@@ -1156,6 +1156,14 @@ function cardMarkets(){
 
 /* ---- live fetches ---- */
 
+
+function weatherChip(){
+  const w=morningCfg().weather;
+  if(!w) return '<span>Cape Town · loading…</span>';
+  return '<span style="font-size:18px">'+w.icon+'</span>'
+       + '<span>'+w.temp+'°C · '+w.desc+'</span>'
+       + '<span style="opacity:.65">· '+w.wind+'km/h</span>';
+}
 async function fetchWeather(){
   try{
     // Open-Meteo — keyless, CORS-enabled
@@ -2855,7 +2863,7 @@ function heroHome(){
         <div class="h-date">${dateline}</div>
       </div>
       <div id="heroWeather" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:8px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.5px;opacity:.9;display:flex;align-items:center;gap:8px">
-        ${(()=>{const w=morningCfg().weather; return w?`<span style="font-size:18px">${w.icon}</span><span>${w.temp}°C · ${w.desc}</span><span style="opacity:.65">· ${w.wind}km/h</span>`:'<span>Cape Town · loading…</span>';})()}
+        ${weatherChip()}
       </div>
     </div>
     <div style="font-family:var(--serif);font-size:15px;line-height:1.6;margin-bottom:20px;color:rgba(255,255,255,.92);position:relative">${status}</div>
