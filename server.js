@@ -189,7 +189,8 @@ const mapWorkout = r => ({ date:(r.start||'').slice(0,10), sport:r.sport_name||'
   avgHr:r.score?.average_heart_rate ?? null, maxHr:r.score?.max_heart_rate ?? null, kilojoule:r.score?.kilojoule ?? null,
   distanceM:r.score?.distance_meter ?? null, durationMs:(r.start&&r.end)?(new Date(r.end)-new Date(r.start)):null });
 const mapCycle = r => ({ date:(r.start||'').slice(0,10), strain:r.score?.strain ?? null,
-  avgHr:r.score?.average_heart_rate ?? null, maxHr:r.score?.max_heart_rate ?? null, kilojoule:r.score?.kilojoule ?? null });
+  avgHr:r.score?.average_heart_rate ?? null, maxHr:r.score?.max_heart_rate ?? null, kilojoule:r.score?.kilojoule ?? null,
+  steps:r.score?.step_count ?? null });
 
 const handler = (path, mapper) => async (req, res) => {
   try {

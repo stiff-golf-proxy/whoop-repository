@@ -170,7 +170,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .empty{text-align:center;padding:46px 20px;color:var(--ink-faint);font-family:var(--serif);font-style:italic}
 
 @media(max-width:860px){
-  .g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}
+  .g4{grid-template-columns:1fr 1fr.whoop-kpi-grid{grid-template-columns:repeat(3,1fr)!important}}.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}
   .ring-wrap{flex-direction:column;align-items:flex-start}
   .wrap{padding:0 18px 90px}
 }
@@ -204,6 +204,9 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   .club-detail-stats{grid-template-columns:repeat(2,1fr)!important}
   .big-income .amt{font-size:42px}
   .tk-grid{grid-template-columns:1fr!important}
+  .daily-close-grid{grid-template-columns:1fr!important}
+  .hero-stats{grid-template-columns:1fr 1fr!important}
+  .whoop-kpi-grid{grid-template-columns:1fr 1fr!important}
 }
 
 /* ---- tasks / projects module ---- */
@@ -293,6 +296,8 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .coach-send:disabled{opacity:.5;cursor:default}
 .coach-backdrop{position:fixed;inset:0;background:rgba(20,40,40,.28);backdrop-filter:blur(2px);z-index:75;display:none}
 .coach-backdrop.show{display:block}
+.daily-close-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.whoop-kpi-grid{grid-template-columns:repeat(5,1fr)}
 @media(max-width:560px){ .coach-fab{right:16px;bottom:16px;padding:13px 17px} .coach-drawer{width:100vw} }
 
 /* ---- Goals (screen-privacy gated) ---- */
@@ -594,7 +599,7 @@ function renderHome(){
      <button class="btn" onclick="refreshMorning()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>Refresh feeds</button>
    </div>`;
   if(!window._feedsKicked){ window._feedsKicked=true;
-    fetchCurrency(); if(proxyBase()){ fetchNews(); fetchResearch(); fetchCalendar(); fetchKentridge(); } }
+    fetchCurrency(); fetchWeather(); if(proxyBase()){ fetchNews(); fetchResearch(); fetchCalendar(); fetchKentridge(); } }
 }
 
 /* ---- Professional Focus panel ---- */
@@ -654,7 +659,7 @@ function cardDailyClose(){
   return `<div class="card card-pad" style="margin-bottom:18px">
     <div class="kicker">Evening · daily close${done?' · ✓ completed':''}</div>
     <div class="h-sec">End of Day Review</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+    <div class="daily-close-grid" style="margin-bottom:12px">
       <div>
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px">What went well today?</div>
         <textarea onblur="saveCloseField('wentWell',this.value)" style="width:100%;background:var(--paper);border:1px solid var(--line2);border-radius:10px;padding:10px;font-family:var(--serif);font-size:13.5px;resize:vertical;min-height:70px" placeholder="3 things that moved forward…">${tkEsc(d.wentWell||'')}</textarea>
@@ -699,7 +704,7 @@ function morningBriefing(){
 /* ---- WHOOP readiness card (recovery + sleep + strain target) ---- */
 function cardReadiness(){
   const w=DB.whoop||{}; const rec=(w.recovery||[]); const slp=(w.sleep||[]); const cyc=(w.cycles||[]);
-  const lastRec=rec[rec.length-1], lastSlp=slp[slp.length-1];
+  const lastRec=rec[rec.length-1], lastSlp=slp[slp.length-1], lastCyc=cyc[cyc.length-1];
   if(!lastRec){
     return `<div class="card card-pad"><div class="kicker">Readiness</div><div class="h-sec">WHOOP</div>
       <div class="empty">No WHOOP data yet. <a onclick="go('whoop')" style="color:var(--terra);cursor:pointer;text-decoration:underline">Connect in the WHOOP tab →</a></div></div>`;
@@ -720,6 +725,7 @@ function cardReadiness(){
         <div class="dlin">Time asleep<span class="v">${lastSlp?fmtDur(lastSlp.durationMs):'—'}</span></div>
         <div class="dlin">HRV<span class="v">${todHrv!=null?Math.round(todHrv)+' ms':'—'}</span></div>
         <div class="dlin">Resting HR<span class="v">${lastRec.rhr!=null?Math.round(lastRec.rhr)+' bpm':'—'}</span></div>
+        <div class="dlin">Steps today<span class="v" style="color:${(()=>{const s=lastCyc&&lastCyc.steps;return s==null?'var(--ink-faint)':s>=10000?'var(--good)':s>=7000?'var(--warn)':'var(--bad)'})()">${lastCyc&&lastCyc.steps!=null?lastCyc.steps.toLocaleString('en-ZA'):'—'}</span></div>
       </div>
     </div>
     <div style="margin-top:16px;padding:13px 16px;background:var(--paper);border-radius:11px;border-left:3px solid ${col}">
@@ -1152,6 +1158,19 @@ function cardMarkets(){
 }
 
 /* ---- live fetches ---- */
+
+async function fetchWeather(){
+  try{
+    // Open-Meteo — keyless, CORS-enabled
+    const r=await fetch('https://api.open-meteo.com/v1/forecast?latitude=-33.9249&longitude=18.4241&current=temperature_2m,weather_code,wind_speed_10m&timezone=Africa%2FJohannesburg');
+    const j=await r.json(); const c=j.current;
+    const code=c.weather_code;
+    const icon=code<=1?'☀️':code<=3?'⛅':code<=48?'🌫':code<=67?'🌧':code<=77?'❄️':code<=82?'🌦':code<=99?'⛈':'🌡';
+    const desc=code===0?'Clear':code<=2?'Partly cloudy':code===3?'Overcast':code<=48?'Fog':code<=55?'Drizzle':code<=67?'Rain':code<=77?'Snow':code<=82?'Showers':code<=99?'Thunderstorm':'—';
+    morningCfg().weather={temp:Math.round(c.temperature_2m),icon,desc,wind:Math.round(c.wind_speed_10m),fetchedAt:new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})};
+    save(); renderHomeIfActive();
+  }catch(e){}
+}
 async function fetchCurrency(){
   // The old exchangerate.host keyless endpoint now requires a paid access_key,
   // so it silently returned no rates. These two are keyless + CORS-enabled.
@@ -1219,7 +1238,7 @@ async function fetchCalendar(){
     morningCfg().calendar=[...evs,...manual]; save(); renderHomeIfActive();
   }catch(e){ /* leave manual entries as-is */ }
 }
-function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); if(proxyBase()){fetchNews();fetchResearch();fetchCalendar();fetchKentridge();} fetchWhoopMorning(); }
+function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); fetchWeather(); if(proxyBase()){fetchNews();fetchResearch();fetchCalendar();fetchKentridge();} fetchWhoopMorning(); }
 async function fetchWhoopMorning(){ if(proxyBase()&&typeof syncWhoop==='function'){ try{await syncWhoop();}catch(e){} renderHomeIfActive(); } }
 function renderHomeIfActive(){ const el=document.getElementById('pane-home'); if(el&&el.classList.contains('active')) renderHome(); }
 function fmtDate(d){ if(!d)return'—'; const x=new Date(d); return x.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}); }
@@ -1925,8 +1944,9 @@ function renderGolf(){
        return `<tr ${click}><td><b>${CLUB_ABBR[c]||''}</b> &nbsp;${c}</td><td class="r mono" style="color:var(--ink-faint);font-size:12px">${a.n>0?datelbl:'—'}</td><td class="r mono"><b>${a.avgTotal?a.avgTotal.toFixed(1)+' m':'—'}</b>${arrow(a.dCarry)}</td><td class="r mono">${a.sd!=null?a.sd.toFixed(1)+' m':'—'}${arrow(a.dSd)}</td><td class="r mono">${a.avgSmash!=null?a.avgSmash.toFixed(2):'—'}${arrow(a.dSmash)}</td><td class="r mono">${cell(a.distScore,dc)}</td><td class="r mono">${cell(a.accScore,ac)}</td><td class="r">${a.n>0?'<span style="color:var(--ink-faint)">›</span>':''}</td></tr>`;}).join('')}
      </tbody></table></div>
      <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:12px">Numbers shown are your <b>most recent session</b> per club — current form, not a career average. Arrows compare to the session before (<span style="color:var(--good)">↑</span> better, <span style="color:var(--bad)">↓</span> worse, → unchanged). <b>Distance/Accuracy</b> scores are vs a scratch golfer. All figures use outlier-rejected data. Tap a club for session-by-session history and the coach's read.</div></div>
-   <div class="card card-pad"><div class="kicker">Scorecards</div><div class="h-sec">Rounds</div>
-     <div class="scroll-x"><table class="clean"><thead><tr><th>Date</th><th>Course</th><th class="r">Out</th><th class="r">In</th><th class="r">Score</th></tr></thead><tbody>
+   <div class="card card-pad"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:2px"><div><div class="kicker">Scorecards</div><div class="h-sec" style="margin-bottom:0">Rounds</div></div>
+       <button class="btn primary" onclick="openRoundEntry()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M12 5v14M5 12h14"/></svg>Log a round</button></div>
+     <div class="scroll-x" style="margin-top:14px"><table class="clean"><thead><tr><th>Date</th><th>Course</th><th class="r">Out</th><th class="r">In</th><th class="r">Score</th></tr></thead><tbody>
      ${rounds.map(r=>{const f=r.holes&&r.holes.length>=18?r.holes.slice(0,9).reduce((a,b)=>a+b,0):'—';const b=r.holes&&r.holes.length>=18?r.holes.slice(9).reduce((a,b)=>a+b,0):'—';const ov=r.total-(r.par||72);
        return `<tr><td class="mono">${(r.date||'').slice(0,10)}</td><td>${r.course}${r.layout?' · '+r.layout:''}</td><td class="r mono">${f}</td><td class="r mono">${b}</td><td class="r mono"><b>${r.total}</b> <span style="color:${ov>0?'var(--bad)':'var(--good)'}">(${ov>0?'+':''}${ov})</span></td></tr>`;}).join('')}
      </tbody></table></div>
@@ -1938,6 +1958,53 @@ const GOLF_CSV_MAP={'date':'date','club type':'clubRaw','club name':'clubName','
   'club path':'clubPath','club face':'clubFace','ball speed':'ballSpeed','smash factor':'smash','launch angle':'launchAngle',
   'launch direction':'launchDir','backspin':'backspin','sidespin':'sidespin','spin rate':'spinRate','apex height':'apex',
   'carry distance':'carry','carry deviation distance':'carryDev','total distance':'total','total deviation distance':'totalDev'};
+
+/* ---- Manual round entry ---- */
+function openRoundEntry(){
+  const d=new Date(); const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  showModal(`<div class="modal-head"><div><h2>Log a round</h2><div class="ms">Enter your scorecard manually — holes or total</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="row2">
+        <div class="field"><label>Course</label><input id="rnd_course" placeholder="e.g. Westlake Golf Club"></div>
+        <div class="field"><label>Date</label><input id="rnd_date" type="date" value="${today}"></div>
+      </div>
+      <div class="row3">
+        <div class="field"><label>Format</label><select id="rnd_format"><option>Stroke Play</option><option>Stableford</option><option>Match Play</option></select></div>
+        <div class="field"><label>Par</label><input id="rnd_par" type="number" value="72" min="60" max="80"></div>
+        <div class="field"><label>Location</label><input id="rnd_loc" placeholder="e.g. Cape Town, Western Cape"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Front 9 (or leave blank)</label><input id="rnd_out" type="number" min="27" max="65" placeholder="e.g. 38"></div>
+        <div class="field"><label>Back 9 (or leave blank)</label><input id="rnd_in" type="number" min="27" max="65" placeholder="e.g. 39"></div>
+      </div>
+      <div class="field"><label>Total score (required)</label><input id="rnd_total" type="number" min="50" max="130" placeholder="e.g. 77"></div>
+      <button class="btn primary" onclick="saveRound()" style="margin-top:4px">Save round</button>
+    </div>`);
+}
+function saveRound(){
+  const course=(document.getElementById('rnd_course').value||'').trim();
+  const total=parseInt(document.getElementById('rnd_total').value);
+  if(!course){toast('Enter a course name');return;}
+  if(isNaN(total)||total<50||total>130){toast('Enter a valid total score (50–130)');return;}
+  const out=parseInt(document.getElementById('rnd_out').value)||null;
+  const inn=parseInt(document.getElementById('rnd_in').value)||null;
+  const holes=(out&&inn)?Array(9).fill(null).map((_,i)=>i<9?Math.round(out/9):Math.round(inn/9)):[];
+  const r={
+    id:'r'+Date.now(),
+    course,
+    layout:null,
+    location:(document.getElementById('rnd_loc').value||'').trim()||null,
+    date:document.getElementById('rnd_date').value,
+    format:document.getElementById('rnd_format').value,
+    par:parseInt(document.getElementById('rnd_par').value)||72,
+    total,
+    holes
+  };
+  DB.golf=DB.golf||{shots:[],rounds:[]};
+  DB.golf.rounds.push(r);
+  save(); closeModal(); renderGolf(); renderHome();
+  toast(`Round logged: ${total} at ${course}`);
+}
 function openGolfImport(){
   showModal(`<div class="modal-head"><div><h2>Import range session</h2><div class="ms">Drop a Garmin / launch-monitor CSV — clubs map to your bag automatically</div></div>
     <button class="x" onclick="closeModal()">${xSvg()}</button></div>
@@ -2372,11 +2439,15 @@ function renderWhoop(){
   const strainAvg=avgKey(recent(w.cycles.length?w.cycles:wk,7),'strain');
 
   const recColor=v=> v==null?'var(--ink-faint)': v>=67?'var(--good)': v>=34?'var(--warn)':'var(--bad)';
+  const lastCycSteps=w.cycles.length?w.cycles[w.cycles.length-1].steps:null;
+  const stepsGoal=10000;
+  const stepsColor=lastCycSteps==null?'var(--ink-faint)':lastCycSteps>=stepsGoal?'var(--good)':lastCycSteps>=7000?'var(--warn)':'var(--bad)';
   const tiles=[
     {bar:recColor(lastRec&&lastRec.recovery),lbl:'Recovery Today',num:(lastRec&&lastRec.recovery!=null?Math.round(lastRec.recovery)+'<small>%</small>':'—'),foot:lastRec?fmtDate(lastRec.date):''},
     {bar:'var(--sky)',lbl:'HRV · 7-day',num:(hrvAvg!=null?Math.round(hrvAvg)+'<small> ms</small>':'—'),foot:lastRec&&lastRec.hrv!=null?`latest ${Math.round(lastRec.hrv)} ms`:''},
     {bar:'var(--sage)',lbl:'Resting HR · 7-day',num:(rhrAvg!=null?Math.round(rhrAvg)+'<small> bpm</small>':'—'),foot:lastRec&&lastRec.rhr!=null?`latest ${Math.round(lastRec.rhr)} bpm`:''},
     {bar:'var(--gold)',lbl:'Sleep Perf · 7-day',num:(slpAvg!=null?Math.round(slpAvg)+'<small>%</small>':'—'),foot:lastSlp?`last ${fmtDur(lastSlp.durationMs)}`:''},
+    {bar:stepsColor,lbl:'Steps Today',num:(lastCycSteps!=null?lastCycSteps.toLocaleString('en-ZA')+'<small> steps</small>':'—'),foot:lastCycSteps!=null?(lastCycSteps>=stepsGoal?'✓ Goal hit':''+Math.round(lastCycSteps/stepsGoal*100)+'% of 10k goal'):'Not in WHOOP API — see note'},
   ];
 
   // charts
@@ -2421,7 +2492,7 @@ function renderWhoop(){
      <button class="btn" onclick="openWhoopSettings()">Settings</button>
      <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${w.lastSync?'last sync '+fmtDate(w.lastSync.slice(0,10)):'manual mode'} · ${rec.length} days</span>
    </div>
-   <div class="grid g4" style="margin-bottom:24px">
+   <div class="grid whoop-kpi-grid" style="gap:14px;margin-bottom:24px">
      ${tiles.map(t=>`<div class="card tile"><div class="accent-bar" style="background:${t.bar}"></div><div class="lbl">${t.lbl}</div><div class="num">${t.num}</div><div class="foot">${t.foot}</div></div>`).join('')}
    </div>
    <div class="grid g2" style="margin-bottom:22px">
@@ -2432,6 +2503,7 @@ function renderWhoop(){
      <div class="card card-pad"><div class="kicker">21 days</div><div class="h-sec">Daily strain<span class="sub">0–21 scale</span></div>${strainChart}</div>
      ${stageHtml||'<div class="card card-pad"><div class="empty">No sleep-stage data yet</div></div>'}
    </div>
+   ${(()=>{ const stepsData=w.cycles.filter(c=>c.steps!=null); if(!stepsData.length) return \`<div class="card card-pad" style="margin-bottom:22px"><div class="kicker">Steps</div><div class="h-sec">Daily step count<span class="sub">not available via WHOOP API</span></div><div class="coach" style="margin:0"><div class="q">Why no steps?</div><p>WHOOP's developer API does not expose step count — it only appears inside the WHOOP app. If you export your data from the WHOOP app (Account → Export Health Data), import the <b>Cycles</b> JSON here and steps will appear if present. 10,000 steps/day is a reasonable daily target for longevity.</p></div></div>\`; const sc=barChart(recent(stepsData,21).map(r=>({label:r.date.slice(5),value:r.steps||0,color:r.steps>=10000?'var(--good)':r.steps>=7000?'var(--warn)':'var(--bad)'})),{h:200,yFmt:v=>v>=1000?(v/1000).toFixed(0)+'k':v,labStep:3,showVal:false}); return \`<div class="card card-pad" style="margin-bottom:22px"><div class="kicker">21 days · daily steps</div><div class="h-sec">Step count<span class="sub">10,000 target</span></div>\${sc}<div style="display:flex;gap:16px;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--ink-faint)"><span style="color:var(--good)">■ ≥10k</span><span style="color:var(--warn)">■ 7–10k</span><span style="color:var(--bad)">■ &lt;7k</span></div></div>\`; })()}
    ${whoopTraining(w)}
    ${wkRows?`<div class="card card-pad" style="margin-top:22px"><div class="kicker">Activity</div><div class="h-sec">Recent workouts</div>
      <div class="scroll-x"><table class="clean"><thead><tr><th>Date</th><th>Sport</th><th class="r">Strain</th><th class="r">Avg HR</th><th class="r">Distance</th><th class="r">Duration</th></tr></thead><tbody>${wkRows}</tbody></table></div></div>`:''}
@@ -2719,8 +2791,8 @@ function heroHome(){
         <div class="h-hi">${greet}</div>
         <div class="h-date">${dateline}</div>
       </div>
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:10px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.5px;opacity:.9">
-        Operating Status
+      <div id="heroWeather" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:8px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.5px;opacity:.9;display:flex;align-items:center;gap:8px">
+        ${(()=>{const w=morningCfg().weather; return w?`<span style="font-size:18px">${w.icon}</span><span>${w.temp}°C · ${w.desc}</span><span style="opacity:.65">· ${w.wind}km/h</span>`:'<span>Cape Town · loading…</span>';})()}
       </div>
     </div>
     <div style="font-family:var(--serif);font-size:15px;line-height:1.6;margin-bottom:20px;color:rgba(255,255,255,.92);position:relative">${status}</div>
@@ -2762,6 +2834,11 @@ function editOneThing(){
 function saveOneThing(){ morningCfg().oneThing=document.getElementById('ot_inp').value.trim(); save(); closeModal(); renderHome(); }
 function clearOneThing(){ morningCfg().oneThing=''; save(); closeModal(); renderHome(); }
 
+
+// Periodic calendar + WHOOP refresh every 30 min (so it stays fresh without manual refresh)
+setInterval(()=>{
+  if(proxyBase()){ fetchCalendar(); fetchWhoopMorning(); fetchWeather(); }
+}, 30 * 60 * 1000);
 function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire(); }
 document.getElementById('todayStr').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 // Handle nav for wealth & retire panes (lazy render already done in renderAll)

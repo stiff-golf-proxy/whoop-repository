@@ -155,8 +155,10 @@ table.clean tr.section-head td{font-family:var(--mono);font-size:9px;letter-spac
 @keyframes fade{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
 /* ---- responsive ---- */
-@media(max-width:860px){.kpi-grid{grid-template-columns:1fr 1fr}.g2,.g21{grid-template-columns:1fr}.g3{grid-template-columns:1fr 1fr}}
-@media(max-width:560px){.wrap{padding:0 14px 60px}.kpi-grid{grid-template-columns:1fr 1fr;gap:10px}.tile{padding:15px 16px}.tile .num{font-size:26px}.g3{grid-template-columns:1fr}}
+.kpi-5col{grid-template-columns:repeat(5,1fr)}
+@media(max-width:860px){.kpi-5col{grid-template-columns:1fr 1fr}
+.kpi-grid{grid-template-columns:1fr 1fr}.g2,.g21,.g3{grid-template-columns:1fr}.subnav{gap:2px}.subnav button{padding:8px 12px;font-size:12px}}
+@media(max-width:560px){.wrap{padding:0 14px 60px}.kpi-grid{grid-template-columns:1fr 1fr;gap:10px}.tile{padding:15px 16px}.tile .num{font-size:26px}.g3{grid-template-columns:1fr}.rev-row{grid-template-columns:1fr auto;gap:8px}.rev-bar-wrap{display:none}.prop-card .prop-val{font-size:22px}.page-head{flex-direction:column;align-items:flex-start}.chips{flex-wrap:wrap}}
 </style>
 </head>
 <body>
@@ -189,7 +191,7 @@ table.clean tr.section-head td{font-family:var(--mono);font-size:9px;letter-spac
 
 <!-- ═══ OVERVIEW ═══ -->
 <div id="pane-overview" class="pane active">
-  <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+  <div class="kpi-grid kpi-5col">
     <div class="card tile"><div class="accent-bar" style="background:var(--terra-deep)"></div><div class="lbl">Consolidated Equity</div><div class="num c-navy">R 116.9<small>m</small></div><div class="foot">QS485 + SBH Trust FY2025</div></div>
     <div class="card tile"><div class="accent-bar" style="background:var(--good)"></div><div class="lbl">GGG Holdings (18%)</div><div class="num c-green">R 66.6<small>m</small></div><div class="foot">18% × R370m group NAV</div></div>
     <div class="card tile"><div class="accent-bar" style="background:var(--terra)"></div><div class="lbl">Property Portfolio</div><div class="num">R 58.4<small>m</small></div><div class="foot">Directors' indicative values</div></div>
@@ -490,32 +492,32 @@ table.clean tr.section-head td{font-family:var(--mono);font-size:9px;letter-spac
 <!-- ═══ PROPERTIES ═══ -->
 <div id="pane-properties" class="pane">
   <div class="kpi-grid">
-    <div class="card tile"><div class="accent-bar" style="background:var(--terra-deep)"></div><div class="lbl">Portfolio Gross Value</div><div class="num c-navy">R 58.4<small>m</small></div><div class="foot">Directors' indicative values</div></div>
+    <div class="card tile"><div class="accent-bar" style="background:var(--terra-deep)"></div><div class="lbl">Portfolio Gross Value</div><div class="num c-navy">R 58.4<small>m</small></div><div class="foot">4 properties · directors' values</div></div>
     <div class="card tile"><div class="accent-bar" style="background:var(--bad)"></div><div class="lbl">Total Mortgage Debt</div><div class="num c-red">~R 13.8<small>m</small></div><div class="foot">Across all mortgaged properties</div></div>
     <div class="card tile"><div class="accent-bar" style="background:var(--good)"></div><div class="lbl">Net Property Equity</div><div class="num c-green">~R 44.6<small>m</small></div><div class="foot">Gross less mortgages</div></div>
     <div class="card tile"><div class="accent-bar" style="background:var(--warn)"></div><div class="lbl">AFS Book Value</div><div class="num na">R 20.2<small>m</small></div><div class="foot">Investment property · cost model</div></div>
   </div>
   <div class="g3">
-    <div class="prop-card card"><div class="prop-loc">CONSTANTIA · RESIDENCE</div><div class="prop-name">11 Mount Prospect Drive</div><div class="prop-val">R 20.0m</div><div class="prop-eq">~R 15m net equity</div><div style="margin-top:8px"><span class="pill pill-amber">~R5m mortgage (placeholder)</span></div></div>
+    <div class="prop-card card"><div class="prop-loc">CONSTANTIA · RESIDENCE &amp; COMMERCIAL</div><div class="prop-name">11 Mount Prospect Drive &amp; Allenby House</div><div class="prop-val">R 33.4m</div><div class="prop-eq">~R 23.6m net equity</div><div style="margin-top:8px"><span class="pill pill-teal">R67,247/mo commercial rental</span> <span class="pill pill-amber">~R9.8m mortgages</span></div></div>
     <div class="prop-card card"><div class="prop-loc">TOKAI · RENTAL</div><div class="prop-name">21 Ebony Road</div><div class="prop-val">R 12.0m</div><div class="prop-eq">~R 8m net equity</div><div style="margin-top:8px"><span class="pill pill-teal">R30,000/mo rental</span> <span class="pill pill-amber">~R4m mortgage</span></div></div>
     <div class="prop-card card"><div class="prop-loc">NEWLANDS · APARTMENT</div><div class="prop-name">Unit 6, Newlands Peak</div><div class="prop-val">R 4.5m</div><div class="prop-eq">R 4.5m net equity (unencumbered)</div><div style="margin-top:8px"><span class="pill pill-gray">Rental TBC</span></div></div>
-    <div class="prop-card card"><div class="prop-loc">CONSTANTIA · COMMERCIAL</div><div class="prop-name">Allenby House</div><div class="prop-val">R 13.4m</div><div class="prop-eq">R 8.6m net equity</div><div style="margin-top:8px"><span class="pill pill-teal">R67,247/mo rental</span> <span class="pill pill-navy">Investec R4.8m</span></div></div>
-    <div class="prop-card card"><div class="prop-loc">FOURWAYS · COMMERCIAL</div><div class="prop-name">Royal &amp; Ancient, Fourways Golf Park</div><div class="prop-val">R 6.0m</div><div class="prop-eq">R 6.0m net equity (unencumbered)</div><div style="margin-top:8px"><span class="pill pill-gray">Rental confirmation pending</span></div></div>
-    <div class="prop-card card"><div class="prop-loc">FOURWAYS · COMMERCIAL</div><div class="prop-name">Portion 5, Fourways Ext 29</div><div class="prop-val">R 2.5m</div><div class="prop-eq">R 2.5m net equity (unencumbered)</div><div style="margin-top:8px"><span class="pill pill-gray">Rental TBC</span></div></div>
+
+    <div class="prop-card card"><div class="prop-loc">FOURWAYS · COMMERCIAL</div><div class="prop-name">Royal &amp; Ancient / Portion 5, Fourways Golf Park</div><div class="prop-val">R 8.5m</div><div class="prop-eq">R 8.5m net equity (unencumbered)</div><div style="margin-top:8px"><span class="pill pill-gray">Rental confirmation pending</span></div></div>
+
   </div>
   <div class="card card-pad">
     <div class="kicker">All properties · ZAR</div>
     <div class="h-sec">Property Detail</div>
     <div class="tbl-wrap"><table class="clean"><thead><tr><th>Property</th><th>Location</th><th>Use</th><th class="r">Dir. Value (R)</th><th class="r">Mortgage (R)</th><th class="r">Net Equity (R)</th><th class="r">Rental/mo</th></tr></thead><tbody>
-      <tr><td class="label">11 Mount Prospect Drive</td><td class="mono">Constantia</td><td><span class="pill pill-navy">Residence</span></td><td class="r mono np">20,000,000</td><td class="r mono na">~5,000,000</td><td class="r mono np">~15,000,000</td><td class="r mono" style="color:var(--ink-faint)">—</td></tr>
+      <tr><td class="label">11 Mount Prospect &amp; Allenby House</td><td class="mono">Constantia</td><td><span class="pill pill-navy">Res + Comm</span></td><td class="r mono np">33,351,927</td><td class="r mono na">~9,786,009</td><td class="r mono np">~23,565,918</td><td class="r mono np">67,247</td></tr>
       <tr><td class="label">21 Ebony Road</td><td class="mono">Tokai</td><td><span class="pill pill-teal">Rental</span></td><td class="r mono np">12,000,000</td><td class="r mono na">~4,000,000</td><td class="r mono np">~8,000,000</td><td class="r mono np">30,000</td></tr>
       <tr><td class="label">Unit 6, Newlands Peak</td><td class="mono">Newlands</td><td><span class="pill pill-amber">Apartment</span></td><td class="r mono np">4,500,000</td><td class="r mono" style="color:var(--ink-faint)">—</td><td class="r mono np">4,500,000</td><td class="r mono" style="color:var(--ink-faint)">TBC</td></tr>
-      <tr><td class="label">Royal &amp; Ancient, Fourways Golf Park</td><td class="mono">Fourways</td><td><span class="pill pill-teal">Commercial</span></td><td class="r mono np">6,000,000</td><td class="r mono" style="color:var(--ink-faint)">—</td><td class="r mono np">6,000,000</td><td class="r mono" style="color:var(--ink-faint)">Pending</td></tr>
-      <tr><td class="label">Allenby House</td><td class="mono">Constantia</td><td><span class="pill pill-navy">Commercial</span></td><td class="r mono">13,351,927</td><td class="r mono nn">4,786,009</td><td class="r mono np">8,565,918</td><td class="r mono np">67,247</td></tr>
-      <tr><td class="label">Portion 5, Fourways Ext 29</td><td class="mono">Fourways</td><td><span class="pill pill-teal">Commercial</span></td><td class="r mono">2,516,187</td><td class="r mono" style="color:var(--ink-faint)">—</td><td class="r mono np">2,516,187</td><td class="r mono" style="color:var(--ink-faint)">TBC</td></tr>
+      <tr><td class="label">Royal &amp; Ancient / Portion 5, Fourways Golf Park</td><td class="mono">Fourways</td><td><span class="pill pill-teal">Commercial</span></td><td class="r mono np">8,516,187</td><td class="r mono" style="color:var(--ink-faint)">—</td><td class="r mono np">8,516,187</td><td class="r mono" style="color:var(--ink-faint)">Pending</td></tr>
+
+
       <tr class="total"><td>Portfolio Total</td><td colspan="2"></td><td class="r mono">~58,368,114</td><td class="r mono nn">~13,786,009</td><td class="r mono np">~44,582,105</td><td class="r mono np">97,247+</td></tr>
     </tbody></table></div>
-    <div class="note amber"><strong>Placeholders:</strong> Mount Prospect and Ebony Road mortgage balances are director estimates — to be confirmed from bank statements. Allenby House Investec balance from FY2025 AFS (monthly instalment R49,141 at 10.25% pa). Fourways Golf Park rental pending confirmation it is separate from the Allenby House office.</div>
+    <div class="note amber"><strong>Note:</strong> Mount Prospect / Allenby House shown as one Constantia entry — same property. Royal &amp; Ancient and Portion 5 shown as one Fourways entry — same property. Mortgage balances for Mount Prospect (~R5m) and Ebony Road (~R4m) are estimates — to be confirmed from bank statements. Allenby House Investec balance from FY2025 AFS (R49,141/mo at 10.25% pa).</div>
   </div>
 </div>
 
@@ -545,9 +547,8 @@ table.clean tr.section-head td{font-family:var(--mono);font-size:9px;letter-spac
       <div class="kicker">Property mortgages · April 2026</div>
       <div class="h-sec">Mortgage Summary</div>
       <div class="tbl-wrap"><table class="clean"><thead><tr><th>Property</th><th>Lender</th><th class="r">Balance (R)</th></tr></thead><tbody>
-        <tr><td class="label">11 Mount Prospect, Constantia</td><td>Investec</td><td class="r mono na">~5,000,000</td></tr>
+        <tr><td class="label">Mount Prospect / Allenby House, Constantia</td><td>Investec</td><td class="r mono na">~9,786,009</td></tr>
         <tr><td class="label">21 Ebony Road, Tokai</td><td>FNB</td><td class="r mono na">~4,000,000</td></tr>
-        <tr><td class="label">Allenby House, Constantia</td><td>Investec</td><td class="r mono nn">4,786,009</td></tr>
         <tr class="total"><td>Total Mortgages</td><td></td><td class="r mono nn">~13,786,009</td></tr>
       </tbody></table></div>
       <div class="note amber"><strong>Placeholders:</strong> Mount Prospect and Ebony Road balances to be confirmed from bank statements. Allenby House from FY2025 AFS.</div>
