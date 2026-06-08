@@ -280,10 +280,46 @@ app.get('/traffic', async (req, res) => {
    pattern as WHOOP, OR a simple read-only iCal URL via ICAL_URL. ----
    Simplest path: set ICAL_URL to a private .ics feed (Google Calendar
    → Settings → "Secret address in iCal format"). No OAuth needed.  */
+// Calendar storage: today's events are PUSHED here by the local macOS Calendar.app
+// AppleScript sync (sync-calendar.sh) — a cloud proxy can't read Calendar.app itself.
+// Events are stored on the persistent volume and served while fresh (<18h). If no
+// pushed data exists, we fall back to an ICAL_URL feed when configured.
+const CAL_FILE = DATA_DIR + '/calendar.json';
+const CAL_TOKEN = process.env.CAL_INGEST_TOKEN || '';      // optional shared secret
+const CAL_MAX_AGE_MS = 18 * 3600 * 1000;
+function normEvents(list){
+  return (Array.isArray(list) ? list : [])
+    .map(e => ({ time: e.time || (e.start || '').slice(11,16) || '', title: e.title || e.summary || '', location: e.location || '' }))
+    .filter(e => e.title)
+    .sort((a,b) => (a.time||'').localeCompare(b.time||''));
+}
+
+// Local sync POSTs today's events here: { events:[{time,title,location}] }
+app.post('/calendar', (req, res) => {
+  try {
+    if (CAL_TOKEN && req.get('x-cal-token') !== CAL_TOKEN) return res.status(401).json({ error: 'bad token' });
+    const body = req.body || {};
+    const events = normEvents(Array.isArray(body) ? body : (body.events || body.diary || []));
+    const payload = { events, updatedAt: new Date().toISOString() };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(CAL_FILE, JSON.stringify(payload));
+    console.log(`[CALENDAR] stored ${events.length} events`);
+    res.json({ ok: true, stored: events.length });
+  } catch (e) { console.log('[CALENDAR] ingest failed', e.message); res.status(500).json({ error: e.message }); }
+});
+
 app.get('/calendar', async (req, res) => {
   try {
+    // 1) Fresh pushed events from the local Calendar.app sync (preferred)
+    if (fs.existsSync(CAL_FILE)) {
+      const j = JSON.parse(fs.readFileSync(CAL_FILE));
+      if (j.updatedAt && (Date.now() - Date.parse(j.updatedAt)) < CAL_MAX_AGE_MS) {
+        return res.json({ events: j.events || [], source: 'push' });
+      }
+    }
+    // 2) Fallback: ICAL_URL feed if configured
     const ical = process.env.ICAL_URL;
-    if (!ical) return res.status(501).json({ error: 'ICAL_URL not set' });
+    if (!ical) return res.json({ events: [] });            // nothing yet today (not an error)
     const text = await fetch(ical).then(r => r.text());
     const today = new Date(); const y=today.getFullYear(), mo=String(today.getMonth()+1).padStart(2,'0'), d=String(today.getDate()).padStart(2,'0');
     const todayStr = `${y}${mo}${d}`;
@@ -296,7 +332,7 @@ app.get('/calendar', async (req, res) => {
       events.push({ time: tm, title: get('SUMMARY'), location: get('LOCATION') });
     }
     events.sort((a,b) => (a.time||'').localeCompare(b.time||''));
-    res.json({ events });
+    res.json({ events, source: 'ical' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -366,7 +402,7 @@ app.get('/status', (req, res) => {
     tokenStorage: TOKEN_FILE,
     persistentStorage: persistent,
     persistentStorageWarning: persistent ? undefined : 'Tokens are NOT on a persistent volume — they will be lost on the next restart and sync will 500. Attach a volume and set DATA_DIR.',
-    calendar: process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'OFF — set ICAL_URL',
+    calendar: (() => { try { if (fs.existsSync(CAL_FILE)) { const j = JSON.parse(fs.readFileSync(CAL_FILE)); const fresh = j.updatedAt && (Date.now() - Date.parse(j.updatedAt)) < CAL_MAX_AGE_MS; return `push (${(j.events||[]).length} events, ${fresh ? 'fresh' : 'stale — run sync'})`; } } catch (e) {} return process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'waiting for first push (run sync-calendar.sh)'; })(),
     traffic: process.env.GOOGLE_MAPS_KEY ? 'configured (GOOGLE_MAPS_KEY)' : 'OFF — set GOOGLE_MAPS_KEY',
     coach: process.env.ANTHROPIC_API_KEY ? ('configured (' + COACH_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
     routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar'],
