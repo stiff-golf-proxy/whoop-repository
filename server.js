@@ -410,6 +410,33 @@ app.get('/kentridge', (req, res) => {
   res.json({ listings: [], updatedAt: null });
 });
 
+/* ============================================================
+   PORTFOLIO INTELLIGENCE — a weekly research task compiles tailored,
+   insight-led items (mostly AI, plus market/industry intel) for the
+   Gerber portfolio and POSTs them here. Dashboard reads GET /research.
+   ============================================================ */
+const RES_FILE = DATA_DIR + '/research.json';
+app.post('/research', (req, res) => {
+  try {
+    if (CAL_TOKEN && req.get('x-cal-token') !== CAL_TOKEN) return res.status(401).json({ error: 'bad token' });
+    const body = req.body || {};
+    const items = (Array.isArray(body) ? body : (body.items || []))
+      .map(x => ({ category: x.category || 'General', title: x.title || '', insight: x.insight || '', url: x.url || x.link || '', source: x.source || '' }))
+      .filter(x => x.title);
+    const payload = { items, updatedAt: new Date().toISOString() };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(RES_FILE, JSON.stringify(payload));
+    console.log(`[RESEARCH] stored ${items.length} items`);
+    res.json({ ok: true, stored: items.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/research', (req, res) => {
+  try {
+    if (fs.existsSync(RES_FILE)) return res.json(JSON.parse(fs.readFileSync(RES_FILE)));
+  } catch (e) {}
+  res.json({ items: [], updatedAt: null });
+});
+
 // Serve the LifePlatform dashboard itself at / and /app (same origin as the proxy,
 // so the platform auto-detects this URL and CORS is a non-issue).
 import path from 'path';

@@ -592,7 +592,7 @@ function renderHome(){
   // Kick off background feeds ONCE — re-renders (after each feed resolves) must not
   // refire these, otherwise traffic/news/calendar hammer the proxy on every redraw.
   if(!window._feedsKicked){ window._feedsKicked=true;
-    fetchCurrency(); if(proxyBase()){ fetchNews(); fetchAINews(); fetchCalendar(); fetchKentridge(); } }
+    fetchCurrency(); if(proxyBase()){ fetchNews(); fetchResearch(); fetchCalendar(); fetchKentridge(); } }
 }
 
 /* ---- coach briefing weaves WHOOP + day together ---- */
@@ -1000,25 +1000,37 @@ function newsItem(n){
     ${(n.pubDate||n.source)?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:3px">${tkEsc(n.pubDate||'')}${n.source?(' · '+tkEsc(n.source)):''}</div>`:''}</div>`;
 }
 function cardNews(){
-  const bbc=morningCfg().news||[], ai=morningCfg().ainews||[];
-  const col=(items,emptyId,msg)=> items.length? items.slice(0,7).map(newsItem).join('') : `<div class="empty" style="padding:16px 0" id="${emptyId}">${msg}</div>`;
+  const bbc=morningCfg().news||[];
+  const res=(DB._research&&DB._research.items)||[];
+  const resWhen=(DB._research&&DB._research.updatedAt)? 'updated '+fmtDate(DB._research.updatedAt.slice(0,10)) : 'weekly';
   return `<div class="card card-pad">
-    <div class="kicker">In the world</div><div class="h-sec">News<span class="sub">tap a headline to read it here</span></div>
+    <div class="kicker">In the world</div><div class="h-sec">News &amp; intelligence<span class="sub">tap to read in-page</span></div>
     <div class="grid g2" style="gap:26px">
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;border-bottom:2px solid var(--line2);padding-bottom:6px">
           <div style="font-family:var(--disp);font-weight:800;font-size:15px">BBC · Today</div>
           <a onclick="fetchNews(true)" style="font-family:var(--mono);font-size:10px;color:var(--terra);cursor:pointer">↻ refresh</a></div>
-        <div id="newsBox">${col(bbc,'newsEmpty', proxyBase()?'Loading headlines…':'Connect your proxy to pull news.')}</div>
+        <div id="newsBox">${ bbc.length? bbc.slice(0,8).map(newsItem).join('') : `<div class="empty" style="padding:16px 0" id="newsEmpty">${proxyBase()?'Loading headlines…':'Connect your proxy to pull news.'}</div>`}</div>
       </div>
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;border-bottom:2px solid var(--line2);padding-bottom:6px">
-          <div style="font-family:var(--disp);font-weight:800;font-size:15px">AI for Business</div>
-          <a onclick="fetchAINews(true)" style="font-family:var(--mono);font-size:10px;color:var(--terra);cursor:pointer">↻ refresh</a></div>
-        <div style="font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-faint);margin-bottom:6px">Efficiency · integration · automation</div>
-        <div id="aiNewsBox">${col(ai,'aiEmpty', proxyBase()?'Loading AI headlines…':'Connect your proxy to pull AI news.')}</div>
+          <div style="font-family:var(--disp);font-weight:800;font-size:15px">Portfolio Intelligence</div>
+          <span style="font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)">${resWhen}</span></div>
+        <div style="font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-faint);margin-bottom:6px">AI &amp; market signals for the GGG portfolio</div>
+        <div id="resBox">${ res.length? res.slice(0,12).map(researchItem).join('') : `<div class="empty" style="padding:16px 0">Weekly research runs Mondays — insights will appear here.${proxyBase()?'':' (Connect your proxy.)'}</div>`}</div>
       </div>
     </div></div>`;
+}
+// Portfolio Intelligence item — category tag + headline + 'why it matters' insight
+function researchItem(n){
+  const u=(n.url||n.link||'').replace(/'/g,"\\'"), t=(n.title||'').replace(/'/g,"\\'");
+  const c=(n.category||'').toLowerCase();
+  const tag = n.category? `<span style="font-family:var(--mono);font-size:8.5px;letter-spacing:1px;text-transform:uppercase;background:var(--paper2);color:var(--terra-deep);padding:2px 8px;border-radius:10px">${tkEsc(n.category)}</span>`:'';
+  return `<div ${u?`onclick="openArticle('${u}','${tkEsc(t)}')" style="cursor:pointer`:'style="'}padding:11px 0;border-bottom:1px solid var(--line)" onmouseover="this.style.background='var(--paper2)'" onmouseout="this.style.background=''">
+    ${tag}
+    <div style="font-family:var(--serif);font-size:14px;line-height:1.35;color:var(--ink);font-weight:600;margin-top:${tag?'5px':'0'}">${tkEsc(n.title)}</div>
+    ${n.insight?`<div style="font-family:var(--serif);font-size:12.5px;color:var(--ink-soft);line-height:1.45;margin-top:3px">${tkEsc(n.insight)}</div>`:''}
+    ${n.source?`<div style="font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);margin-top:4px">${tkEsc(n.source)}</div>`:''}</div>`;
 }
 // In-page popup for a news/article link (iframe, with original-link fallback for sites that block embedding)
 function openArticle(url,title){
@@ -1092,12 +1104,11 @@ async function fetchNews(force){
     morningCfg().news=(j.items||j||[]).map(x=>({title:x.title,link:x.link,pubDate:x.pubDate||x.published||'',source:x.source||''})); save(); renderHomeIfActive();
   }catch(e){ const el=document.getElementById('newsEmpty'); if(el) el.textContent='News route not available on proxy yet.'; }
 }
-async function fetchAINews(force){
+async function fetchResearch(){
   const base=proxyBase(); if(!base)return;
-  if(force) toast('Refreshing AI news…');
-  try{ const r=await fetch(`${base}/news?feed=ai${force?('&_='+Date.now()):''}`); if(!r.ok)throw 0; const j=await r.json();
-    morningCfg().ainews=(j.items||j||[]).map(x=>({title:x.title,link:x.link,pubDate:x.pubDate||x.published||'',source:x.source||''})); save(); renderHomeIfActive();
-  }catch(e){ const el=document.getElementById('aiEmpty'); if(el) el.textContent='AI news unavailable right now.'; }
+  try{ const r=await fetch(`${base}/research`); if(!r.ok)throw 0; const j=await r.json();
+    DB._research={items:j.items||[],updatedAt:j.updatedAt||null}; save(); renderHomeIfActive();
+  }catch(e){}
 }
 async function fetchKentridge(){
   const base=proxyBase(); if(!base)return;
@@ -1126,7 +1137,7 @@ async function fetchCalendar(){
     morningCfg().calendar=[...evs,...manual]; save(); renderHomeIfActive();
   }catch(e){ /* leave manual entries as-is */ }
 }
-function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); if(proxyBase()){fetchNews();fetchAINews();fetchCalendar();fetchKentridge();} fetchWhoopMorning(); }
+function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); if(proxyBase()){fetchNews();fetchResearch();fetchCalendar();fetchKentridge();} fetchWhoopMorning(); }
 async function fetchWhoopMorning(){ if(proxyBase()&&typeof syncWhoop==='function'){ try{await syncWhoop();}catch(e){} renderHomeIfActive(); } }
 function renderHomeIfActive(){ const el=document.getElementById('pane-home'); if(el&&el.classList.contains('active')) renderHome(); }
 function fmtDate(d){ if(!d)return'—'; const x=new Date(d); return x.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}); }
