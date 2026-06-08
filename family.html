@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBH Family Portfolio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  /* Remapped to the LifePlatform palette (variable names kept so all downstream styles inherit it) */
+  --brand-teal:#0a8a96;--brand-teal-mid:#075e66;--brand-teal-l:rgba(10,138,150,.12);--brand-teal-xl:rgba(10,138,150,.06);
+  --brand-navy:#15302f;--brand-navy-mid:#1f4a47;--brand-navy-l:rgba(53,111,160,.12);--brand-navy-xl:rgba(53,111,160,.06);
+  --surface-base:#eef4f3;--surface-card:#fbfdfd;--surface-card-s:#fbfdfd;--surface-hover:rgba(10,138,150,.05);
+  --border:#d2e2e0;--border-strong:#b6cecb;--border-subtle:#e2ecec;
+  --text-primary:#15302f;--text-secondary:#3f5957;--text-tertiary:#6f8a88;
+  --green:#1f9b58;--green-l:rgba(31,155,88,.12);--red:#cb463c;--red-l:rgba(203,70,60,.10);
+  --amber:#c8932f;--amber-l:rgba(200,147,47,.14);--blue:#356fa0;--blue-l:rgba(53,111,160,.12);
+  --indigo:#0a8a96;--indigo-l:rgba(10,138,150,.10);
+  --shadow-sm:0 1px 2px rgba(12,60,58,.05),0 1px 2px rgba(14,90,95,.05);
+  --shadow-md:0 1px 2px rgba(12,60,58,.05),0 8px 24px rgba(14,90,95,.10);
+  --shadow-lg:0 4px 12px rgba(12,60,58,.08),0 20px 50px rgba(14,90,95,.16);
+  --r-sm:9px;--r-md:14px;--r-lg:18px;--r-xl:20px;
+  --ease:cubic-bezier(.25,.46,.45,.94);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--surface-base);color:var(--text-primary);font-family:'Libre Franklin',-apple-system,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+.shell{display:grid;grid-template-columns:220px 1fr;grid-template-rows:58px 1fr;min-height:100vh}
+
+/* TOPBAR */
+.topbar{grid-column:1/-1;height:58px;background:#fff;border-bottom:1px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:200}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--brand-navy),var(--brand-teal));display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;letter-spacing:.5px}
+.brand-name{font-size:15px;font-weight:600;color:var(--brand-navy);letter-spacing:-.3px}
+.brand-sub-text{font-size:11px;color:var(--text-tertiary);margin-top:-2px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.status-pill{display:flex;align-items:center;gap:6px;background:var(--brand-teal-l);border:1px solid rgba(10,138,150,.25);border-radius:20px;padding:4px 12px 4px 8px;font-size:12px;font-weight:500;color:var(--brand-teal)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--brand-teal);animation:breathe 2.5s ease-in-out infinite}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 2px rgba(10,138,150,.25)}50%{box-shadow:0 0 0 4px rgba(10,138,150,.10)}}
+.fy-chip{font-size:11px;font-weight:600;color:var(--text-secondary);background:rgba(0,0,0,.05);padding:4px 10px;border-radius:6px;font-family:'Spline Sans Mono',monospace;letter-spacing:.04em;border:1px solid rgba(0,0,0,.08)}
+
+/* SIDEBAR */
+.sidebar{background:linear-gradient(180deg,#fff 0%,#f5f8f7 100%);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:58px;height:calc(100vh - 58px);overflow-y:auto}
+.nav-group-label{font-size:10px;font-weight:700;color:var(--brand-teal-mid);letter-spacing:.10em;text-transform:uppercase;padding:0 20px;margin:20px 0 4px;opacity:.75}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 12px;margin:1px 10px;border-radius:var(--r-sm);cursor:pointer;font-size:13px;font-weight:400;color:var(--text-secondary);transition:all .15s var(--ease)}
+.nav-item:hover{background:var(--brand-teal-xl);color:var(--brand-teal)}
+.nav-item.active{background:linear-gradient(135deg,rgba(10,138,150,.12),rgba(53,111,160,.08));color:var(--brand-navy);font-weight:600;box-shadow:var(--shadow-sm);border:1px solid rgba(10,138,150,.15)}
+.nav-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.nav-item.active .nav-icon{background:linear-gradient(135deg,rgba(10,138,150,.18),rgba(53,111,160,.10))}
+
+/* CONTENT */
+.content{padding:32px 36px;overflow-y:auto;background:var(--surface-base)}
+.page{display:none;animation:fadeIn .25s var(--ease)}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* PAGE HEADER */
+.page-hdr{margin-bottom:28px}
+.page-title{font-size:26px;font-weight:300;letter-spacing:-.8px;color:var(--brand-navy);margin-bottom:4px;line-height:1.2}
+.page-title strong{font-weight:600}
+.page-sub{font-size:13px;color:var(--text-secondary)}
+
+/* SECTION LABEL */
+.sec-label{font-size:10px;font-weight:700;color:var(--brand-teal-mid);letter-spacing:.10em;text-transform:uppercase;margin-bottom:10px;opacity:.85}
+
+/* KPI GRID */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+.kpi-grid-5{grid-template-columns:repeat(5,1fr)}
+.kpi{background:var(--surface-card-s);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px 22px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;animation:cardUp .4s var(--ease) both;transition:box-shadow .2s,transform .2s}
+.kpi:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.kpi:nth-child(1){animation-delay:.04s}.kpi:nth-child(2){animation-delay:.08s}.kpi:nth-child(3){animation-delay:.12s}.kpi:nth-child(4){animation-delay:.16s}.kpi:nth-child(5){animation-delay:.20s}
+@keyframes cardUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0}
+.kpi.kpi-blue::after{background:linear-gradient(90deg,var(--brand-navy),var(--brand-navy-mid))}
+.kpi.kpi-green::after{background:linear-gradient(90deg,var(--brand-teal),var(--brand-teal-mid))}
+.kpi.kpi-red::after{background:linear-gradient(90deg,#e53e3e,#fc8181)}
+.kpi.kpi-amber::after{background:linear-gradient(90deg,#d97706,#f59e0b)}
+.kpi.kpi-indigo::after{background:linear-gradient(90deg,var(--brand-teal),var(--brand-navy))}
+.kpi-label{font-size:10px;font-weight:700;color:var(--text-tertiary);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.kpi-val{font-size:28px;font-weight:300;letter-spacing:-.8px;line-height:1;margin-bottom:6px}
+.kpi-val.c-blue{color:var(--brand-navy)}.kpi-val.c-green{color:var(--brand-teal)}.kpi-val.c-red{color:#c53030}.kpi-val.c-amber{color:#92400e}.kpi-val.c-dark{color:var(--text-primary)}
+.kpi-sub{font-size:11px;color:var(--text-tertiary)}
+.kpi-tag{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:8px;letter-spacing:.02em}
+.tag-green{background:var(--green-l);color:var(--brand-teal)}.tag-red{background:var(--red-l);color:#c53030}.tag-amber{background:var(--amber-l);color:#92400e}.tag-blue{background:var(--blue-l);color:var(--brand-navy)}
+
+/* CARD */
+.card{background:var(--surface-card-s);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden;animation:cardUp .4s var(--ease) both;transition:box-shadow .2s}
+.card:hover{box-shadow:var(--shadow-md)}
+.card-hdr{display:flex;align-items:flex-start;justify-content:space-between;padding:20px 22px 0;margin-bottom:14px}
+.card-title{font-size:13px;font-weight:600;color:var(--brand-navy);letter-spacing:-.1px}
+.card-sub{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+.card-badge{font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap;flex-shrink:0;margin-top:1px;letter-spacing:.02em}
+.cb-green{background:var(--green-l);color:var(--brand-teal)}.cb-red{background:var(--red-l);color:#c53030}.cb-amber{background:var(--amber-l);color:#92400e}.cb-blue{background:var(--blue-l);color:var(--brand-navy)}.cb-gray{background:rgba(0,0,0,.05);color:var(--text-secondary)}
+.card-body{padding:0 22px 20px}
+.card-inner{padding:22px}
+
+/* GRID LAYOUTS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:22px}
+.g21{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:22px}
+.g12{display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:22px}
+.gap{margin-bottom:22px}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{font-size:11px;font-weight:600;color:var(--text-tertiary);text-align:right;padding:10px 12px;border-bottom:1px solid var(--border-strong);letter-spacing:.04em;text-transform:uppercase;background:rgba(0,0,0,.015);white-space:nowrap}
+thead th:first-child{text-align:left}
+tbody td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--border-subtle);color:var(--text-secondary);white-space:nowrap;font-family:'Spline Sans Mono',monospace;font-size:12px}
+tbody td:first-child{text-align:left;font-family:'Libre Franklin',sans-serif;font-size:13px;color:var(--text-primary);font-weight:400}
+tbody tr:hover td{background:var(--surface-hover)}
+tr.tr-total td{background:rgba(0,0,0,.02);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-weight:600;color:var(--text-primary)}
+.np{color:var(--brand-teal)!important}.nn{color:#c53030!important}.na{color:#92400e!important}.nb{color:var(--brand-navy)!important}.ng{color:var(--text-tertiary)!important}
+
+/* WATERFALL / METRIC LIST */
+.wf{padding:0 22px 20px}
+.wf-row{display:grid;grid-template-columns:1fr 90px 48px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-subtle);gap:10px}
+.wf-row:last-child{border-bottom:none}
+.wf-label{font-size:13px;color:var(--text-secondary)}
+.wf-label-b{font-size:13px;font-weight:600;color:var(--text-primary)}
+.wf-amt{font-family:'Spline Sans Mono',monospace;font-size:12.5px;font-weight:500;text-align:right}
+.wf-bar-bg{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:3px}
+.wf-bar-fill{height:100%;border-radius:2px}
+
+/* STRUCTURE TREE */
+.tree{padding:4px 0}
+.tree-node{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:var(--r-md);border:1px solid var(--border);margin-bottom:4px;transition:box-shadow .15s}
+.tree-node:hover{box-shadow:var(--shadow-sm)}
+.tree-node.root{background:linear-gradient(135deg,rgba(53,111,160,.07),rgba(10,138,150,.05));border-color:rgba(53,111,160,.18);margin-left:0}
+.tree-node.child{background:#fff;margin-left:20px}
+.tree-node.leaf{background:var(--surface-base);margin-left:40px;padding:8px 12px}
+.tree-connector{width:2px;height:10px;background:var(--border);margin-left:29px;border-radius:1px;margin-bottom:4px}
+.tree-connector.deep{margin-left:49px}
+.tree-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.tree-icon.navy{background:linear-gradient(135deg,var(--brand-navy),var(--brand-navy-mid));color:#fff;font-size:12px;font-weight:700}
+.tree-icon.teal{background:linear-gradient(135deg,var(--brand-teal),var(--brand-teal-mid));color:#fff;font-size:12px;font-weight:700}
+.tree-icon.soft{background:var(--green-l)}
+.tree-label{font-size:12.5px;font-weight:600;color:var(--text-primary)}
+.tree-sub{font-size:10px;color:var(--text-tertiary);margin-top:1px}
+.tree-right{margin-left:auto;text-align:right}
+.tree-val{font-size:13px;font-weight:700;color:var(--brand-navy);font-family:'Spline Sans Mono',monospace}
+.tree-val-sub{font-size:10px;color:var(--text-tertiary)}
+.pct-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--green-l);color:var(--brand-teal);margin-left:8px;letter-spacing:.02em}
+
+/* REV BARS */
+.rev-row{display:grid;grid-template-columns:150px 1fr 100px;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border-subtle)}
+.rev-row:last-child{border-bottom:none}
+.rev-label{font-size:12px;font-weight:500;color:var(--text-secondary)}
+.rev-bar-wrap{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.rev-bar{height:100%;border-radius:3px;transition:width .6s var(--ease)}
+.rb-teal{background:linear-gradient(90deg,var(--brand-teal),var(--brand-teal-mid))}
+.rb-navy{background:linear-gradient(90deg,var(--brand-navy),var(--brand-navy-mid))}
+.rb-amber{background:linear-gradient(90deg,#d97706,#f59e0b)}
+.rb-green{background:linear-gradient(90deg,#059669,#10b981)}
+.rb-indigo{background:linear-gradient(90deg,#4f46e5,#818cf8)}
+.rev-amt{font-size:12px;font-weight:600;color:var(--brand-navy);text-align:right;font-family:'Spline Sans Mono',monospace}
+
+/* CHART WRAP */
+.chart-wrap{position:relative}.chart-wrap canvas{display:block}
+
+/* PILLS */
+.pill{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;letter-spacing:.02em;white-space:nowrap}
+.pill-teal{background:var(--green-l);color:var(--brand-teal)}.pill-navy{background:var(--blue-l);color:var(--brand-navy)}.pill-red{background:var(--red-l);color:#c53030}.pill-amber{background:var(--amber-l);color:#92400e}.pill-gray{background:rgba(0,0,0,.05);color:var(--text-secondary)}
+
+/* TABS */
+.tab-bar{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:16px}
+.tab-btn{font-size:12px;font-weight:500;color:var(--text-tertiary);padding:8px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab-btn:hover{color:var(--brand-teal)}
+.tab-btn.active{color:var(--brand-navy);border-bottom-color:var(--brand-navy);font-weight:600}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* NOTE BOX */
+.note{background:var(--brand-navy-xl);border:1px solid var(--brand-navy-l);border-radius:var(--r-md);padding:11px 15px;font-size:11.5px;color:var(--text-secondary);line-height:1.65}
+.note strong{color:var(--brand-navy)}
+.note.amber{background:var(--amber-l);border-color:rgba(200,147,47,.2)}
+.note.amber strong{color:#92400e}
+
+/* DIVIDER */
+.div{height:1px;background:var(--border);margin:18px 0}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:3px}
+
+/* EMBEDDED (inside LifePlatform Finance tab) — trim the dashboard's own topbar */
+body.embedded .topbar{display:none}
+body.embedded .shell{grid-template-rows:1fr}
+body.embedded .content{padding:24px 26px}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ── TOPBAR ── -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">SBH</div>
+    <div>
+      <div class="brand-name">SBH Family Portfolio</div>
+      <div class="brand-sub-text">Stuart Brian Harris Family Trust</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill"><span class="status-dot"></span>Live</div>
+    <span class="fy-chip" id="liveDate"></span>
+    <span class="fy-chip">QS485 · Apr 2026</span>
+    <span class="fy-chip">Trust FY2025</span>
+  </div>
+</header>
+
+<!-- ── SIDEBAR ── -->
+<nav class="sidebar">
+  <div class="nav-group-label">SBH</div>
+  <div class="nav-item active" onclick="nav('overview',this)"><div class="nav-icon">📊</div>Portfolio Summary</div>
+  <div class="nav-item" onclick="nav('quickstep',this)"><div class="nav-icon">🏢</div>Quickstep 485</div>
+  <div class="nav-item" onclick="nav('sj',this)"><div class="nav-icon">💼</div>SJ &amp; Sons</div>
+  <div class="nav-item" onclick="nav('revenue',this)"><div class="nav-icon">💰</div>Revenue &amp; Income</div>
+  <div class="nav-item" onclick="nav('expenses',this)"><div class="nav-icon">📉</div>Operating Expenses</div>
+  <div class="nav-item" onclick="nav('liabilities',this)"><div class="nav-icon">🏦</div>Liabilities &amp; Debt</div>
+  <div class="nav-item" onclick="nav('properties',this)"><div class="nav-icon">🏘️</div>Property Portfolio</div>
+
+  <div class="nav-group-label">Trusts</div>
+  <div class="nav-item" onclick="nav('structure',this)"><div class="nav-icon">🏛️</div>Entity Structure</div>
+  <div class="nav-item" onclick="nav('trust',this)"><div class="nav-icon">🔒</div>SBH Family Trust</div>
+</nav>
+
+<!-- ── CONTENT ── -->
+<main class="content">
+
+<!-- ════ OVERVIEW ════ -->
+<div id="page-overview" class="page active">
+  <div class="page-hdr">
+    <div class="page-title">Portfolio <strong>Summary</strong></div>
+    <div class="page-sub">Consolidated view · Quickstep 485, SBH Family Trust &amp; SJ &amp; Sons · All figures ZAR</div>
+  </div>
+
+  <div class="sec-label">Key Metrics</div>
+  <div class="kpi-grid kpi-grid-5">
+    <div class="kpi kpi-blue">
+      <div class="kpi-label">Consolidated Net Equity</div>
+      <div class="kpi-val c-blue">R 116.9m</div>
+      <div class="kpi-sub">QS485 R63.0m + Trust R53.9m</div>
+      <span class="kpi-tag tag-blue">FY2025</span>
+    </div>
+    <div class="kpi kpi-green">
+      <div class="kpi-label">GGG Holdings Value</div>
+      <div class="kpi-val c-green">R 66.6m</div>
+      <div class="kpi-sub">18% × R370m group NAV</div>
+      <span class="kpi-tag tag-green">Strategic</span>
+    </div>
+    <div class="kpi kpi-indigo">
+      <div class="kpi-label">Property Portfolio</div>
+      <div class="kpi-val c-dark">R 52.0m</div>
+      <div class="kpi-sub">4 properties · directors' values</div>
+      <span class="kpi-tag tag-blue">Indicative</span>
+    </div>
+    <div class="kpi kpi-green">
+      <div class="kpi-label">Monthly Revenue Run-Rate</div>
+      <div class="kpi-val c-green">R 202k</div>
+      <div class="kpi-sub">All income streams combined</div>
+      <span class="kpi-tag tag-green">Current</span>
+    </div>
+    <div class="kpi kpi-amber">
+      <div class="kpi-label">QS485 Monthly Deficit</div>
+      <div class="kpi-val c-amber">R 122k</div>
+      <div class="kpi-sub">April 2026 management accounts</div>
+      <span class="kpi-tag tag-amber">Apr 2026</span>
+    </div>
+  </div>
+
+  <div class="g21">
+    <div class="card" style="animation-delay:.2s">
+      <div class="card-hdr">
+        <div><div class="card-title">Income vs Expenses · QS485 Mar &amp; Apr 2026</div><div class="card-sub">Management accounts — monthly comparison</div></div>
+        <span class="card-badge cb-amber">Apr 2026</span>
+      </div>
+      <div class="chart-wrap" style="padding:0 22px 22px"><canvas id="incExpChart" height="230"></canvas></div>
+    </div>
+    <div class="card" style="animation-delay:.24s">
+      <div class="card-hdr"><div><div class="card-title">QS485 Asset Composition</div><div class="card-sub">By carrying value · 28 Feb 2025</div></div></div>
+      <div class="chart-wrap" style="padding:0 22px 22px"><canvas id="eqPieChart" height="230"></canvas></div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card" style="animation-delay:.28s">
+      <div class="card-hdr"><div><div class="card-title">Asset Allocation · QS485</div><div class="card-sub">By carrying value · 28 Feb 2025</div></div></div>
+      <div class="chart-wrap" style="padding:0 22px 22px"><canvas id="assetAllocChart" height="210"></canvas></div>
+    </div>
+    <div class="card" style="animation-delay:.32s">
+      <div class="card-hdr">
+        <div><div class="card-title">Monthly Revenue Streams</div><div class="card-sub">Estimated monthly run-rate · ZAR</div></div>
+        <span class="card-badge cb-green">R 202,247 / mo</span>
+      </div>
+      <div class="card-body">
+        <div class="rev-row"><div class="rev-label">GGG Distribution</div><div class="rev-bar-wrap"><div class="rev-bar rb-navy" style="width:100%"></div></div><div class="rev-amt">R 70,000</div></div>
+        <div class="rev-row"><div class="rev-label">Office Rental (Allenby)</div><div class="rev-bar-wrap"><div class="rev-bar rb-teal" style="width:96%"></div></div><div class="rev-amt">R 67,247</div></div>
+        <div class="rev-row"><div class="rev-label">Consulting (Lacotte)</div><div class="rev-bar-wrap"><div class="rev-bar rb-amber" style="width:50%"></div></div><div class="rev-amt">R 35,000</div></div>
+        <div class="rev-row"><div class="rev-label">Ebony Rental</div><div class="rev-bar-wrap"><div class="rev-bar rb-green" style="width:43%"></div></div><div class="rev-amt">R 30,000</div></div>
+        <div class="div" style="margin:10px 0 6px"></div>
+        <div class="rev-row" style="border:none"><div class="rev-label" style="font-weight:700;color:var(--brand-navy)">Total Monthly</div><div></div><div class="rev-amt" style="font-size:14px;color:var(--brand-navy)">R 202,247</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ STRUCTURE ════ -->
+<div id="page-structure" class="page">
+  <div class="page-hdr">
+    <div class="page-title">Entity <strong>Structure</strong></div>
+    <div class="page-sub">Ownership hierarchy and investment relationships</div>
+  </div>
+
+  <div class="g2">
+    <div class="card gap">
+      <div class="card-hdr"><div><div class="card-title">SBH Family Trust Chain</div><div class="card-sub">Stuart Brian Harris Family Trust · IT 1993/04</div></div></div>
+      <div class="card-body">
+        <div class="tree">
+          <div class="tree-node root">
+            <div class="tree-icon navy">SBH</div>
+            <div><div class="tree-label">SBH Family Trust</div><div class="tree-sub">IT 1993/04 · Inter Vivos · LDP compiled</div></div>
+            <div class="tree-right"><div class="tree-val">R 53.9m</div><div class="tree-val-sub">Total equity FY2025</div></div>
+          </div>
+          <div class="tree-connector"></div>
+          <div class="tree-node child">
+            <div class="tree-icon teal">QS</div>
+            <div><div class="tree-label">Quickstep 485 (Pty) Ltd</div><div class="tree-sub">2003/006034/07 · 100% owned by trust</div></div>
+            <div class="tree-right"><div class="tree-val">R 63.0m</div><div class="tree-val-sub">Net equity FY2025</div></div>
+          </div>
+          <div class="tree-connector deep"></div>
+          <div class="tree-node leaf">
+            <div class="tree-icon soft">📈</div>
+            <div><div class="tree-label">GGG Holdings (Pty) Ltd</div><div class="tree-sub">Associate — s42 transaction</div></div>
+            <span class="pct-pill">18%</span>
+            <div class="tree-right"><div class="tree-val">R 64.6m</div><div class="tree-val-sub">Book value</div></div>
+          </div>
+          <div class="tree-connector"></div>
+          <div class="tree-node child">
+            <div class="tree-icon soft">🇬🇧</div>
+            <div><div class="tree-label">Gervest Holdings Ltd</div><div class="tree-sub">UK company · Trust holds directly</div></div>
+            <span class="pct-pill">20%</span>
+            <div class="tree-right"><div class="tree-val">TBC</div><div class="tree-val-sub">Value pending UK AFS</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card gap">
+      <div class="card-hdr"><div><div class="card-title">S4B2H Family Trust Chain</div><div class="card-sub">Separate vehicle · SJ &amp; Sons Pty Ltd</div></div></div>
+      <div class="card-body">
+        <div class="tree">
+          <div class="tree-node root">
+            <div class="tree-icon navy">S4</div>
+            <div><div class="tree-label">S4B2H Family Trust</div><div class="tree-sub">Separate family trust vehicle</div></div>
+          </div>
+          <div class="tree-connector"></div>
+          <div class="tree-node child">
+            <div class="tree-icon teal">SJ</div>
+            <div><div class="tree-label">SJ &amp; Sons (Pty) Ltd</div><div class="tree-sub">Significant tax loss · structural advantage</div></div>
+            <div class="tree-right"><div class="tree-val">R 7.4m</div><div class="tree-val-sub">2% × R370m (notional)</div></div>
+          </div>
+          <div class="tree-connector deep"></div>
+          <div class="tree-node leaf">
+            <div class="tree-icon soft">📈</div>
+            <div><div class="tree-label">GGG Holdings (Pty) Ltd</div><div class="tree-sub">2% stake</div></div>
+            <span class="pct-pill">2%</span>
+            <div class="tree-right"><div class="tree-val">R 7.4m</div><div class="tree-val-sub">Notional value</div></div>
+          </div>
+          <div class="tree-connector"></div>
+          <div class="tree-node child">
+            <div class="tree-icon soft">🇬🇧</div>
+            <div><div class="tree-label">Gervest Holdings Ltd</div><div class="tree-sub">UK company · Trust holds directly</div></div>
+            <span class="pct-pill">20%</span>
+            <div class="tree-right"><div class="tree-val">TBC</div><div class="tree-val-sub">Value pending UK AFS</div></div>
+          </div>
+        </div>
+        <div class="div"></div>
+        <div class="note amber"><strong>Tax Loss Note:</strong> SJ &amp; Sons carries a significant accumulated tax loss. This is excluded from equity calculations and treated as a future income shelter — a structural financial advantage, not a negative equity position.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card gap">
+    <div class="card-hdr"><div><div class="card-title">Beneficiaries &amp; Trustees · SBH Family Trust</div></div></div>
+    <div class="card-body">
+      <div class="g2" style="margin-bottom:0">
+        <div>
+          <div class="sec-label" style="margin-bottom:8px">Beneficiaries</div>
+          <table>
+            <thead><tr><th>Name</th><th>Role</th></tr></thead>
+            <tbody>
+              <tr><td>Stuart Brian Harris</td><td><span class="pill pill-navy">Principal</span></td></tr>
+              <tr><td>Jo-Ann Harris</td><td><span class="pill pill-teal">Spouse</span></td></tr>
+              <tr><td>Brian John Robin Porter</td><td><span class="pill pill-gray">Beneficiary</span></td></tr>
+              <tr><td>Hilton John Harris</td><td><span class="pill pill-gray">Beneficiary</span></td></tr>
+              <tr><td>Latham John Harris</td><td><span class="pill pill-gray">Beneficiary</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div class="sec-label" style="margin-bottom:8px">Trustees</div>
+          <table>
+            <thead><tr><th>Name</th><th>Role</th></tr></thead>
+            <tbody>
+              <tr><td>Stuart Brian Harris</td><td><span class="pill pill-navy">Trustee</span></td></tr>
+              <tr><td>Jo-Ann Harris</td><td><span class="pill pill-teal">Trustee</span></td></tr>
+              <tr><td>Benita Billings</td><td><span class="pill pill-teal">Trustee</span></td></tr>
+              <tr><td>Stellenbosch Fiduciary Services (J Goosen)</td><td><span class="pill pill-amber">Independent</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ QUICKSTEP 485 ════ -->
+<div id="page-quickstep" class="page">
+  <div class="page-hdr">
+    <div class="page-title">Quickstep <strong>485 (Pty) Ltd</strong></div>
+    <div class="page-sub">Reg 2003/006034/07 · Property &amp; investment holding company · Reviewed by LDP</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi kpi-blue"><div class="kpi-label">Total Equity (FY2025)</div><div class="kpi-val c-blue">R 63.0m</div><div class="kpi-sub">vs R840k prior year</div><span class="kpi-tag tag-blue">28 Feb 2025</span></div>
+    <div class="kpi kpi-green"><div class="kpi-label">Total Assets</div><div class="kpi-val c-green">R 86.1m</div><div class="kpi-sub">vs R15.7m prior year (+R70.4m)</div><span class="kpi-tag tag-green">s42 driven</span></div>
+    <div class="kpi kpi-indigo"><div class="kpi-label">Net Profit FY2025</div><div class="kpi-val c-dark">R 9.3m</div><div class="kpi-sub">After R383k tax incl. CGT</div><span class="kpi-tag tag-green">Profitable</span></div>
+    <div class="kpi kpi-red"><div class="kpi-label">YTD Net Loss Apr 2026</div><div class="kpi-val c-red">– R 231k</div><div class="kpi-sub">March + April 2026 combined</div><span class="kpi-tag tag-red">Running Deficit</span></div>
+  </div>
+
+  <div class="g21">
+    <div class="card">
+      <div class="card-hdr"><div><div class="card-title">Financial Statements · QS485</div><div class="card-sub">FY2025 reviewed AFS + Apr 2026 management accounts</div></div></div>
+      <div class="card-body">
+        <div class="tab-bar">
+          <div class="tab-btn active" onclick="tab(this,'qs-assets')">Assets</div>
+          <div class="tab-btn" onclick="tab(this,'qs-liab')">Liabilities &amp; Equity</div>
+          <div class="tab-btn" onclick="tab(this,'qs-pl')">Profit &amp; Loss</div>
+          <div class="tab-btn" onclick="tab(this,'qs-mgmt')">Apr 2026 Mgmt</div>
+        </div>
+        <div id="qs-assets" class="tab-pane active">
+          <table>
+            <thead><tr><th>Item</th><th>FY2025 (R)</th><th>FY2024 (R)</th></tr></thead>
+            <tbody>
+              <tr><td colspan="3" style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-tertiary);padding-bottom:4px;font-family:'Libre Franklin'">Non-Current Assets</td></tr>
+              <tr><td>Property, plant &amp; equipment</td><td>843,183</td><td>823,099</td></tr>
+              <tr><td>Investment property (cost model)</td><td>20,229,039</td><td>14,737,045</td></tr>
+              <tr><td class="np">Investment in GGG Holdings (assoc.)</td><td class="np">64,620,000</td><td>—</td></tr>
+              <tr><td colspan="3" style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-tertiary);padding:10px 12px 4px;font-family:'Libre Franklin'">Current Assets</td></tr>
+              <tr><td>Trade &amp; other receivables</td><td>270,103</td><td>40,126</td></tr>
+              <tr><td>Cash &amp; cash equivalents</td><td>167,816</td><td>130,835</td></tr>
+              <tr class="tr-total"><td>Total Assets</td><td class="nb">86,130,141</td><td>15,731,105</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="qs-liab" class="tab-pane">
+          <table>
+            <thead><tr><th>Item</th><th>FY2025 (R)</th><th>FY2024 (R)</th></tr></thead>
+            <tbody>
+              <tr><td colspan="3" style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-tertiary);padding-bottom:4px;font-family:'Libre Franklin'">Non-Current Liabilities</td></tr>
+              <tr><td>Director loan — SB Harris</td><td class="nn">8,784,811</td><td class="nn">6,458,752</td></tr>
+              <tr><td>Shareholder loan — Trust</td><td class="nn">247,831</td><td>—</td></tr>
+              <tr><td>Investec — Allenby House</td><td class="nn">4,871,953</td><td class="nn">5,000,366</td></tr>
+              <tr><td>Paul Staveley Howard</td><td class="nn">2,151,000</td><td>—</td></tr>
+              <tr><td>Wessels Family Trust</td><td class="nn">6,019,200</td><td>—</td></tr>
+              <tr><td>GGG Holdings loan</td><td class="nn">350,357</td><td>—</td></tr>
+              <tr><td colspan="3" style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-tertiary);padding:10px 12px 4px;font-family:'Libre Franklin'">Equity</td></tr>
+              <tr><td class="np">Share capital</td><td class="np">52,849,920</td><td>120</td></tr>
+              <tr><td class="np">Retained income</td><td class="np">10,176,139</td><td>840,480</td></tr>
+              <tr class="tr-total"><td>Total Equity</td><td class="nb">63,026,059</td><td>840,600</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="qs-pl" class="tab-pane">
+          <table>
+            <thead><tr><th>Item</th><th>FY2025 (R)</th><th>FY2024 (R)</th></tr></thead>
+            <tbody>
+              <tr><td>Rentals received</td><td class="np">780,245</td><td class="np">1,434,408</td></tr>
+              <tr><td>Gains on disposal of assets</td><td class="np">7,244,044</td><td>—</td></tr>
+              <tr><td>Operating expenses</td><td class="nn">(1,454,881)</td><td class="nn">(1,213,921)</td></tr>
+              <tr><td>Operating profit</td><td class="np">6,569,408</td><td class="np">385,139</td></tr>
+              <tr><td>Investment revenue (divs + interest)</td><td class="np">3,635,801</td><td>—</td></tr>
+              <tr><td>Finance costs</td><td class="nn">(486,054)</td><td class="nn">(764,241)</td></tr>
+              <tr><td>Taxation</td><td class="nn">(383,496)</td><td>—</td></tr>
+              <tr class="tr-total"><td>Net Profit / (Loss)</td><td class="np">9,335,659</td><td class="nn">(379,102)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="qs-mgmt" class="tab-pane">
+          <table>
+            <thead><tr><th>Item</th><th>March 2026 (R)</th><th>April 2026 (R)</th><th>YTD (R)</th></tr></thead>
+            <tbody>
+              <tr><td class="np">Office Rental Income</td><td class="np">67,276</td><td class="np">67,247</td><td class="np">134,524</td></tr>
+              <tr><td>Total Trading Income</td><td class="np">67,276</td><td class="np">67,247</td><td class="np">134,524</td></tr>
+              <tr><td>Total Operating Expenses</td><td class="nn">(176,214)</td><td class="nn">(189,285)</td><td class="nn">(365,499)</td></tr>
+              <tr class="tr-total"><td>Net Result</td><td class="nn">(108,938)</td><td class="nn">(122,038)</td><td class="nn">(230,976)</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:14px" class="note"><strong>Note:</strong> Management accounts reflect trading income only. GGG distributions and other income not yet recognised. Running deficit funded by director loan account (SB Harris).</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card gap">
+        <div class="card-hdr"><div><div class="card-title">s42 Transaction Note</div><div class="card-sub">GGG Holdings acquisition · FY2025</div></div></div>
+        <div class="card-inner">
+          <div class="note" style="margin:0"><strong>s42 Asset-for-Share:</strong> QS485 issued 100 new shares to the SBH Family Trust in exchange for the Trust's GGG Holdings stake. Book value recorded at R64,620,000. Base cost of the shares: R36,288,310. Trust equity was restructured with special capital units of R3.39m each issued to J Harris and SB Harris.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><div><div class="card-title">P&amp;L Chart · Apr 2026</div></div></div>
+        <div class="chart-wrap" style="padding:0 16px 16px"><canvas id="qsPLChart" height="180"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ TRUST ════ -->
+<div id="page-trust" class="page">
+  <div class="page-hdr">
+    <div class="page-title">SBH <strong>Family Trust</strong></div>
+    <div class="page-sub">IT 1993/04 · Compiled by LDP · Year ended 28 Feb 2025</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi kpi-blue"><div class="kpi-label">Total Equity (FY2025)</div><div class="kpi-val c-blue">R 53.9m</div><div class="kpi-sub">vs R18.8m prior year (+R35.1m)</div></div>
+    <div class="kpi kpi-green"><div class="kpi-label">QS485 Investment</div><div class="kpi-val c-green">R 52.9m</div><div class="kpi-sub">220 shares at cost · s42 basis</div></div>
+    <div class="kpi kpi-indigo"><div class="kpi-label">Surplus FY2025</div><div class="kpi-val c-dark">R 28.3m</div><div class="kpi-sub">s42 transaction profit · non-taxable</div></div>
+    <div class="kpi kpi-amber"><div class="kpi-label">Total Assets</div><div class="kpi-val c-amber">R 53.9m</div><div class="kpi-sub">vs R37.1m prior year</div></div>
+  </div>
+
+  <div class="g2">
+    <div class="card gap">
+      <div class="card-hdr"><div><div class="card-title">Statement of Financial Position · 28 Feb 2025</div></div><span class="card-badge cb-blue">Compiled · LDP</span></div>
+      <div class="card-body">
+        <table>
+          <thead><tr><th>Item</th><th>FY2025 (R)</th><th>FY2024 (R)</th></tr></thead>
+          <tbody>
+            <tr><td colspan="3" style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-tertiary);padding-bottom:4px;font-family:'Libre Franklin'">Non-Current Assets</td></tr>
+            <tr><td>Loan to QS485</td><td>247,831</td><td>—</td></tr>
+            <tr><td class="np">QS485 shares (at cost)</td><td class="np">52,849,920</td><td>120</td></tr>
+            <tr><td>GGG Holdings (prior year)</td><td>—</td><td class="np">36,288,311</td></tr>
+            <tr><td>Litigator Holdings</td><td>501</td><td>501</td></tr>
+            <tr><td>Birdleg Properties loan</td><td>790,000</td><td>790,000</td></tr>
+            <tr class="tr-total"><td>Total Assets</td><td class="nb">53,888,252</td><td>37,078,932</td></tr>
+            <tr><td colspan="3" style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-tertiary);padding:10px 12px 4px;font-family:'Libre Franklin'">Equity</td></tr>
+            <tr><td>Trust capital</td><td class="np">8,584,519</td><td>1,800,100</td></tr>
+            <tr><td>Accumulated surplus</td><td class="np">45,303,733</td><td class="np">16,972,043</td></tr>
+            <tr class="tr-total"><td>Total Equity</td><td class="nb">53,888,252</td><td>18,772,143</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card gap">
+      <div class="card-hdr"><div><div class="card-title">Capital Movement FY2025</div><div class="card-sub">Changes in trust equity</div></div></div>
+      <div class="card-body">
+        <table>
+          <thead><tr><th>Item</th><th>Trust Capital</th><th>Accum. Surplus</th><th>Total</th></tr></thead>
+          <tbody>
+            <tr><td>Opening 1 Mar 2024</td><td>1,800,100</td><td>16,972,043</td><td>18,772,143</td></tr>
+            <tr><td class="np">s42 surplus for year</td><td>—</td><td class="np">28,331,690</td><td class="np">28,331,690</td></tr>
+            <tr><td class="np">Special capital — J Harris</td><td class="np">3,392,210</td><td>—</td><td class="np">3,392,210</td></tr>
+            <tr><td class="np">Special capital — SB Harris</td><td class="np">3,392,209</td><td>—</td><td class="np">3,392,209</td></tr>
+            <tr class="tr-total"><td>Closing 28 Feb 2025</td><td class="nb">8,584,519</td><td class="nb">45,303,733</td><td class="nb">53,888,252</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:14px" class="note"><strong>Tax:</strong> No provision for FY2025. The s42 transaction profit of R28.3m is a permanent difference excluded from taxable income. Prior year dividends of R5.76m were taxable in beneficiaries' hands.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ SJ & SONS ════ -->
+<div id="page-sj" class="page">
+  <div class="page-hdr">
+    <div class="page-title">SJ &amp; Sons <strong>(Pty) Ltd</strong></div>
+    <div class="page-sub">Owned by S4B2H Family Trust · 2% GGG stake · Tax loss entity</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi kpi-green"><div class="kpi-label">GGG Equity Value (2%)</div><div class="kpi-val c-green">R 7.4m</div><div class="kpi-sub">2% × R370m group NAV</div></div>
+    <div class="kpi kpi-amber"><div class="kpi-label">Gervest (Trust Direct)</div><div class="kpi-val c-amber">20%</div><div class="kpi-sub">S4B2H Trust holds directly · UK co</div></div>
+    <div class="kpi kpi-blue"><div class="kpi-label">Tax Loss Position</div><div class="kpi-val c-blue">Carried Fwd</div><div class="kpi-sub">Structural advantage</div></div>
+    <div class="kpi kpi-indigo"><div class="kpi-label">Full AFS Status</div><div class="kpi-val c-dark">Pending</div><div class="kpi-sub">Upload to populate this section</div></div>
+  </div>
+
+  <div class="card gap">
+    <div class="card-inner">
+      <div class="note amber"><strong>Awaiting AFS:</strong> Full SJ &amp; Sons financial statements will populate this section once uploaded. The accumulated tax loss should be modelled as a future income shelter. Gervest Holdings (UK) value to be confirmed from UK accounts. GGG value estimated at R7.4m (2% × R370m group NAV placeholder).</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ REVENUE ════ -->
+<div id="page-revenue" class="page">
+  <div class="page-hdr">
+    <div class="page-title">Revenue &amp; <strong>Income</strong></div>
+    <div class="page-sub">Monthly run-rate and historical income across all entities</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi kpi-green"><div class="kpi-label">Total Monthly Run-Rate</div><div class="kpi-val c-green">R 202k</div><div class="kpi-sub">All income streams</div></div>
+    <div class="kpi kpi-blue"><div class="kpi-label">QS485 FY2025 Revenue</div><div class="kpi-val c-blue">R 780k</div><div class="kpi-sub">Rental income</div></div>
+    <div class="kpi kpi-green"><div class="kpi-label">Investment Revenue FY2025</div><div class="kpi-val c-green">R 3.6m</div><div class="kpi-sub">Dividends + interest from GGG</div></div>
+    <div class="kpi kpi-indigo"><div class="kpi-label">Annual Revenue Est.</div><div class="kpi-val c-dark">R 2.4m</div><div class="kpi-sub">Run-rate × 12</div></div>
+  </div>
+
+  <div class="g21">
+    <div class="card gap">
+      <div class="card-hdr"><div><div class="card-title">Revenue Stream Detail</div><div class="card-sub">Monthly run-rate · ZAR</div></div></div>
+      <div class="card-body">
+        <table>
+          <thead><tr><th>Source</th><th>Entity</th><th>Type</th><th>Monthly (R)</th><th>Annual Est. (R)</th></tr></thead>
+          <tbody>
+            <tr><td>Office Rental — Allenby House, Constantia</td><td><span class="pill pill-navy">QS485</span></td><td><span class="pill pill-teal">Rental</span></td><td class="np">67,247</td><td>806,964</td></tr>
+            <tr><td>GGG Monthly Distribution</td><td><span class="pill pill-navy">QS485</span></td><td><span class="pill pill-teal">Dividend</span></td><td class="np">70,000</td><td>840,000</td></tr>
+            <tr><td>Ebony Road Rental Income</td><td><span class="pill pill-navy">QS485</span></td><td><span class="pill pill-teal">Rental</span></td><td class="np">30,000</td><td>360,000</td></tr>
+            <tr><td>Consulting Fees — Lacotte</td><td><span class="pill pill-gray">SJ&amp;Sons</span></td><td><span class="pill pill-amber">Consulting</span></td><td class="np">35,000</td><td>420,000</td></tr>
+            <tr class="tr-total"><td>Total</td><td colspan="2"></td><td class="nb">202,247</td><td class="nb">2,426,964</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card gap">
+      <div class="card-hdr"><div><div class="card-title">Revenue Mix</div><div class="card-sub">By source · monthly</div></div></div>
+      <div class="chart-wrap" style="padding:0 22px 22px"><canvas id="revMixChart" height="260"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ EXPENSES ════ -->
+<div id="page-expenses" class="page">
+  <div class="page-hdr">
+    <div class="page-title">Operating <strong>Expenses</strong></div>
+    <div class="page-sub">Quickstep 485 · March &amp; April 2026 management accounts</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi kpi-red"><div class="kpi-label">April 2026 Total Opex</div><div class="kpi-val c-red">R 189k</div><div class="kpi-sub">vs R176k March (+7.4%)</div></div>
+    <div class="kpi kpi-amber"><div class="kpi-label">Mortgage Interest (Apr)</div><div class="kpi-val c-amber">R 101k</div><div class="kpi-sub">Largest single expense</div></div>
+    <div class="kpi kpi-blue"><div class="kpi-label">Salaries (Apr)</div><div class="kpi-val c-blue">R 26,402</div><div class="kpi-sub">Consistent with March</div></div>
+    <div class="kpi kpi-red"><div class="kpi-label">YTD Opex (Mar + Apr)</div><div class="kpi-val c-red">R 365k</div><div class="kpi-sub">vs YTD revenue R135k</div></div>
+  </div>
+
+  <div class="card gap">
+    <div class="card-hdr"><div><div class="card-title">Expense Detail · QS485</div><div class="card-sub">March &amp; April 2026</div></div></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Expense Item</th><th>March 2026 (R)</th><th>April 2026 (R)</th><th>YTD (R)</th><th>% of Apr Opex</th></tr></thead>
+        <tbody>
+          <tr><td>Interest Paid — Mortgage Bond</td><td class="nn">60,280</td><td class="nn">101,341</td><td class="nn">161,621</td><td class="na">53.5%</td></tr>
+          <tr><td>Salaries &amp; Wages</td><td>26,185</td><td>26,402</td><td>52,587</td><td>13.9%</td></tr>
+          <tr><td>Property Rates</td><td>16,850</td><td>17,437</td><td>34,287</td><td>9.2%</td></tr>
+          <tr><td>Levies</td><td>10,961</td><td>10,961</td><td>21,921</td><td>5.8%</td></tr>
+          <tr><td>Insurance</td><td>18,093</td><td>1,891</td><td>19,984</td><td>1.0%</td></tr>
+          <tr><td>Computer Expense</td><td>11,303</td><td>—</td><td>11,303</td><td>—</td></tr>
+          <tr><td>Repairs &amp; Maintenance</td><td>7,470</td><td>7,986</td><td>15,456</td><td>4.2%</td></tr>
+          <tr><td>Fuel / Gas</td><td>2,865</td><td>3,915</td><td>6,781</td><td>2.1%</td></tr>
+          <tr><td>Motor Vehicle Expenses</td><td>10,616</td><td>—</td><td>10,616</td><td>—</td></tr>
+          <tr><td>Accounting Fees</td><td>3,202</td><td>5,000</td><td>8,202</td><td>2.6%</td></tr>
+          <tr><td>Consulting Fees</td><td>—</td><td>5,400</td><td>5,400</td><td>2.9%</td></tr>
+          <tr><td>Linen / Small Appliances</td><td>1,633</td><td>2,434</td><td>4,067</td><td>1.3%</td></tr>
+          <tr><td>Electricity</td><td>(137)</td><td>396</td><td>259</td><td>0.2%</td></tr>
+          <tr><td>Other (bank, data, subs, water)</td><td>6,893</td><td>6,123</td><td>13,016</td><td>3.2%</td></tr>
+          <tr class="tr-total"><td>Total Operating Expenses</td><td class="nn">176,214</td><td class="nn">189,285</td><td class="nn">365,499</td><td class="nn">100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════ LIABILITIES ════ -->
+<div id="page-liabilities" class="page">
+  <div class="page-hdr">
+    <div class="page-title">Liabilities <strong>&amp; Debt</strong></div>
+    <div class="page-sub">QS485 · FY2025 AFS and April 2026 management accounts</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi kpi-red"><div class="kpi-label">Total Liabilities (FY2025)</div><div class="kpi-val c-red">R 23.1m</div><div class="kpi-sub">vs R14.9m prior year</div></div>
+    <div class="kpi kpi-amber"><div class="kpi-label">Bank Debt — Investec</div><div class="kpi-val c-amber">R 4.87m</div><div class="kpi-sub">Allenby House · prime rate</div></div>
+    <div class="kpi kpi-blue"><div class="kpi-label">Director Loan (SBH)</div><div class="kpi-val c-blue">R 8.78m</div><div class="kpi-sub">Unsecured · no fixed repayment</div></div>
+    <div class="kpi kpi-amber"><div class="kpi-label">Mortgage Placeholders</div><div class="kpi-val c-amber">~R 9.0m</div><div class="kpi-sub">FNB Ebony ~R4m + Investec MP ~R5m</div></div>
+  </div>
+
+  <div class="g2">
+    <div class="card gap">
+      <div class="card-hdr"><div><div class="card-title">Non-Current Liabilities · QS485</div><div class="card-sub">FY2025 AFS</div></div></div>
+      <div class="card-body">
+        <table>
+          <thead><tr><th>Creditor</th><th>Security</th><th>FY2025 (R)</th></tr></thead>
+          <tbody>
+            <tr><td>Investec — Allenby House</td><td>Secured over property</td><td class="nn">4,871,953</td></tr>
+            <tr><td>SB Harris (Director Loan)</td><td>Unsecured</td><td>8,784,811</td></tr>
+            <tr><td>SBH Family Trust (Shareholder)</td><td>Unsecured</td><td>247,831</td></tr>
+            <tr><td>Paul Staveley Howard</td><td>Unsecured</td><td>2,151,000</td></tr>
+            <tr><td>Wessels Family Trust</td><td>Unsecured</td><td>6,019,200</td></tr>
+            <tr><td>GGG Holdings</td><td>Unsecured</td><td>350,357</td></tr>
+            <tr class="tr-total"><td>Total Non-Current</td><td></td><td class="nn">22,425,152</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card gap">
+      <div class="card-hdr"><div><div class="card-title">Mortgages · April 2026</div><div class="card-sub">Management accounts — placeholders</div></div><span class="card-badge cb-amber">Estimate</span></div>
+      <div class="card-body">
+        <table>
+          <thead><tr><th>Property</th><th>Lender</th><th>Balance (R)</th></tr></thead>
+          <tbody>
+            <tr><td>11 Mount Prospect, Constantia</td><td>Investec</td><td class="nn">~5,000,000</td></tr>
+            <tr><td>21 Ebony Road, Tokai</td><td>FNB</td><td class="nn">~4,000,000</td></tr>
+            <tr><td>Allenby House, Constantia</td><td>Investec</td><td class="nn">4,786,009</td></tr>
+            <tr class="tr-total"><td>Total Mortgages</td><td></td><td class="nn">~13,786,009</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:14px" class="note amber"><strong>Placeholders:</strong> Mount Prospect and Ebony Road balances to be confirmed from bank statements. Investec Allenby House from FY2025 AFS (monthly instalment R49,141 at 10.25% pa).</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ PROPERTIES ════ -->
+<div id="page-properties" class="page">
+  <div class="page-hdr">
+    <div class="page-title">Property <strong>Portfolio</strong></div>
+    <div class="page-sub">All properties held by Quickstep 485 · Directors' indicative values</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi kpi-blue"><div class="kpi-label">Portfolio Gross Value</div><div class="kpi-val c-blue">R 52.0m</div><div class="kpi-sub">Directors' indicative values</div></div>
+    <div class="kpi kpi-red"><div class="kpi-label">Total Mortgage Debt</div><div class="kpi-val c-red">~R 13.8m</div><div class="kpi-sub">Across all properties</div></div>
+    <div class="kpi kpi-green"><div class="kpi-label">Net Property Equity</div><div class="kpi-val c-green">~R 38.2m</div><div class="kpi-sub">Gross less mortgages</div></div>
+    <div class="kpi kpi-amber"><div class="kpi-label">AFS Book Value</div><div class="kpi-val c-amber">R 20.2m</div><div class="kpi-sub">Investment property — cost model</div></div>
+  </div>
+
+  <div class="card gap">
+    <div class="card-hdr"><div><div class="card-title">Property Detail</div><div class="card-sub">All figures ZAR</div></div></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Property</th><th>Location</th><th>Use</th><th>Dir. Value (R)</th><th>Mortgage (R)</th><th>Net Equity (R)</th><th>Rental / mo</th></tr></thead>
+        <tbody>
+          <tr><td>11 Mount Prospect Drive</td><td>Constantia</td><td><span class="pill pill-navy">Residence</span></td><td class="np">20,000,000</td><td class="nn">~5,000,000</td><td class="np">~15,000,000</td><td class="ng">—</td></tr>
+          <tr><td>21 Ebony Road</td><td>Tokai</td><td><span class="pill pill-teal">Rental</span></td><td class="np">12,000,000</td><td class="nn">~4,000,000</td><td class="np">~8,000,000</td><td class="np">30,000</td></tr>
+          <tr><td>Unit 6, Newlands Peak</td><td>Newlands</td><td><span class="pill pill-amber">Apartment</span></td><td class="np">4,500,000</td><td class="ng">—</td><td class="np">4,500,000</td><td class="ng">TBC</td></tr>
+          <tr><td>Royal &amp; Ancient, Fourways Golf Park</td><td>Fourways</td><td><span class="pill pill-teal">Commercial</span></td><td class="np">6,000,000</td><td class="ng">—</td><td class="np">6,000,000</td><td class="np">75,000</td></tr>
+          <tr><td>Allenby House, Constantia</td><td>Constantia</td><td><span class="pill pill-navy">Commercial</span></td><td>13,351,927</td><td class="nn">4,786,009</td><td class="np">8,565,918</td><td class="np">67,247</td></tr>
+          <tr><td>Portion 5, Fourways Ext 29</td><td>Fourways</td><td><span class="pill pill-teal">Commercial</span></td><td>2,516,187</td><td class="ng">—</td><td class="np">2,516,187</td><td class="ng">TBC</td></tr>
+          <tr class="tr-total"><td>Portfolio Total</td><td></td><td></td><td class="nb">~58.4m</td><td class="nn">~13.8m</td><td class="np">~44.6m</td><td class="np">172,247</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</main>
+</div><!-- /shell -->
+
+<script>
+// Live date
+document.getElementById('liveDate').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+
+// Embed / deep-link support: ?view=sbh|trusts opens the right area; ?embed=1 trims chrome for the LifePlatform Finance tab
+(function(){
+  const q=new URLSearchParams(location.search);
+  if(q.get('embed')==='1') document.body.classList.add('embedded');
+  const view=(q.get('view')||'').toLowerCase();
+  if(view==='trusts'){ const el=document.querySelector('.nav-item[onclick*="structure"]'); if(el) nav('structure',el); }
+  else if(view==='sbh'){ const el=document.querySelector('.nav-item[onclick*="overview"]'); if(el) nav('overview',el); }
+})();
+
+// Navigation
+function nav(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// Tabs
+function tab(el,paneId){
+  const body=el.closest('.card-body');
+  body.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
+  body.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  body.querySelector('#'+paneId).classList.add('active');
+}
+
+// Chart defaults
+Chart.defaults.font.family="'Libre Franklin',sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#6f8a88';
+const T='#0a8a96',TM='#075e66',N='#356fa0',NM='#2c5d87',A='#c8932f',R='#cb463c',G='#1f9b58';
+
+// Income vs Expenses
+new Chart(document.getElementById('incExpChart'),{
+  type:'bar',
+  data:{
+    labels:['March 2026','April 2026'],
+    datasets:[
+      {label:'Revenue',data:[67276,67247],backgroundColor:'rgba(10,138,150,.75)',borderRadius:6,borderSkipped:false},
+      {label:'Expenses',data:[176214,189285],backgroundColor:'rgba(203,70,60,.7)',borderRadius:6,borderSkipped:false},
+      {label:'Net',data:[-108938,-122038],backgroundColor:'rgba(200,147,47,.65)',borderRadius:6,borderSkipped:false}
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top',labels:{usePointStyle:true,pointStyle:'circle',padding:14}},tooltip:{callbacks:{label:c=>' R '+c.parsed.y.toLocaleString('en-ZA')}}},scales:{y:{grid:{color:'rgba(53,111,160,.06)'},ticks:{callback:v=>'R '+(v/1000).toFixed(0)+'k'}},x:{grid:{display:false}}}}
+});
+
+// QS485 Asset Composition (replaces nonsensical parent/child equity split)
+new Chart(document.getElementById('eqPieChart'),{
+  type:'doughnut',
+  data:{labels:['GGG Holdings (18%)','Investment Property','PP&E','Cash & Receivables'],datasets:[{data:[64620000,20229039,843183,437919],backgroundColor:[N,T,A,G],borderWidth:0,hoverOffset:6}]},
+  options:{responsive:true,cutout:'68%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:12,font:{size:10}}},tooltip:{callbacks:{label:c=>' R '+(c.parsed/1000000).toFixed(1)+'m ('+(c.parsed/86130141*100).toFixed(1)+'%)'}}}}
+});
+
+// Asset allocation
+new Chart(document.getElementById('assetAllocChart'),{
+  type:'doughnut',
+  data:{labels:['GGG Investment','Investment Property','PP&E','Current Assets'],datasets:[{data:[64620000,20229039,843183,437919],backgroundColor:[N,T,A,G],borderWidth:0,hoverOffset:6}]},
+  options:{responsive:true,cutout:'65%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:10,font:{size:10}}},tooltip:{callbacks:{label:c=>' R '+(c.parsed/1000000).toFixed(1)+'m'}}}}
+});
+
+// Revenue mix
+new Chart(document.getElementById('revMixChart'),{
+  type:'doughnut',
+  data:{labels:['GGG Distribution','Office Rental','Consulting (Lacotte)','Ebony Rental'],datasets:[{data:[70000,67247,35000,30000],backgroundColor:[N,T,A,G],borderWidth:0,hoverOffset:6}]},
+  options:{responsive:true,cutout:'65%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:10,font:{size:10}}},tooltip:{callbacks:{label:c=>' R '+c.parsed.toLocaleString('en-ZA')+'/mo'}}}}
+});
+
+// QS PL chart
+new Chart(document.getElementById('qsPLChart'),{
+  type:'bar',
+  data:{
+    labels:['Mar','Apr'],
+    datasets:[
+      {label:'Revenue',data:[67276,67247],backgroundColor:'rgba(10,138,150,.75)',borderRadius:5,borderSkipped:false},
+      {label:'Expenses',data:[176214,189285],backgroundColor:'rgba(203,70,60,.7)',borderRadius:5,borderSkipped:false}
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top',labels:{usePointStyle:true,pointStyle:'circle',padding:10,font:{size:10}}}},scales:{y:{grid:{color:'rgba(53,111,160,.06)'},ticks:{callback:v=>'R '+(v/1000).toFixed(0)+'k'}},x:{grid:{display:false}}}}
+});
+</script>
+</body>
+</html>

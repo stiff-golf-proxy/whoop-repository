@@ -374,11 +374,11 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   <section id="pane-home" class="pane active"></section>
   <section id="pane-finance" class="pane">
     <div class="seg" role="tablist">
-      <button class="seg-btn active" id="seg-wealth" onclick="finTab('wealth')">Net worth</button>
-      <button class="seg-btn" id="seg-retire" onclick="finTab('retire')">Retirement</button>
+      <button class="seg-btn active" id="seg-sbh" onclick="finTab('sbh')">SBH</button>
+      <button class="seg-btn" id="seg-trusts" onclick="finTab('trusts')">Trusts</button>
     </div>
-    <div id="pane-wealth"></div>
-    <div id="pane-retire" style="display:none"></div>
+    <iframe id="famFrame" title="SBH Family Portfolio" src="about:blank"
+      style="width:100%;height:82vh;min-height:720px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:var(--shadow)"></iframe>
   </section>
   <section id="pane-golf" class="pane"></section>
   <section id="pane-run" class="pane"></section>
@@ -2051,20 +2051,22 @@ overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 function go(pane){ const b=document.querySelector(`.nav button[data-pane="${pane}"]`); if(b)b.click(); }
-// Finance sub-tabs (Net worth | Retirement live under one Finance section)
+// Finance sub-tabs — SBH | Trusts load the (restyled) family dashboard embedded from the proxy
 function finTab(which){
-  const w=document.getElementById('pane-wealth'), r=document.getElementById('pane-retire');
-  if(w) w.style.display = which==='wealth'?'block':'none';
-  if(r) r.style.display = which==='retire'?'block':'none';
-  const sw=document.getElementById('seg-wealth'), sr=document.getElementById('seg-retire');
-  if(sw) sw.classList.toggle('active', which==='wealth');
-  if(sr) sr.classList.toggle('active', which==='retire');
+  const v = which==='trusts' ? 'trusts' : 'sbh';
+  const f=document.getElementById('famFrame');
+  if(f){ const base=proxyBase()||''; f.src = base + '/family?embed=1&view='+v; }
+  const s1=document.getElementById('seg-sbh'), s2=document.getElementById('seg-trusts');
+  if(s1) s1.classList.toggle('active', v==='sbh');
+  if(s2) s2.classList.toggle('active', v==='trusts');
 }
 document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
   document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
   document.getElementById('pane-'+b.dataset.pane).classList.add('active');
+  // lazy-load the family dashboard the first time Finance is opened
+  if(b.dataset.pane==='finance'){ const f=document.getElementById('famFrame'); if(f && (!f.src || /about:blank/.test(f.src))) finTab('sbh'); }
   window.scrollTo({top:0,behavior:'smooth'});
 }));
 
@@ -2620,7 +2622,7 @@ function heroHome(){
     </div></div>`;
 }
 
-function renderAll(){ renderHome();renderWealth();renderRetire();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals(); }
+function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals(); }
 document.getElementById('todayStr').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 renderAll();
 </script>

@@ -449,6 +449,12 @@ function serveApp(req, res){
 }
 app.get('/', serveApp);
 app.get('/app', serveApp);
+// SBH family-portfolio dashboard, embedded in the LifePlatform Finance tab
+const FAMILY_FILE = path.join(__dirname, 'family.html');
+app.get('/family', (req, res) => {
+  if (fs.existsSync(FAMILY_FILE)) return res.sendFile(FAMILY_FILE);
+  res.status(404).send('family.html not found in the deploy.');
+});
 app.get('/status', (req, res) => {
   let persistent = false;
   try { if (DATA_DIR && DATA_DIR !== '.') { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.accessSync(DATA_DIR, fs.constants.W_OK); persistent = true; } } catch (e) {}
