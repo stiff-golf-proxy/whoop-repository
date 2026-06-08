@@ -1400,7 +1400,10 @@ function renderRetire(){
 
    <div class="grid g2">
      <div class="card card-pad">
-       <div class="kicker">Your assumptions</div><div class="h-sec">Tune the plan</div>
+       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
+         <div><div class="kicker">Your assumptions</div><div class="h-sec" style="margin-bottom:0">Tune the plan</div></div>
+         <button class="btn" onclick="resetRet()" style="font-size:12px;padding:6px 12px">Reset defaults</button>
+       </div>
        <div class="slider-row"><label>Annual investment return <b id="lg">${r.growth}%</b></label>
          <input type="range" min="3" max="13" step="0.5" value="${r.growth}" oninput="setRet('growth',+this.value)"></div>
        <div class="slider-row"><label>Inflation <b id="li">${r.inflation}%</b></label>
@@ -1476,7 +1479,7 @@ function setRet(k,v){
     {h:240,area:true,dots:false,minY:0,yFmt:v=>ZARk(v),xFmt:v=>Math.round(v),maxXLabels:7})+
     '<div class="legend"><span><span class="dot" style="background:var(--terra)"></span>Projected capital growth to age 60</span></div>';
 }
-/* ============ RUNNING ============ */
+function resetRet(){ DB.retire=null; save(); _retireRendered=false; renderRetire(); toast('Assumptions reset to defaults'); }
 function runYearTotals(){
   const out=[];
   for(const y in DB.run){ let run=0,cyc=0,n=0;
