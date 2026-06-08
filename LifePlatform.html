@@ -170,7 +170,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .empty{text-align:center;padding:46px 20px;color:var(--ink-faint);font-family:var(--serif);font-style:italic}
 
 @media(max-width:860px){
-  .g4{grid-template-columns:1fr 1fr.whoop-kpi-grid{grid-template-columns:repeat(3,1fr)!important}}.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}
+  .g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}
   .ring-wrap{flex-direction:column;align-items:flex-start}
   .wrap{padding:0 18px 90px}
 }
@@ -206,7 +206,6 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   .tk-grid{grid-template-columns:1fr!important}
   .daily-close-grid{grid-template-columns:1fr!important}
   .hero-stats{grid-template-columns:1fr 1fr!important}
-  .whoop-kpi-grid{grid-template-columns:1fr 1fr!important}
 }
 
 /* ---- tasks / projects module ---- */
@@ -297,7 +296,6 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .coach-backdrop{position:fixed;inset:0;background:rgba(20,40,40,.28);backdrop-filter:blur(2px);z-index:75;display:none}
 .coach-backdrop.show{display:block}
 .daily-close-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.whoop-kpi-grid{grid-template-columns:repeat(5,1fr)}
 @media(max-width:560px){ .coach-fab{right:16px;bottom:16px;padding:13px 17px} .coach-drawer{width:100vw} }
 
 /* ---- Goals (screen-privacy gated) ---- */
@@ -704,7 +702,7 @@ function morningBriefing(){
 /* ---- WHOOP readiness card (recovery + sleep + strain target) ---- */
 function cardReadiness(){
   const w=DB.whoop||{}; const rec=(w.recovery||[]); const slp=(w.sleep||[]); const cyc=(w.cycles||[]);
-  const lastRec=rec[rec.length-1], lastSlp=slp[slp.length-1], lastCyc=cyc[cyc.length-1];
+  const lastRec=rec[rec.length-1], lastSlp=slp[slp.length-1];
   if(!lastRec){
     return `<div class="card card-pad"><div class="kicker">Readiness</div><div class="h-sec">WHOOP</div>
       <div class="empty">No WHOOP data yet. <a onclick="go('whoop')" style="color:var(--terra);cursor:pointer;text-decoration:underline">Connect in the WHOOP tab →</a></div></div>`;
@@ -725,7 +723,6 @@ function cardReadiness(){
         <div class="dlin">Time asleep<span class="v">${lastSlp?fmtDur(lastSlp.durationMs):'—'}</span></div>
         <div class="dlin">HRV<span class="v">${todHrv!=null?Math.round(todHrv)+' ms':'—'}</span></div>
         <div class="dlin">Resting HR<span class="v">${lastRec.rhr!=null?Math.round(lastRec.rhr)+' bpm':'—'}</span></div>
-        <div class="dlin">Steps today<span class="v" style="color:${(()=>{const s=lastCyc&&lastCyc.steps;return s==null?'var(--ink-faint)':s>=10000?'var(--good)':s>=7000?'var(--warn)':'var(--bad)'})()">${lastCyc&&lastCyc.steps!=null?lastCyc.steps.toLocaleString('en-ZA'):'—'}</span></div>
       </div>
     </div>
     <div style="margin-top:16px;padding:13px 16px;background:var(--paper);border-radius:11px;border-left:3px solid ${col}">
@@ -1959,51 +1956,122 @@ const GOLF_CSV_MAP={'date':'date','club type':'clubRaw','club name':'clubName','
   'launch direction':'launchDir','backspin':'backspin','sidespin':'sidespin','spin rate':'spinRate','apex height':'apex',
   'carry distance':'carry','carry deviation distance':'carryDev','total distance':'total','total deviation distance':'totalDev'};
 
-/* ---- Manual round entry ---- */
+/* ---- Round entry via Garmin scorecard image (Claude vision) ---- */
 function openRoundEntry(){
-  const d=new Date(); const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  showModal(`<div class="modal-head"><div><h2>Log a round</h2><div class="ms">Enter your scorecard manually — holes or total</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
-    <div class="modal-body">
-      <div class="row2">
-        <div class="field"><label>Course</label><input id="rnd_course" placeholder="e.g. Westlake Golf Club"></div>
-        <div class="field"><label>Date</label><input id="rnd_date" type="date" value="${today}"></div>
-      </div>
-      <div class="row3">
-        <div class="field"><label>Format</label><select id="rnd_format"><option>Stroke Play</option><option>Stableford</option><option>Match Play</option></select></div>
-        <div class="field"><label>Par</label><input id="rnd_par" type="number" value="72" min="60" max="80"></div>
-        <div class="field"><label>Location</label><input id="rnd_loc" placeholder="e.g. Cape Town, Western Cape"></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>Front 9 (or leave blank)</label><input id="rnd_out" type="number" min="27" max="65" placeholder="e.g. 38"></div>
-        <div class="field"><label>Back 9 (or leave blank)</label><input id="rnd_in" type="number" min="27" max="65" placeholder="e.g. 39"></div>
-      </div>
-      <div class="field"><label>Total score (required)</label><input id="rnd_total" type="number" min="50" max="130" placeholder="e.g. 77"></div>
-      <button class="btn primary" onclick="saveRound()" style="margin-top:4px">Save round</button>
-    </div>`);
+  showModal(`<div class="modal-head">
+    <div><h2>Log a round</h2><div class="ms">Upload a photo of your Garmin scorecard — Claude reads it automatically</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button>
+  </div>
+  <div class="modal-body">
+    <div class="dz" id="rdz" onclick="document.getElementById('rndImg').click()">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+      <div class="dz-t">Drop scorecard image or tap to browse</div>
+      <div class="dz-s">Screenshot or photo of your Garmin Golf scorecard · PNG / JPG / WEBP</div>
+    </div>
+    <input type="file" id="rndImg" accept="image/*" style="display:none" onchange="handleRoundImage(this.files[0])">
+    <div id="rndPreview"></div>
+  </div>`);
+  // wire drag-drop
+  const dz=document.getElementById('rdz');
+  ['dragover','dragenter'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--terra)';}));
+  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--line2)';}));
+  dz.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0]) handleRoundImage(ev.dataTransfer.files[0]); });
 }
-function saveRound(){
-  const course=(document.getElementById('rnd_course').value||'').trim();
-  const total=parseInt(document.getElementById('rnd_total').value);
-  if(!course){toast('Enter a course name');return;}
-  if(isNaN(total)||total<50||total>130){toast('Enter a valid total score (50–130)');return;}
-  const out=parseInt(document.getElementById('rnd_out').value)||null;
-  const inn=parseInt(document.getElementById('rnd_in').value)||null;
-  const holes=(out&&inn)?Array(9).fill(null).map((_,i)=>i<9?Math.round(out/9):Math.round(inn/9)):[];
-  const r={
-    id:'r'+Date.now(),
-    course,
-    layout:null,
-    location:(document.getElementById('rnd_loc').value||'').trim()||null,
-    date:document.getElementById('rnd_date').value,
-    format:document.getElementById('rnd_format').value,
-    par:parseInt(document.getElementById('rnd_par').value)||72,
-    total,
-    holes
-  };
+
+async function handleRoundImage(file){
+  if(!file) return;
+  const preview=document.getElementById('rndPreview');
+  preview.innerHTML=`<div style="margin-top:16px;font-family:var(--serif);font-style:italic;color:var(--ink-faint)">Reading scorecard…</div>`;
+
+  // Convert image to base64
+  const base64 = await new Promise((res,rej)=>{
+    const reader=new FileReader();
+    reader.onload=e=>res(e.target.result.split(',')[1]);
+    reader.onerror=()=>rej(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+  const mediaType = file.type || 'image/jpeg';
+
+  // Call Claude via proxy's /coach route with image content
+  // We send to the Anthropic API directly (proxy just forwards)
+  const base=proxyBase();
+  if(!base){ preview.innerHTML=`<div style="color:var(--bad);font-family:var(--mono);font-size:13px;margin-top:16px">Proxy not connected — connect your proxy first.</div>`; return; }
+
+  try{
+    const resp = await fetch(base+'/vision', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        image: base64,
+        media_type: mediaType,
+        prompt: `This is a Garmin Golf scorecard screenshot or photo. Extract the round data and return ONLY a valid JSON object — no markdown, no code fences, no explanation, just raw JSON:
+{
+  "course": "full course name as shown",
+  "date": "YYYY-MM-DD",
+  "par": 72,
+  "total": 81,
+  "out": 40,
+  "in": 41,
+  "holes": [4,5,3,4,4,3,5,4,5,4,4,5,4,3,4,6,3,4]
+}
+holes must be an array of 18 integers, front 9 first then back 9. If a field is not visible use null. Date must be YYYY-MM-DD format.`
+      })
+    });
+    if(!resp.ok){ const t=await resp.text(); throw new Error('Vision API '+resp.status+': '+t.slice(0,120)); }
+    const data=await resp.json();
+    const text=(data.text||'').replace(/^```[a-z]*\n?/,'').replace(/\n?```$/,'').trim();
+    const round=JSON.parse(text);
+    showRoundPreview(round, base64, mediaType);
+  } catch(err){
+    preview.innerHTML=`<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ ${err.message}</div>
+      <div style="margin-top:12px;font-family:var(--serif);font-size:13px;color:var(--ink-soft)">Make sure the image is a clear screenshot of the Garmin scorecard and the proxy is connected.</div>`;
+  }
+}
+
+function showRoundPreview(r, base64, mediaType){
+  const prev=document.getElementById('rndPreview');
+  const holeNums=Array.from({length:18},(_,i)=>i+1);
+  const holesHtml=(r.holes&&r.holes.length>=18)
+    ? `<div style="overflow-x:auto;margin:10px 0"><table class="clean" style="font-size:12px">
+        <thead><tr><th>Hole</th>${holeNums.slice(0,9).map(n=>`<th class="r">${n}</th>`).join('')}<th class="r" style="background:var(--paper2)">Out</th>${holeNums.slice(9).map(n=>`<th class="r">${n}</th>`).join('')}<th class="r" style="background:var(--paper2)">In</th><th class="r" style="background:var(--paper2)">Total</th></tr></thead>
+        <tbody><tr><td>Score</td>${r.holes.slice(0,9).map(h=>`<td class="r mono">${h??'—'}</td>`).join('')}<td class="r mono" style="background:var(--paper2);font-weight:700">${r.out??'—'}</td>${r.holes.slice(9).map(h=>`<td class="r mono">${h??'—'}</td>`).join('')}<td class="r mono" style="background:var(--paper2);font-weight:700">${r.in??'—'}</td><td class="r mono" style="background:var(--paper2);font-weight:700">${r.total}</td></tr></tbody>
+      </table></div>`
+    : `<div style="font-family:var(--mono);font-size:13px;margin:8px 0">Total: <b>${r.total}</b></div>`;
+
+  const ov=(r.total&&r.par)?(r.total-r.par):null;
+  prev.innerHTML=`<div style="margin-top:18px;padding:18px;background:var(--paper);border:1px solid var(--line2);border-radius:14px">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;flex-wrap:wrap">
+      <div style="font-family:var(--disp);font-weight:700;font-size:22px">${r.course||'Unknown course'}</div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">${r.date||'—'} · Par ${r.par||72}</div>
+      ${ov!=null?`<div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${ov>0?'var(--bad)':'var(--good)'}">${ov>0?'+':''}${ov}</div>`:''}
+    </div>
+    ${holesHtml}
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn primary" onclick="commitRound(${JSON.stringify(JSON.stringify(r))})">Save this round</button>
+      <button class="btn" onclick="document.getElementById('rndImg').click()">Try a different image</button>
+    </div>
+  </div>`;
+  window._pendingRound=r;
+}
+
+function commitRound(jsonStr){
+  const r=typeof jsonStr==='string'?JSON.parse(jsonStr):(window._pendingRound||jsonStr);
+  if(!r||!r.total){ toast('No round data to save'); return; }
   DB.golf=DB.golf||{shots:[],rounds:[]};
-  DB.golf.rounds.push(r);
+  DB.golf.rounds.push({
+    id:'r'+Date.now(),
+    course:r.course||'Unknown',
+    layout:r.layout||null,
+    location:r.location||null,
+    date:r.date||new Date().toISOString().slice(0,10),
+    format:r.format||'Stroke Play',
+    par:r.par||72,
+    total:r.total,
+    holes:r.holes||[]
+  });
+  window._pendingRound=null;
   save(); closeModal(); renderGolf(); renderHome();
-  toast(`Round logged: ${total} at ${course}`);
+  toast(`Round saved: ${r.total} at ${r.course||'course'}`);
 }
 function openGolfImport(){
   showModal(`<div class="modal-head"><div><h2>Import range session</h2><div class="ms">Drop a Garmin / launch-monitor CSV — clubs map to your bag automatically</div></div>
@@ -2439,15 +2507,11 @@ function renderWhoop(){
   const strainAvg=avgKey(recent(w.cycles.length?w.cycles:wk,7),'strain');
 
   const recColor=v=> v==null?'var(--ink-faint)': v>=67?'var(--good)': v>=34?'var(--warn)':'var(--bad)';
-  const lastCycSteps=w.cycles.length?w.cycles[w.cycles.length-1].steps:null;
-  const stepsGoal=10000;
-  const stepsColor=lastCycSteps==null?'var(--ink-faint)':lastCycSteps>=stepsGoal?'var(--good)':lastCycSteps>=7000?'var(--warn)':'var(--bad)';
   const tiles=[
     {bar:recColor(lastRec&&lastRec.recovery),lbl:'Recovery Today',num:(lastRec&&lastRec.recovery!=null?Math.round(lastRec.recovery)+'<small>%</small>':'—'),foot:lastRec?fmtDate(lastRec.date):''},
     {bar:'var(--sky)',lbl:'HRV · 7-day',num:(hrvAvg!=null?Math.round(hrvAvg)+'<small> ms</small>':'—'),foot:lastRec&&lastRec.hrv!=null?`latest ${Math.round(lastRec.hrv)} ms`:''},
     {bar:'var(--sage)',lbl:'Resting HR · 7-day',num:(rhrAvg!=null?Math.round(rhrAvg)+'<small> bpm</small>':'—'),foot:lastRec&&lastRec.rhr!=null?`latest ${Math.round(lastRec.rhr)} bpm`:''},
     {bar:'var(--gold)',lbl:'Sleep Perf · 7-day',num:(slpAvg!=null?Math.round(slpAvg)+'<small>%</small>':'—'),foot:lastSlp?`last ${fmtDur(lastSlp.durationMs)}`:''},
-    {bar:stepsColor,lbl:'Steps Today',num:(lastCycSteps!=null?lastCycSteps.toLocaleString('en-ZA')+'<small> steps</small>':'—'),foot:lastCycSteps!=null?(lastCycSteps>=stepsGoal?'✓ Goal hit':''+Math.round(lastCycSteps/stepsGoal*100)+'% of 10k goal'):'Not in WHOOP API — see note'},
   ];
 
   // charts
@@ -2492,7 +2556,7 @@ function renderWhoop(){
      <button class="btn" onclick="openWhoopSettings()">Settings</button>
      <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${w.lastSync?'last sync '+fmtDate(w.lastSync.slice(0,10)):'manual mode'} · ${rec.length} days</span>
    </div>
-   <div class="grid whoop-kpi-grid" style="gap:14px;margin-bottom:24px">
+   <div class="grid g4" style="margin-bottom:24px">
      ${tiles.map(t=>`<div class="card tile"><div class="accent-bar" style="background:${t.bar}"></div><div class="lbl">${t.lbl}</div><div class="num">${t.num}</div><div class="foot">${t.foot}</div></div>`).join('')}
    </div>
    <div class="grid g2" style="margin-bottom:22px">
@@ -2503,7 +2567,6 @@ function renderWhoop(){
      <div class="card card-pad"><div class="kicker">21 days</div><div class="h-sec">Daily strain<span class="sub">0–21 scale</span></div>${strainChart}</div>
      ${stageHtml||'<div class="card card-pad"><div class="empty">No sleep-stage data yet</div></div>'}
    </div>
-   ${(()=>{ const stepsData=w.cycles.filter(c=>c.steps!=null); if(!stepsData.length) return \`<div class="card card-pad" style="margin-bottom:22px"><div class="kicker">Steps</div><div class="h-sec">Daily step count<span class="sub">not available via WHOOP API</span></div><div class="coach" style="margin:0"><div class="q">Why no steps?</div><p>WHOOP's developer API does not expose step count — it only appears inside the WHOOP app. If you export your data from the WHOOP app (Account → Export Health Data), import the <b>Cycles</b> JSON here and steps will appear if present. 10,000 steps/day is a reasonable daily target for longevity.</p></div></div>\`; const sc=barChart(recent(stepsData,21).map(r=>({label:r.date.slice(5),value:r.steps||0,color:r.steps>=10000?'var(--good)':r.steps>=7000?'var(--warn)':'var(--bad)'})),{h:200,yFmt:v=>v>=1000?(v/1000).toFixed(0)+'k':v,labStep:3,showVal:false}); return \`<div class="card card-pad" style="margin-bottom:22px"><div class="kicker">21 days · daily steps</div><div class="h-sec">Step count<span class="sub">10,000 target</span></div>\${sc}<div style="display:flex;gap:16px;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--ink-faint)"><span style="color:var(--good)">■ ≥10k</span><span style="color:var(--warn)">■ 7–10k</span><span style="color:var(--bad)">■ &lt;7k</span></div></div>\`; })()}
    ${whoopTraining(w)}
    ${wkRows?`<div class="card card-pad" style="margin-top:22px"><div class="kicker">Activity</div><div class="h-sec">Recent workouts</div>
      <div class="scroll-x"><table class="clean"><thead><tr><th>Date</th><th>Sport</th><th class="r">Strain</th><th class="r">Avg HR</th><th class="r">Distance</th><th class="r">Duration</th></tr></thead><tbody>${wkRows}</tbody></table></div></div>`:''}

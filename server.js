@@ -189,8 +189,7 @@ const mapWorkout = r => ({ date:(r.start||'').slice(0,10), sport:r.sport_name||'
   avgHr:r.score?.average_heart_rate ?? null, maxHr:r.score?.max_heart_rate ?? null, kilojoule:r.score?.kilojoule ?? null,
   distanceM:r.score?.distance_meter ?? null, durationMs:(r.start&&r.end)?(new Date(r.end)-new Date(r.start)):null });
 const mapCycle = r => ({ date:(r.start||'').slice(0,10), strain:r.score?.strain ?? null,
-  avgHr:r.score?.average_heart_rate ?? null, maxHr:r.score?.max_heart_rate ?? null, kilojoule:r.score?.kilojoule ?? null,
-  steps:r.score?.step_count ?? null });
+  avgHr:r.score?.average_heart_rate ?? null, maxHr:r.score?.max_heart_rate ?? null, kilojoule:r.score?.kilojoule ?? null });
 
 const handler = (path, mapper) => async (req, res) => {
   try {
@@ -382,6 +381,42 @@ app.post('/coach', async (req, res) => {
     const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
     res.json({ reply: reply || '(no reply)' });
   } catch (e) { console.log('[COACH] failed', e.message); res.status(500).json({ error: e.message }); }
+});
+
+/* ============================================================
+   VISION — generic image analysis endpoint.
+   POST /vision  { image: "<base64>", media_type: "image/jpeg", prompt: "..." }
+   Returns { text: "..." }
+   Used by the golf scorecard reader (and anything else needing vision).
+   ============================================================ */
+app.post('/vision', async (req, res) => {
+  try {
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (!key) return res.status(501).json({ error: 'ANTHROPIC_API_KEY not set on the proxy' });
+    const { image, media_type = 'image/jpeg', prompt = '' } = req.body || {};
+    if (!image) return res.status(400).json({ error: 'image field required (base64)' });
+    if (!prompt) return res.status(400).json({ error: 'prompt field required' });
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: COACH_MODEL,
+        max_tokens: 800,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type, data: image } },
+            { type: 'text', text: prompt }
+          ]
+        }]
+      })
+    });
+    const text = await r.text();
+    if (!r.ok) { console.log('[VISION] API error', r.status, text); return res.status(502).json({ error: `Claude API ${r.status}` }); }
+    const j = JSON.parse(text);
+    const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    res.json({ text: reply });
+  } catch (e) { console.log('[VISION] failed', e.message); res.status(500).json({ error: e.message }); }
 });
 
 /* ============================================================
