@@ -2192,15 +2192,15 @@ function showRoundPreview(r, base64, mediaType){
     </div>
     ${holesHtml}
     <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-      <button class="btn primary" onclick="commitRound(${JSON.stringify(JSON.stringify(r))})">Save this round</button>
+      <button class="btn primary" onclick="commitRound()">Save this round</button>
       <button class="btn" onclick="document.getElementById('rndImg').click()">Try a different image</button>
     </div>
   </div>`;
   window._pendingRound=r;
 }
 
-function commitRound(jsonStr){
-  const r=typeof jsonStr==='string'?JSON.parse(jsonStr):(window._pendingRound||jsonStr);
+function commitRound(){
+  const r=window._pendingRound;
   if(!r||!r.total){ toast('No round data to save'); return; }
   DB.golf=DB.golf||{shots:[],rounds:[]};
   DB.golf.rounds.push({
