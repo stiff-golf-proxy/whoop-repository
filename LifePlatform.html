@@ -2166,37 +2166,83 @@ holes must be an array of 18 integers, front 9 first then back 9. If a field is 
     const data=await resp.json();
     const text=(data.text||'').replace(/^```[a-z]*\n?/,'').replace(/\n?```$/,'').trim();
     const round=JSON.parse(text);
-    showRoundPreview(round, base64, mediaType);
+    showRoundPreview(round);
   } catch(err){
     preview.innerHTML=`<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ ${err.message}</div>
       <div style="margin-top:12px;font-family:var(--serif);font-size:13px;color:var(--ink-soft)">Make sure the image is a clear screenshot of the Garmin scorecard and the proxy is connected.</div>`;
   }
 }
 
-function showRoundPreview(r, base64, mediaType){
-  const prev=document.getElementById('rndPreview');
-  const holeNums=Array.from({length:18},(_,i)=>i+1);
-  const holesHtml=(r.holes&&r.holes.length>=18)
-    ? `<div style="overflow-x:auto;margin:10px 0"><table class="clean" style="font-size:12px">
-        <thead><tr><th>Hole</th>${holeNums.slice(0,9).map(n=>`<th class="r">${n}</th>`).join('')}<th class="r" style="background:var(--paper2)">Out</th>${holeNums.slice(9).map(n=>`<th class="r">${n}</th>`).join('')}<th class="r" style="background:var(--paper2)">In</th><th class="r" style="background:var(--paper2)">Total</th></tr></thead>
-        <tbody><tr><td>Score</td>${r.holes.slice(0,9).map(h=>`<td class="r mono">${h??'—'}</td>`).join('')}<td class="r mono" style="background:var(--paper2);font-weight:700">${r.out??'—'}</td>${r.holes.slice(9).map(h=>`<td class="r mono">${h??'—'}</td>`).join('')}<td class="r mono" style="background:var(--paper2);font-weight:700">${r.in??'—'}</td><td class="r mono" style="background:var(--paper2);font-weight:700">${r.total}</td></tr></tbody>
-      </table></div>`
-    : `<div style="font-family:var(--mono);font-size:13px;margin:8px 0">Total: <b>${r.total}</b></div>`;
-
-  const ov=(r.total&&r.par)?(r.total-r.par):null;
-  prev.innerHTML=`<div style="margin-top:18px;padding:18px;background:var(--paper);border:1px solid var(--line2);border-radius:14px">
-    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;flex-wrap:wrap">
-      <div style="font-family:var(--disp);font-weight:700;font-size:22px">${r.course||'Unknown course'}</div>
-      <div style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">${r.date||'—'} · Par ${r.par||72}</div>
-      ${ov!=null?`<div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${ov>0?'var(--bad)':'var(--good)'}">${ov>0?'+':''}${ov}</div>`:''}
-    </div>
-    ${holesHtml}
-    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-      <button class="btn primary" onclick="commitRound()">Save this round</button>
-      <button class="btn" onclick="document.getElementById('rndImg').click()">Try a different image</button>
-    </div>
-  </div>`;
+function showRoundPreview(r){
   window._pendingRound=r;
+  const prev=document.getElementById('rndPreview');
+  if(!prev) return;
+
+  const wrap=document.createElement('div');
+  wrap.style.cssText='margin-top:18px;padding:18px;background:var(--paper);border:1px solid var(--line2);border-radius:14px';
+
+  // Header
+  const head=document.createElement('div');
+  head.style.cssText='display:flex;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap';
+  const cname=document.createElement('div');
+  cname.style.cssText='font-family:var(--disp);font-weight:700;font-size:22px';
+  cname.textContent=r.course||'Unknown course';
+  const meta=document.createElement('div');
+  meta.style.cssText='font-family:var(--mono);font-size:12px;color:var(--ink-faint)';
+  meta.textContent=(r.date||'unknown date')+' · Par '+(r.par||72);
+  head.appendChild(cname); head.appendChild(meta);
+  if(r.total&&r.par){
+    const ov=r.total-r.par;
+    const ovEl=document.createElement('div');
+    ovEl.style.cssText='font-family:var(--mono);font-size:14px;font-weight:700;color:'+(ov>0?'var(--bad)':'var(--good)');
+    ovEl.textContent=(ov>0?'+':'')+ov;
+    head.appendChild(ovEl);
+  }
+  wrap.appendChild(head);
+
+  // Holes table
+  if(r.holes&&r.holes.length>=18){
+    const scroll=document.createElement('div');
+    scroll.style.cssText='overflow-x:auto;margin:8px 0';
+    const tbl=document.createElement('table');
+    tbl.className='clean'; tbl.style.fontSize='12px';
+    const nums=Array.from({length:18},function(_,i){return i+1;});
+    const thead=tbl.createTHead(); const hrow=thead.insertRow();
+    ['Hole'].concat(nums.slice(0,9),['Out'],nums.slice(9),['In','Tot']).forEach(function(h,i){
+      const th=document.createElement('th');
+      th.textContent=h; if(i>0) th.className='r';
+      if(h==='Out'||h==='In'||h==='Tot') th.style.background='var(--paper2)';
+      hrow.appendChild(th);
+    });
+    const tbody=tbl.createTBody(); const srow=tbody.insertRow();
+    const lbl=srow.insertCell(); lbl.textContent='Score';
+    r.holes.slice(0,9).forEach(function(h){ const td=srow.insertCell(); td.className='r mono'; td.textContent=(h!=null?h:'-'); });
+    const out=srow.insertCell(); out.className='r mono'; out.style.cssText='background:var(--paper2);font-weight:700'; out.textContent=(r.out!=null?r.out:'-');
+    r.holes.slice(9).forEach(function(h){ const td=srow.insertCell(); td.className='r mono'; td.textContent=(h!=null?h:'-'); });
+    const inn=srow.insertCell(); inn.className='r mono'; inn.style.cssText='background:var(--paper2);font-weight:700'; inn.textContent=(r.in!=null?r.in:'-');
+    const tot=srow.insertCell(); tot.className='r mono'; tot.style.cssText='background:var(--paper2);font-weight:700'; tot.textContent=r.total;
+    scroll.appendChild(tbl); wrap.appendChild(scroll);
+  } else {
+    const tot=document.createElement('div');
+    tot.style.cssText='font-family:var(--mono);font-size:15px;margin:10px 0';
+    tot.innerHTML='Total: <b>'+(r.total||'unknown')+'</b>';
+    wrap.appendChild(tot);
+  }
+
+  // Buttons wired with addEventListener - no onclick strings, no encoding issues
+  const btns=document.createElement('div');
+  btns.style.cssText='display:flex;gap:10px;margin-top:16px;flex-wrap:wrap';
+  const saveBtn=document.createElement('button');
+  saveBtn.className='btn primary'; saveBtn.textContent='Save this round';
+  saveBtn.addEventListener('click', commitRound);
+  const retryBtn=document.createElement('button');
+  retryBtn.className='btn'; retryBtn.textContent='Try a different image';
+  retryBtn.addEventListener('click', function(){ var fi=document.getElementById('rndImg'); if(fi) fi.click(); });
+  btns.appendChild(saveBtn); btns.appendChild(retryBtn);
+  wrap.appendChild(btns);
+
+  prev.innerHTML='';
+  prev.appendChild(wrap);
 }
 
 function commitRound(){
@@ -2216,7 +2262,7 @@ function commitRound(){
   });
   window._pendingRound=null;
   save(); closeModal(); renderGolf(); renderHome();
-  toast(`Round saved: ${r.total} at ${r.course||'course'}`);
+  toast('Round saved: '+r.total+' at '+(r.course||'course'));
 }
 function openGolfImport(){
   showModal(`<div class="modal-head"><div><h2>Import range session</h2><div class="ms">Drop a Garmin / launch-monitor CSV — clubs map to your bag automatically</div></div>
