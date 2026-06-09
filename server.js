@@ -508,3 +508,32 @@ app.get('/status', (req, res) => {
   });
 });
 app.listen(PORT, () => console.log(`LifePlatform proxy listening on port ${PORT}`));
+
+/* ============================================================
+   USER DATA SYNC — cross-device persistence for golf rounds,
+   tasks, goals, professional focus, coach memory, etc.
+   GET  /userdata        → returns saved DB blob
+   POST /userdata        → saves DB blob (full replace)
+   Single-user system so no auth token required beyond same-origin.
+   ============================================================ */
+const USER_FILE = DATA_DIR + '/userdata.json';
+app.get('/userdata', (req, res) => {
+  try {
+    if (fs.existsSync(USER_FILE)) {
+      const raw = fs.readFileSync(USER_FILE, 'utf8');
+      return res.type('json').send(raw);
+    }
+  } catch (e) { console.log('[USERDATA] read error', e.message); }
+  res.json(null);
+});
+app.post('/userdata', (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== 'object') return res.status(400).json({ error: 'body must be JSON object' });
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    const payload = JSON.stringify(req.body);
+    // Safety: don't save obviously corrupt payloads (< 100 bytes)
+    if (payload.length < 100) return res.status(400).json({ error: 'payload too small — likely corrupt' });
+    fs.writeFileSync(USER_FILE, payload);
+    res.json({ ok: true, bytes: payload.length, savedAt: new Date().toISOString() });
+  } catch (e) { console.log('[USERDATA] write error', e.message); res.status(500).json({ error: e.message }); }
+});
