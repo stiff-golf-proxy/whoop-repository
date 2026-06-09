@@ -495,7 +495,7 @@ app.get('/status', (req, res) => {
   let persistent = false;
   try { if (DATA_DIR && DATA_DIR !== '.') { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.accessSync(DATA_DIR, fs.constants.W_OK); persistent = true; } } catch (e) {}
   res.json({
-    proxy: 'LifePlatform',
+    proxy: 'LifePlatform-v2',
     whoopAuthenticated: !!tokens,
     tokenStorage: TOKEN_FILE,
     persistentStorage: persistent,
