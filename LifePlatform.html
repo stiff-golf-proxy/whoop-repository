@@ -1142,7 +1142,7 @@ function cardNews(){
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;border-bottom:2px solid var(--line2);padding-bottom:6px">
           <div style="font-family:var(--disp);font-weight:800;font-size:15px">Portfolio Intelligence</div>
-          <span style="font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)">${resWhen}</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><span style="font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)">${resWhen}</span><a onclick="fetchResearch(true)" style="font-family:var(--mono);font-size:10px;color:var(--terra);cursor:pointer">↻ refresh</a></div></div>
         <div style="font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-faint);margin-bottom:6px">AI &amp; market signals for the GGG portfolio</div>
         <div id="resBox">${ res.length? res.slice(0,12).map(researchItem).join('') : `<div class="empty" style="padding:16px 0">Weekly research runs Mondays — insights will appear here.${proxyBase()?'':' (Connect your proxy.)'}</div>`}</div>
       </div>
@@ -1252,11 +1252,12 @@ async function fetchNews(force){
     morningCfg().news=(j.items||j||[]).map(x=>({title:x.title,link:x.link,pubDate:x.pubDate||x.published||'',source:x.source||''})); save(); renderHomeIfActive();
   }catch(e){ const el=document.getElementById('newsEmpty'); if(el) el.textContent='News route not available on proxy yet.'; }
 }
-async function fetchResearch(){
+async function fetchResearch(force){
   const base=proxyBase(); if(!base)return;
-  try{ const r=await fetch(`${base}/research`); if(!r.ok)throw 0; const j=await r.json();
-    DB._research={items:j.items||[],updatedAt:j.updatedAt||null}; save(); renderHomeIfActive();
-  }catch(e){}
+  if(force) toast('Refreshing intelligence…');
+  try{ const r=await fetch(`${base}/research${force?('?_='+Date.now()):''}`); if(!r.ok)throw 0; const j=await r.json();
+    DB._research={items:j.items||[],updatedAt:new Date().toISOString()}; save(); renderHomeIfActive();
+  }catch(e){ if(force) toast('Research feed unavailable.'); }
 }
 async function fetchKentridge(){
   const base=proxyBase(); if(!base)return;
@@ -3295,9 +3296,11 @@ function saveOneThing(){ morningCfg().oneThing=document.getElementById('ot_inp')
 function clearOneThing(){ morningCfg().oneThing=''; save(); closeModal(); renderHome(); }
 
 
-// Periodic calendar + WHOOP refresh every 30 min (so it stays fresh without manual refresh)
+// Periodic refresh every 30 min — reset kicked flag so all feeds re-fire
 setInterval(()=>{
-  if(proxyBase()){ fetchCalendar(); fetchWhoopMorning(); fetchWeather(); }
+  window._feedsKicked=false;
+  fetchCurrency(); fetchWeather();
+  if(proxyBase()){ fetchNews(); fetchResearch(); fetchCalendar(); fetchKentridge(); fetchWhoopMorning(); }
 }, 30 * 60 * 1000);
 function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire(); }
 document.getElementById('todayStr').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
