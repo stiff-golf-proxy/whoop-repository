@@ -63,7 +63,7 @@ const TOKEN_FILE = process.env.TOKEN_FILE || (DATA_DIR + '/tokens.json');
 
 const app = express();
 app.use(cors({ origin: ALLOW_ORIGIN }));
-app.use(express.json());
+app.use(express.json({ limit: '25mb' })); // userdata blob + vision images are far larger than the 100kb default
 
 // Token persistence. Tokens are read from (and rotated tokens written back to)
 // TOKEN_FILE — point this at a persistent volume on a host (see above). The static

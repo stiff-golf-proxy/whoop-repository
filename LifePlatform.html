@@ -461,26 +461,58 @@ const SEED = {"profile":{"name":"Stuart Harris","dob":"1972-02-28","targetRetire
 const KEY = 'sh_life_v1';
 let DB = (()=>{ try{const r=localStorage.getItem(KEY); if(r)return JSON.parse(r);}catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 
-// On startup, pull server copy and use it if it's newer or richer (has more golf rounds etc)
-// This is what makes cross-device sync work — phone loads what desktop saved, and vice versa
-(async function syncFromServer(){
+// ---- CROSS-DEVICE SYNC ----
+// Every save() stamps DB._savedAt and pushes the blob to the proxy.
+// On startup / refocus / every 5 min, devices pull and adopt the server copy
+// if it's newer (last write wins). Golf rounds/shots, tasks, projects and
+// manual calendar entries are UNION-merged so nothing is ever lost either way.
+function _mergeLost(into, from){
+  if(!from||typeof from!=='object') return;
+  // golf rounds by id, shots by signature
+  into.golf=into.golf||{shots:[],rounds:[]};
+  const fg=from.golf||{};
+  const haveR=new Set((into.golf.rounds||[]).map(r=>r&&r.id));
+  (fg.rounds||[]).forEach(r=>{ if(r&&r.id&&!haveR.has(r.id)){ into.golf.rounds=into.golf.rounds||[]; into.golf.rounds.push(r); } });
+  const sig=s=>[s.club,s.date,s.carry,s.ballSpeed].join('|');
+  const haveS=new Set((into.golf.shots||[]).map(sig));
+  (fg.shots||[]).forEach(s=>{ if(s&&!haveS.has(sig(s))){ into.golf.shots=into.golf.shots||[]; into.golf.shots.push(s); } });
+  // tasks + projects by id (under morning)
+  into.morning=into.morning||{}; const fm=from.morning||{};
+  const haveT=new Set((into.morning.tasks||[]).map(t=>t&&t.id));
+  (fm.tasks||[]).forEach(t=>{ if(t&&t.id&&!haveT.has(t.id)){ into.morning.tasks=into.morning.tasks||[]; into.morning.tasks.push(t); } });
+  const haveP=new Set((into.morning.projects||[]).map(p=>p&&p.id));
+  (fm.projects||[]).forEach(p=>{ if(p&&p.id&&!haveP.has(p.id)){ into.morning.projects=into.morning.projects||[]; into.morning.projects.push(p); } });
+  // today's manual calendar entries by time+title
+  const haveC=new Set((into.morning.calendar||[]).map(e=>e&&((e.time||'')+'|'+(e.title||''))));
+  (fm.calendar||[]).forEach(e=>{ if(e&&e._manual&&!haveC.has((e.time||'')+'|'+(e.title||''))){ into.morning.calendar=into.morning.calendar||[]; into.morning.calendar.push(e); } });
+}
+let _lastPull=0;
+async function pullFromServer(){
   const base=proxyBase(); if(!base) return;
+  _lastPull=Date.now();
   try{
     const r=await fetch(base+'/userdata'); if(!r.ok) return;
-    const server=await r.json(); if(!server||typeof server!=='object') return;
-    // Merge strategy: server wins for golf rounds (use whichever has more)
-    // For everything else: server wins if local DB is just the seed
-    const localRounds=(DB.golf&&DB.golf.rounds)||[];
-    const serverRounds=(server.golf&&server.golf.rounds)||[];
+    const server=await r.json(); if(!server||typeof server!=='object'||!Object.keys(server).length) return;
     const localIsDefault=!localStorage.getItem(KEY);
-    if(localIsDefault || serverRounds.length>localRounds.length){
-      DB=server;
+    const sAt=Date.parse(server._savedAt||0)||0, lAt=Date.parse(DB._savedAt||0)||0;
+    // legacy fallback (neither copy stamped yet): old rule — server wins if it has more rounds
+    const legacyAdopt = !sAt && !lAt && (((server.golf||{}).rounds||[]).length > ((DB.golf||{}).rounds||[]).length);
+    if(localIsDefault || sAt>lAt || legacyAdopt){
+      const localCopy=DB; DB=server; _mergeLost(DB, localCopy);
       try{ localStorage.setItem(KEY,JSON.stringify(DB)); }catch(e){}
-      console.log('[SYNC] loaded from server ('+serverRounds.length+' rounds, '+((server.coachMem&&server.coachMem.log||[]).length)+' coach logs)');
+      console.log('[SYNC] adopted server copy ('+(server._savedAt||'unstamped')+')');
       if(typeof renderAll==='function') renderAll();
+    } else if(lAt>sAt){
+      _mergeLost(DB, server);
+      console.log('[SYNC] local copy newer — pushing to server');
+      save();
     }
-  }catch(e){ console.log('[SYNC] server load failed',e.message); }
-})();
+  }catch(e){ console.log('[SYNC] pull failed', e.message); }
+}
+pullFromServer(); // startup
+// Re-pull when the app regains focus (key for mobile, where tabs live for days) and periodically
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && Date.now()-_lastPull>60000) pullFromServer(); });
+setInterval(()=>{ if(document.visibilityState==='visible') pullFromServer(); }, 5*60*1000);
 /* Merge in any newly pre-loaded seed data this saved copy is missing, without
    overwriting the user's own entries. Keyed by content so re-runs are safe. */
 (function mergeSeed(){
@@ -492,10 +524,13 @@ let DB = (()=>{ try{const r=localStorage.getItem(KEY); if(r)return JSON.parse(r)
   if(changed){ try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){} }
 })();
 function save(){
+  DB._savedAt=new Date().toISOString();
   try{ localStorage.setItem(KEY,JSON.stringify(DB)); }catch(e){ toast('Storage unavailable'); }
   // Push to server (non-blocking) so data survives across devices
   const base=proxyBase();
-  if(base){ fetch(base+'/userdata',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB)}).catch(()=>{}); }
+  if(base){ fetch(base+'/userdata',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB)})
+    .then(r=>{ if(!r.ok) console.log('[SYNC] push failed HTTP '+r.status); })
+    .catch(e=>console.log('[SYNC] push failed', e.message)); }
 }
 
 /* Durable connection store — kept SEPARATE from the main data so a data
