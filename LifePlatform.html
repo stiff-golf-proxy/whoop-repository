@@ -157,9 +157,9 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .x:hover{color:var(--terra)}
 .field{margin-bottom:15px}
 .field label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
-.field input,.field select{width:100%;background:var(--paper);border:1px solid var(--line2);border-radius:10px;
+.field input,.field select,.field textarea{width:100%;background:var(--paper);border:1px solid var(--line2);border-radius:10px;
   padding:11px 13px;font-family:var(--serif);font-size:15px;color:var(--ink);transition:.15s}
-.field input:focus,.field select:focus{outline:none;border-color:var(--terra);box-shadow:0 0 0 3px rgba(14,124,134,.16)}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--terra);box-shadow:0 0 0 3px rgba(14,124,134,.16)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 
@@ -662,7 +662,7 @@ function renderHome(){
    <div style="margin-bottom:18px">${cardDailyClose()}</div>
    <div style="margin-bottom:8px">${cardKentridge()}</div>
    <div style="text-align:right;margin-top:10px">
-     <button class="btn" onclick="refreshMorning()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>Refresh feeds</button>
+     <div style="display:inline-block;text-align:right"><button class="btn" onclick="refreshMorning()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>Refresh all feeds</button><div style="font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);margin-top:5px">WHOOP · calendar · BBC news · markets · weather · art watch · stored intelligence<br>(a fresh research deep dive runs only from the Portfolio Intelligence ↻)</div></div>
    </div>`;
   if(!window._feedsKicked){ window._feedsKicked=true;
     fetchCurrency(); fetchWeather(); if(proxyBase()){ fetchNews(); fetchResearch(); fetchCalendar(); fetchKentridge(); } }
@@ -780,7 +780,7 @@ function cardReadiness(){
   const target = r==null? null : (r>=67? '14–17 (push)' : r>=50? '11–14 (moderate)' : r>=34? '8–11 (maintain)' : '<8 (recover)');
   const baseHrv=avgKey(recent(rec,30),'hrv'), todHrv=lastRec.hrv;
   const hrvNote= (baseHrv&&todHrv)? (todHrv>=baseHrv?'at or above':'below')+' your 30-day baseline' : '';
-  return `<div class="card card-pad"><div class="kicker">Readiness today</div><div class="h-sec">WHOOP</div>
+  return `<div class="card card-pad">${cardRefresh('refreshWhoopCard()','Sync latest WHOOP data')}<div class="kicker">Readiness today</div><div class="h-sec">WHOOP</div>
     <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap">
       <div style="text-align:center">
         <div style="font-family:var(--disp);font-weight:700;font-size:52px;line-height:1;letter-spacing:-1px;color:${col}">${r==null?'—':Math.round(r)}<span style="font-size:22px">%</span></div>
@@ -885,7 +885,7 @@ function cardCalendar(){
         ${e.location?`<span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-left:auto">${e.location}</span>`:''}</div>`).join('')
     : (proxyBase()? `<div class="empty" style="padding:18px 0">No events today (or calendar not linked on the proxy yet).</div>`
        : `<div class="empty" style="padding:18px 0">Connect your proxy to sync calendar, or add events manually.</div>`);
-  return `<div class="card card-pad"><div class="kicker">Today</div><div class="h-sec">Calendar</div>
+  return `<div class="card card-pad">${cardRefresh('refreshCalendarCard()','Re-pull today\'s calendar from the proxy')}<div class="kicker">Today</div><div class="h-sec">Calendar</div>
     <div id="calBox">${body}</div>
     <button class="btn" style="margin-top:12px" onclick="addCalEvent()">+ Add event</button></div>`;
 }
@@ -1168,9 +1168,9 @@ function cardNews(){
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;border-bottom:2px solid var(--line2);padding-bottom:6px">
           <div style="font-family:var(--disp);font-weight:800;font-size:15px">Portfolio Intelligence</div>
-          <div style="display:flex;align-items:center;gap:8px"><span style="font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)">${resWhen}</span><a onclick="fetchResearch(true)" style="font-family:var(--mono);font-size:10px;color:var(--terra);cursor:pointer">↻ refresh</a></div></div>
-        <div style="font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-faint);margin-bottom:6px">AI &amp; market signals for the GGG portfolio</div>
-        <div id="resBox">${ res.length? res.slice(0,12).map(researchItem).join('') : `<div class="empty" style="padding:16px 0">Weekly research runs Mondays — insights will appear here.${proxyBase()?'':' (Connect your proxy.)'}</div>`}</div>
+          <div style="display:flex;align-items:center;gap:10px"><span id="resStatus" style="font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)">${window._resRunning?'deep dive running…':resWhen}</span><a onclick="editResearchBrief()" style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);cursor:pointer" title="Edit the saved parameters that drive the deep dive">⚙ brief</a><a id="resRunBtn" onclick="runResearch()" style="font-family:var(--mono);font-size:10px;color:var(--terra);cursor:pointer" title="Run a fresh deep dive using the saved brief">${window._resRunning?'⏳ running':'↻ new deep dive'}</a></div></div>
+        <div style="font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-faint);margin-bottom:6px">AI &amp; market signals for the GGG portfolio · ↻ runs a fresh search on your saved brief</div>
+        <div id="resBox">${ res.length? res.slice(0,12).map(researchItem).join('') : `<div class="empty" style="padding:16px 0">No research yet — tap “↻ new deep dive” for a fresh list, or the weekly Monday run will fill this in.${proxyBase()?'':' (Connect your proxy.)'}</div>`}</div>
       </div>
     </div></div>`;
 }
@@ -1207,14 +1207,14 @@ function cardKentridge(){
           <div style="font-family:var(--mono);font-size:12.5px;color:var(--terra-deep);white-space:nowrap;font-weight:500">${tkEsc(x.price||'')}</div></div>`; }).join('')
     : `<div class="empty" style="padding:20px 0">No listings yet — the weekly SA search runs Mondays and will fill this in.${proxyBase()?'':' (Connect your proxy.)'}</div>`;
   const when=k.updatedAt? 'updated '+fmtDate(k.updatedAt.slice(0,10)) : '';
-  return `<div class="card card-pad"><div class="kicker">Art watch · weekly</div><div class="h-sec">William Kentridge — for sale<span class="sub">South Africa · ${when}</span></div>
+  return `<div class="card card-pad">${cardRefresh('refreshKentridgeCard()','Re-pull stored Kentridge listings')}<div class="kicker">Art watch · weekly</div><div class="h-sec">William Kentridge — for sale<span class="sub">South Africa · ${when}</span></div>
     <div id="kentBox">${body}</div></div>`;
 }
 
 /* ---- markets / currency card ---- */
 function cardMarkets(){
   const c=morningCfg().currency;
-  return `<div class="card card-pad"><div class="kicker">Markets</div><div class="h-sec">Currency</div>
+  return `<div class="card card-pad">${cardRefresh('refreshFxCard()','Refresh exchange rates')}<div class="kicker">Markets</div><div class="h-sec">Currency</div>
     <div id="fxBox">${ c
       ? `<div style="display:flex;align-items:baseline;gap:10px"><span style="font-family:var(--disp);font-weight:700;font-size:34px">R${c.usdzar.toFixed(2)}</span><span style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">per USD</span></div>
          <div style="font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:8px">$1 = R${c.usdzar.toFixed(2)} &nbsp;·&nbsp; £1 = R${c.gbpzar?c.gbpzar.toFixed(2):'—'} &nbsp;·&nbsp; €1 = R${c.eurzar?c.eurzar.toFixed(2):'—'}</div>
@@ -1282,8 +1282,51 @@ async function fetchResearch(force){
   const base=proxyBase(); if(!base)return;
   if(force) toast('Refreshing intelligence…');
   try{ const r=await fetch(`${base}/research${force?('?_='+Date.now()):''}`); if(!r.ok)throw 0; const j=await r.json();
-    DB._research={items:j.items||[],updatedAt:new Date().toISOString()}; save(); renderHomeIfActive();
+    DB._research={items:j.items||[],updatedAt:j.updatedAt||new Date().toISOString()}; save(); renderHomeIfActive();
   }catch(e){ if(force) toast('Research feed unavailable.'); }
+}
+// ON-DEMAND DEEP DIVE — the Portfolio Intelligence ↻ button. Asks the proxy to
+// run a fresh Claude web-search deep dive using the saved brief, then replaces
+// the list. Takes ~1–2 minutes; the header shows a running state meanwhile.
+async function runResearch(){
+  const base=proxyBase(); if(!base){toast('Connect your proxy first — the deep dive runs server-side.');return;}
+  if(window._resRunning){toast('A deep dive is already running…');return;}
+  window._resRunning=true;
+  const st=document.getElementById('resStatus'), btn=document.getElementById('resRunBtn');
+  if(st) st.textContent='deep dive running… (~1–2 min)';
+  if(btn) btn.textContent='⏳ running';
+  toast('Running a fresh research deep dive…');
+  try{
+    const r=await fetch(base+'/research/run',{method:'POST'});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
+    DB._research={items:j.items||[],updatedAt:j.updatedAt||new Date().toISOString()}; save();
+    toast('Fresh research in — '+(j.items||[]).length+' items.');
+  }catch(e){ toast('Deep dive failed: '+(e.message||'unavailable')); }
+  window._resRunning=false; renderHomeIfActive();
+}
+// SAVED BRIEF — view/edit the parameters every deep dive (and the weekly run) uses.
+async function editResearchBrief(){
+  const base=proxyBase(); if(!base){toast('Connect your proxy first.');return;}
+  let p={brief:'',categories:'',itemCount:'8-12'};
+  try{ const r=await fetch(base+'/research/params'); if(r.ok) p=await r.json(); }catch(e){}
+  showModal(`<div class="modal-head"><div><h2>Research brief</h2><div class="ms">Saved parameters — every “↻ new deep dive” uses these</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Brief (who the research is for &amp; what counts as useful)</label><textarea id="rb_brief" rows="5" style="width:100%;font-family:var(--serif);font-size:13.5px">${tkEsc(p.brief||'')}</textarea></div>
+      <div class="field"><label>Focus areas (separate with “;”)</label><textarea id="rb_cats" rows="3" style="width:100%;font-family:var(--serif);font-size:13.5px">${tkEsc(p.categories||'')}</textarea></div>
+      <div class="field" style="max-width:160px"><label>Items per run</label><input id="rb_count" value="${tkEsc(p.itemCount||'8-12')}"></div>
+      <button class="btn primary" onclick="saveResearchBrief()">Save brief</button>
+      <button class="btn" onclick="saveResearchBrief(true)">Save &amp; run deep dive</button>
+    </div>`);
+}
+async function saveResearchBrief(andRun){
+  const base=proxyBase(); if(!base)return;
+  const body={brief:document.getElementById('rb_brief').value.trim(),categories:document.getElementById('rb_cats').value.trim(),itemCount:document.getElementById('rb_count').value.trim()};
+  try{
+    const r=await fetch(base+'/research/params',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw 0; toast('Brief saved'); closeModal();
+    if(andRun===true) runResearch();
+  }catch(e){ toast('Could not save brief.'); }
 }
 async function fetchKentridge(){
   const base=proxyBase(); if(!base)return;
@@ -1312,7 +1355,13 @@ async function fetchCalendar(){
     morningCfg().calendar=[...evs,...manual]; save(); renderHomeIfActive();
   }catch(e){ /* leave manual entries as-is */ }
 }
-function refreshMorning(){ toast('Refreshing…'); fetchCurrency(); fetchWeather(); if(proxyBase()){fetchNews();fetchResearch();fetchCalendar();fetchKentridge();} fetchWhoopMorning(); }
+function refreshMorning(){ toast('Refreshing all feeds — WHOOP, calendar, news, markets, weather…'); fetchCurrency(); fetchWeather(); if(proxyBase()){fetchNews();fetchResearch();fetchCalendar();fetchKentridge();} fetchWhoopMorning(); }
+// Consistent per-card ↻ — same top-right spot on every refreshable card.
+function cardRefresh(fn,title){ return `<a onclick="${fn}" title="${title||'Refresh this card'}" style="position:absolute;top:16px;right:18px;font-family:var(--mono);font-size:10px;color:var(--terra);cursor:pointer">↻ refresh</a>`; }
+function refreshWhoopCard(){ if(!proxyBase()){toast('Connect your proxy first.');return;} toast('Syncing WHOOP…'); fetchWhoopMorning(); }
+function refreshCalendarCard(){ if(!proxyBase()){toast('Connect your proxy first.');return;} toast('Refreshing calendar…'); fetchCalendar(); }
+function refreshFxCard(){ toast('Refreshing rates…'); fetchCurrency(); }
+function refreshKentridgeCard(){ if(!proxyBase()){toast('Connect your proxy first.');return;} toast('Refreshing art watch…'); fetchKentridge(); }
 async function fetchWhoopMorning(){ if(proxyBase()&&typeof syncWhoop==='function'){ try{await syncWhoop();}catch(e){} renderHomeIfActive(); } }
 function renderHomeIfActive(){ const el=document.getElementById('pane-home'); if(el&&el.classList.contains('active')) renderHome(); }
 function fmtDate(d){ if(!d)return'—'; const x=new Date(d); return x.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}); }
@@ -3413,4 +3462,4 @@ renderAll();
 </script>
 </body>
 </html>
-<!-- deploy Tue Jun  9 16:54:15 UTC 2026 -->
+<!-- deploy Wed Jun 10 15:33:46 UTC 2026 -->

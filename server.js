@@ -473,6 +473,86 @@ app.get('/research', (req, res) => {
   res.json({ items: [], updatedAt: null });
 });
 
+/* ---- RESEARCH PARAMETERS (the "saved brief" that drives every deep dive) ----
+   Stored on the volume so they survive restarts. Editable from the dashboard
+   (Portfolio Intelligence card → "edit brief"). The on-demand deep dive below
+   and any scheduled task can both read these so research stays consistent.   */
+const RES_PARAMS_FILE = DATA_DIR + '/research-params.json';
+const RES_DEFAULT_PARAMS = {
+  brief: 'You are a research analyst preparing a portfolio intelligence briefing for Stuart, the Cape Town-based principal of a family trust holding an 18% stake in GGG Holdings, UK and SA investment companies, and a four-property portfolio. Surface only genuinely consequential, recent developments (roughly the last 7–10 days) with a clear "why it matters" insight for an owner-investor — no generic news.',
+  categories: 'AI & technology shifts relevant to business; South African economy, interest rates & the rand; global markets & asset allocation; SA commercial & residential property; private investment / family office trends',
+  itemCount: '8-12'
+};
+function readResParams() {
+  try { if (fs.existsSync(RES_PARAMS_FILE)) return { ...RES_DEFAULT_PARAMS, ...JSON.parse(fs.readFileSync(RES_PARAMS_FILE)) }; } catch (e) {}
+  return { ...RES_DEFAULT_PARAMS };
+}
+app.get('/research/params', (req, res) => res.json(readResParams()));
+app.post('/research/params', (req, res) => {
+  try {
+    const b = req.body || {};
+    const p = {
+      brief: String(b.brief || RES_DEFAULT_PARAMS.brief).slice(0, 4000),
+      categories: String(b.categories || RES_DEFAULT_PARAMS.categories).slice(0, 2000),
+      itemCount: String(b.itemCount || RES_DEFAULT_PARAMS.itemCount).slice(0, 10)
+    };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(RES_PARAMS_FILE, JSON.stringify(p));
+    console.log('[RESEARCH] params updated');
+    res.json({ ok: true, ...p });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ---- ON-DEMAND DEEP DIVE (POST /research/run) ----
+   What the dashboard's Portfolio Intelligence ↻ button now calls. Runs a fresh
+   Claude web-search deep dive using the saved parameters above, replaces the
+   stored research list, and returns it. Takes ~1–2 minutes. One at a time.   */
+let RES_RUNNING = false;
+app.post('/research/run', async (req, res) => {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return res.status(501).json({ error: 'ANTHROPIC_API_KEY not set on the proxy' });
+  if (RES_RUNNING) return res.status(409).json({ error: 'A deep dive is already running — give it a minute.' });
+  RES_RUNNING = true;
+  console.log('[RESEARCH/RUN] deep dive started');
+  try {
+    const p = readResParams();
+    const prompt = p.brief
+      + '\n\nFocus areas: ' + p.categories
+      + '\n\nToday is ' + new Date().toDateString() + '. Use web search to research each focus area, then produce '
+      + (p.itemCount || '8-12') + ' items.'
+      + '\n\nRespond with ONLY a raw JSON array (no markdown fences, no commentary) where each item is: '
+      + '{"category":"<one of the focus areas, short label>","title":"<headline in your own words>","insight":"<1-2 sentences on why it matters to this portfolio>","url":"<source url>","source":"<publisher name>"}';
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: COACH_MODEL,
+        max_tokens: 4000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const text = await r.text();
+    if (!r.ok) { console.log('[RESEARCH/RUN] API error', r.status, text.slice(0, 300)); return res.status(502).json({ error: 'Claude API ' + r.status }); }
+    const j = JSON.parse(text);
+    const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const m = reply.match(/\[[\s\S]*\]/);
+    if (!m) { console.log('[RESEARCH/RUN] no JSON in reply:', reply.slice(0, 200)); return res.status(500).json({ error: 'Deep dive returned no usable list — try again.' }); }
+    const items = JSON.parse(m[0])
+      .map(x => ({ category: x.category || 'General', title: x.title || '', insight: x.insight || '', url: x.url || x.link || '', source: x.source || '' }))
+      .filter(x => x.title);
+    if (!items.length) return res.status(500).json({ error: 'Deep dive returned an empty list — try again.' });
+    const payload = { items, updatedAt: new Date().toISOString(), ranBy: 'on-demand' };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(RES_FILE, JSON.stringify(payload));
+    console.log(`[RESEARCH/RUN] deep dive stored ${items.length} items`);
+    res.json(payload);
+  } catch (e) {
+    console.log('[RESEARCH/RUN] failed', e.message);
+    res.status(500).json({ error: e.message });
+  } finally { RES_RUNNING = false; }
+});
+
 // Serve the LifePlatform dashboard itself at / and /app (same origin as the proxy,
 // so the platform auto-detects this URL and CORS is a non-issue).
 import path from 'path';
@@ -503,7 +583,7 @@ app.get('/status', (req, res) => {
     calendar: (() => { try { if (fs.existsSync(CAL_FILE)) { const j = JSON.parse(fs.readFileSync(CAL_FILE)); const fresh = j.updatedAt && (Date.now() - Date.parse(j.updatedAt)) < CAL_MAX_AGE_MS; return `push (${(j.events||[]).length} events, ${fresh ? 'fresh' : 'stale — run sync'})`; } } catch (e) {} return process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'waiting for first push (run sync-calendar.sh)'; })(),
     traffic: process.env.GOOGLE_MAPS_KEY ? 'configured (GOOGLE_MAPS_KEY)' : 'OFF — set GOOGLE_MAPS_KEY',
     coach: process.env.ANTHROPIC_API_KEY ? ('configured (' + COACH_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
-    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar'],
+    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params'],
     connect: '/auth/login'
   });
 });
