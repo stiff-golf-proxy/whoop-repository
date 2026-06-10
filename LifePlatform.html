@@ -772,7 +772,7 @@ function cardReadiness(){
   const w=DB.whoop||{}; const rec=(w.recovery||[]); const slp=(w.sleep||[]); const cyc=(w.cycles||[]);
   const lastRec=rec[rec.length-1], lastSlp=slp[slp.length-1];
   if(!lastRec){
-    return `<div class="card card-pad"><div class="kicker">Readiness</div><div class="h-sec">WHOOP</div>
+    return `<div class="card card-pad">${cardRefresh('refreshWhoopCard()','Sync latest WHOOP data')}<div class="kicker">Readiness</div><div class="h-sec">WHOOP</div>
       <div class="empty">No WHOOP data yet. <a onclick="go('whoop')" style="color:var(--terra);cursor:pointer;text-decoration:underline">Connect in the WHOOP tab →</a></div></div>`;
   }
   const r=lastRec.recovery; const col=r==null?'var(--ink-faint)':r>=67?'var(--good)':r>=34?'var(--warn)':'var(--bad)';
@@ -804,7 +804,7 @@ function cardReadiness(){
 function cardTraining(){
   const w=DB.whoop||{}; const wk=w.workouts||[];
   if(!wk.length){
-    return `<div class="card card-pad"><div class="kicker">This week</div><div class="h-sec">Training</div>
+    return `<div class="card card-pad">${cardRefresh('refreshWhoopCard()','Sync latest WHOOP data')}<div class="kicker">This week</div><div class="h-sec">Training</div>
       <div class="empty">No workouts yet. <a onclick="go('whoop')" style="color:var(--terra);cursor:pointer;text-decoration:underline">Open WHOOP →</a></div></div>`;
   }
   const thisW=whoopWeekAgg(wk,0), lastW=whoopWeekAgg(wk,1);
@@ -820,7 +820,7 @@ function cardTraining(){
   };
   const dStr=thisW.strain-lastW.strain;
   const trend = lastW.strain? `<span style="font-family:var(--mono);font-size:11px;color:${dStr>=0?'var(--good)':'var(--ink-faint)'}">${dStr>=0?'▲':'▼'} ${Math.abs(Math.round(dStr/Math.max(1,lastW.strain)*100))}% vs last wk</span>`:'';
-  return `<div class="card card-pad"><div class="kicker">This week · WHOOP</div><div class="h-sec">Training<span class="sub">${trend}</span></div>
+  return `<div class="card card-pad">${cardRefresh('refreshWhoopCard()','Sync latest WHOOP data')}<div class="kicker">This week · WHOOP</div><div class="h-sec">Training<span class="sub">${trend}</span></div>
     <div class="grid g3" style="gap:10px;margin-bottom:14px">
       <div class="card tile" style="padding:13px 6px;text-align:center"><div class="num" style="font-size:27px">${thisW.count}</div><div class="lbl">Sessions</div></div>
       <div class="card tile" style="padding:13px 6px;text-align:center"><div class="num" style="font-size:27px">${thisW.strain.toFixed(0)}</div><div class="lbl">Strain</div></div>
