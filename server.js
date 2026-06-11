@@ -134,13 +134,27 @@ app.get('/auth/callback', async (req, res) => {
 });
 
 /* ---- keep the access token fresh ---- */
+// WHOOP refresh tokens are SINGLE-USE. The dashboard calls several /whoop/*
+// endpoints in parallel; if each triggered its own refresh with the same token,
+// the first would win and WHOOP's reuse detection would revoke the rest —
+// breaking sync until a manual re-login. So all concurrent callers share ONE
+// in-flight refresh via this promise lock.
+let _refreshing = null;
 async function freshToken() {
   if (!tokens) throw new Error('Not authenticated — visit /auth/login first');
   const ageSec = (Date.now() - tokens.obtained_at) / 1000;
   if (ageSec < (tokens.expires_in - 120)) return tokens.access_token;
+  if (!_refreshing) _refreshing = _doRefresh().finally(() => { _refreshing = null; });
+  return _refreshing;
+}
+async function _doRefresh() {
+  // Re-check after acquiring the lock — another caller may have just refreshed.
+  const ageSec = (Date.now() - tokens.obtained_at) / 1000;
+  if (ageSec < (tokens.expires_in - 120)) return tokens.access_token;
   const body = new URLSearchParams({
     grant_type: 'refresh_token', refresh_token: tokens.refresh_token,
-    client_id: WHOOP_CLIENT_ID, client_secret: WHOOP_CLIENT_SECRET, scope: SCOPES
+    client_id: WHOOP_CLIENT_ID, client_secret: WHOOP_CLIENT_SECRET,
+    scope: 'offline' // per WHOOP spec, refresh requests use scope=offline (not the full list)
   });
   const r = await fetch(TOKEN, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
   if (!r.ok) {

@@ -2663,7 +2663,7 @@ async function syncWhoop(){
   try{
     const fetches=['recovery','sleep','workouts','cycles'].map(k=>
       fetch(`${base}/whoop/${k}?days=${days}`,{headers:{'Accept':'application/json'}})
-        .then(r=>{ if(!r.ok) throw new Error(`${k}: HTTP ${r.status}`); return r.json(); })
+        .then(async r=>{ if(!r.ok){ let d=''; try{ d=((await r.json())||{}).error||''; }catch(e){} throw new Error(`${k}: HTTP ${r.status}${d?' — '+d:''}`); } return r.json(); })
         .then(j=>({k,data:normalizeWhoop(k,j)})));
     const profileP=fetch(`${base}/whoop/profile`).then(r=>r.ok?r.json():null).catch(()=>null);
     const results=await Promise.all(fetches);
@@ -2672,11 +2672,28 @@ async function syncWhoop(){
     w.lastSync=new Date().toISOString();
     save(); renderWhoop(); renderHome(); toast('WHOOP synced');
   }catch(err){
-    window._whoopSyncError = err.message || 'network error';
-    toast('Sync failed — '+window._whoopSyncError);
+    const msg=err.message||'network error';
+    window._whoopSyncError = msg;
+    if(/auth\/login|token refresh failed|Not authenticated/i.test(msg)){
+      whoopReauthModal();
+    }else{
+      toast('Sync failed — '+msg);
+    }
     console.error(err);
     renderWhoop();   // re-render so the error + retry are visible (not just a fleeting toast)
   }
+}
+// Shown when the proxy reports the WHOOP login has lapsed (single-use refresh
+// token burned / revoked). One tap to re-authorise, then retry.
+function whoopReauthModal(){
+  const base=proxyBase();
+  showModal(`<div class="modal-head"><div><h2>WHOOP needs to be reconnected</h2><div class="ms">The login token expired — one tap fixes it</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <p style="font-family:var(--serif);font-size:14px;color:var(--ink-soft);line-height:1.55;margin-bottom:16px">WHOOP rotates its login tokens and the stored one has lapsed. Tap <b>Reconnect WHOOP</b>, approve access on the WHOOP page that opens, then come back here and tap <b>Retry sync</b>.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn primary" href="${base}/auth/login" target="_blank" rel="noopener">Reconnect WHOOP ↗</a>
+        <button class="btn" onclick="closeModal();syncWhoop()">Retry sync</button>
+      </div></div>`);
 }
 // Generic merge keyed by a function. Recovery/sleep/cycles are one-per-day (key = date),
 // but there can be MANY workouts in a day — keying those by date alone collapsed them to
