@@ -241,6 +241,9 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .tk-txt.done{text-decoration:line-through;color:var(--ink-faint)}
 .tk-flag{width:13px;height:13px;flex:none;cursor:pointer;border-radius:3px;border:1.5px solid transparent}
 .tk-due{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:20px;white-space:nowrap;flex:none}
+.tk-duecol{position:relative;font-family:var(--mono);font-size:10.5px;border:1px dashed var(--line);border-radius:7px;padding:3px 8px;min-width:60px;text-align:center;white-space:nowrap;flex:none;cursor:pointer;color:var(--ink-faint)}
+.tk-duecol.set{border-style:solid}
+.tk-duecol input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0;margin:0}
 .tk-x{cursor:pointer;color:var(--line2);font-size:18px;line-height:1;padding:0 2px;flex:none}
 .tk-x:hover{color:var(--rose)}
 .tk-add{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:12px}
@@ -1012,6 +1015,20 @@ function tkDueChip(t){
   else { label=d.toLocaleDateString('en-ZA',{day:'numeric',month:'short'}); bg='var(--paper2)'; fg='var(--ink-soft)'; }
   return `<span class="tk-due" style="background:${bg};color:${fg}">${label}</span>`;
 }
+function tkDueCell(t){
+  const today=todayISO();
+  let lab='+ due', fg='var(--ink-faint)', bd='var(--line)', cls='tk-duecol';
+  if(t.due){
+    cls+=' set';
+    lab=new Date(t.due+'T00:00:00').toLocaleDateString('en-ZA',{day:'numeric',month:'short'});
+    if(!t.done && t.due<today){ fg='var(--bad)'; bd='rgba(194,85,78,.5)'; }
+    else if(!t.done && t.due===today){ fg='var(--terra-deep)'; bd='rgba(14,124,134,.5)'; lab='Today'; }
+    else { fg='var(--ink-soft)'; bd='var(--line2)'; }
+  }
+  return `<span class="${cls}" style="color:${fg};border-color:${bd}" title="${t.due?('Due '+t.due+' — tap to change'):'Set a due date'}">${lab}<input type="date" value="${t.due||''}" onchange="setTaskDue('${t.id}',this.value)" onclick="event.stopPropagation()"></span>`;
+}
+function setTaskDue(id,val){ const t=tasksCfg().tasks.find(x=>x.id===id); if(!t)return;
+  t.due=val||null; save(); renderHome(); }
 function tkSortOpen(a,b){
   const t=todayISO();
   const rank=x=> x.due ? (x.due<t?0:x.due===t?1:2) : 3;
@@ -1071,7 +1088,7 @@ function cardTasks(){
         <span class="tk-check ${t.done?'on':''}" onclick="toggleTask('${t.id}')">${t.done?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</span>
         ${!t.done?`<span class="tk-flag" onclick="cyclePriority('${t.id}')" title="${TK_PRIO[t.priority||2].l} priority — click to change" style="background:${TK_PRIO[t.priority||2].c}"></span>`:''}
         <span class="tk-txt ${t.done?'done':''}" onclick="editTask('${t.id}')">${tkEsc(t.text)}</span>
-        ${!t.done?tkDueChip(t):''}
+        ${tkDueCell(t)}
         <span class="tk-x" onclick="delTask('${t.id}')">×</span></div>`;
     const goalLine = tgt
       ? `<div class="tk-goal">${p.weekGoal?tkEsc(p.weekGoal)+' · ':''}<b>${dWeek}/${tgt}</b> this week</div>
@@ -2592,10 +2609,17 @@ function cashflowCfg(){
       {id:cfId(),name:'Quickstep Bank balance',amount:1449470}
     ]};
   }
+  // whole-rand policy: round away any stored cents
+  if(!DB.cashflow._wholeRand){
+    DB.cashflow.groups.forEach(g=>g.items.forEach(i=>{ i.amount=Math.round(+i.amount||0); }));
+    DB.cashflow.credits.forEach(x=>{ x.amount=Math.round(+x.amount||0); });
+    DB.cashflow._wholeRand=true;
+  }
   return DB.cashflow;
 }
-function ZAR2(v){ return 'R '+(+v||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function cfParse(s){ const n=parseFloat(String(s).replace(/[R,\s]/gi,'')); return isFinite(n)?n:0; }
+function ZAR2(v){ return 'R '+Math.round(+v||0).toLocaleString('en-US'); }
+function cfFmtIn(v){ return Math.round(+v||0).toLocaleString('en-US'); }
+function cfParse(s){ const n=parseFloat(String(s).replace(/[R,\s]/gi,'')); return isFinite(n)?Math.round(n):0; }
 function cfTotals(){ const c=cashflowCfg();
   const deb=c.groups.reduce((t,g)=>t+g.items.reduce((u,i)=>u+(+i.amount||0),0),0);
   const cred=c.credits.reduce((t,x)=>t+(+x.amount||0),0);
@@ -2608,7 +2632,7 @@ function renderCashflow(){
     const sub=g.items.reduce((u,i)=>u+(+i.amount||0),0);
     const rows=g.items.map(i=>`<div class="cf-row">
       <input class="cf-name" value="${tkEsc(i.name)}" onchange="cfEdit('${g.id}','${i.id}','name',this.value)">
-      <input class="cf-in" inputmode="decimal" value="${(+i.amount||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}" oninput="cfEdit('${g.id}','${i.id}','amount',this.value,true)" onchange="cfEdit('${g.id}','${i.id}','amount',this.value)">
+      <input class="cf-in" inputmode="numeric" value="${cfFmtIn(i.amount)}" oninput="cfEdit('${g.id}','${i.id}','amount',this.value,true)" onchange="cfEdit('${g.id}','${i.id}','amount',this.value);this.value=cfFmtIn(cfParse(this.value))">
       <button class="cf-x" title="Delete item" onclick="cfDelItem('${g.id}','${i.id}')">×</button></div>`).join('');
     return `<div class="card card-pad" style="margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -2621,7 +2645,7 @@ function renderCashflow(){
   }).join('');
   const credRows=c.credits.map(x=>`<div class="cf-row">
       <input class="cf-name" value="${tkEsc(x.name)}" onchange="cfEditCredit('${x.id}','name',this.value)">
-      <input class="cf-in" inputmode="decimal" value="${(+x.amount||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}" oninput="cfEditCredit('${x.id}','amount',this.value,true)" onchange="cfEditCredit('${x.id}','amount',this.value)">
+      <input class="cf-in" inputmode="numeric" value="${cfFmtIn(x.amount)}" oninput="cfEditCredit('${x.id}','amount',this.value,true)" onchange="cfEditCredit('${x.id}','amount',this.value);this.value=cfFmtIn(cfParse(this.value))">
       <button class="cf-x" title="Delete" onclick="cfDelCredit('${x.id}')">×</button></div>`).join('');
   P.innerHTML=`
     <div class="grid g3" style="margin-bottom:22px">
