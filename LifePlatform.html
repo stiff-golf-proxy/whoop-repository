@@ -1204,7 +1204,7 @@ function cardNews(){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;border-bottom:2px solid var(--line2);padding-bottom:6px">
           <div style="font-family:var(--disp);font-weight:800;font-size:15px">Portfolio Intelligence</div>
           <div style="display:flex;align-items:center;gap:10px"><span id="resStatus" style="font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)">${window._resRunning?'deep dive running…':resWhen}</span><a onclick="editResearchBrief()" style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);cursor:pointer" title="Edit the saved parameters that drive the deep dive">⚙ brief</a><a id="resRunBtn" onclick="runResearch()" style="font-family:var(--mono);font-size:10px;color:var(--terra);cursor:pointer" title="Run a fresh deep dive using the saved brief">${window._resRunning?'⏳ running':'↻ new deep dive'}</a></div></div>
-        <div style="font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-faint);margin-bottom:6px">AI &amp; market signals for the GGG portfolio · ↻ runs a fresh search on your saved brief</div>
+        <div style="font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-faint);margin-bottom:6px">Gerber Goldschmidt portfolio — golf, juice, textiles, telematics, vehicle security &amp; AI impact · ↻ runs a fresh search on your saved brief</div>
         <div id="resBox">${ res.length? res.slice(0,12).map(researchItem).join('') : `<div class="empty" style="padding:16px 0">No research yet — tap “↻ new deep dive” for a fresh list, or the weekly Monday run will fill this in.${proxyBase()?'':' (Connect your proxy.)'}</div>`}</div>
       </div>
     </div></div>`;
