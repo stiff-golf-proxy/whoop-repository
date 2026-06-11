@@ -260,6 +260,18 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .seg-btn{font-family:var(--disp);font-weight:600;font-size:14.5px;color:var(--ink-faint);background:none;border:none;cursor:pointer;padding:9px 20px;border-radius:10px;transition:.18s}
 .seg-btn:hover{color:var(--ink-soft)}
 .seg-btn.active{background:var(--card);color:var(--terra-deep);box-shadow:var(--shadow)}
+.cf-in{font-family:var(--mono);font-size:13px;border:1px solid var(--line);border-radius:7px;padding:7px 9px;background:var(--paper);color:var(--ink);width:130px;text-align:right}
+.cf-in:focus{outline:none;border-color:var(--terra)}
+.cf-name{font-family:var(--serif);font-size:14px;border:1px solid transparent;border-radius:7px;padding:7px 9px;background:transparent;color:var(--ink);flex:1;min-width:120px;text-align:left}
+.cf-name:hover{border-color:var(--line)}
+.cf-name:focus{outline:none;border-color:var(--terra);background:var(--paper)}
+.cf-row{display:flex;align-items:center;gap:8px;padding:3px 0}
+.cf-x{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:15px;padding:4px 7px;border-radius:6px;line-height:1}
+.cf-x:hover{color:var(--bad);background:var(--paper2)}
+.cf-add{font-family:var(--mono);font-size:11px;color:var(--terra);cursor:pointer;background:none;border:none;padding:6px 0}
+.cf-add:hover{text-decoration:underline}
+.c-green{color:var(--good)!important}
+.c-red{color:var(--bad)!important}
 
 /* ---- Coach chat drawer (Claude life coach) ---- */
 .coach-fab{position:fixed;right:26px;bottom:26px;z-index:70;display:inline-flex;align-items:center;gap:10px;
@@ -398,7 +410,9 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
     <div class="seg" role="tablist">
       <button class="seg-btn active" id="seg-sbh" onclick="finTab('sbh')">SBH Family</button>
       <button class="seg-btn" id="seg-trusts" onclick="finTab('trusts')">Trusts</button>
+      <button class="seg-btn" id="seg-cashflow" onclick="finTab('cashflow')">Cash Flow</button>
     </div>
+    <div id="cashflowPane" style="display:none"></div>
     <iframe id="famFrame" title="SBH Family Portfolio" src="about:blank"
       style="width:100%;height:82vh;min-height:720px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:var(--shadow)"></iframe>
   </section>
@@ -2547,13 +2561,118 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 function go(pane){ const b=document.querySelector(`.nav button[data-pane="${pane}"]`); if(b)b.click(); }
 // Finance sub-tabs — SBH | Trusts load the (restyled) family dashboard embedded from the proxy
 function finTab(which){
-  const v = which==='trusts' ? 'trusts' : 'sbh';
-  const f=document.getElementById('famFrame');
-  if(f){ const base=proxyBase()||''; f.src = base + '/family?embed=1&view='+v; }
-  const s1=document.getElementById('seg-sbh'), s2=document.getElementById('seg-trusts');
-  if(s1) s1.classList.toggle('active', v==='sbh');
-  if(s2) s2.classList.toggle('active', v==='trusts');
+  const v = which==='trusts' ? 'trusts' : which==='cashflow' ? 'cashflow' : 'sbh';
+  const f=document.getElementById('famFrame'), c=document.getElementById('cashflowPane');
+  const cf = v==='cashflow';
+  if(f) f.style.display = cf ? 'none' : '';
+  if(c) c.style.display = cf ? '' : 'none';
+  if(cf) renderCashflow();
+  else if(f){ const base=proxyBase()||''; f.src = base + '/family?embed=1&view='+v; }
+  ['sbh','trusts','cashflow'].forEach(k=>{ const b=document.getElementById('seg-'+k); if(b) b.classList.toggle('active', v===k); });
 }
+
+/* ============ CASH FLOW (editable project cashflow under Wealth) ============ */
+function cfId(){ return 'cf'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function cashflowCfg(){
+  if(!DB.cashflow){
+    DB.cashflow={ groups:[
+      {id:cfId(),name:'Ebony Cottage',items:[
+        {id:cfId(),name:'Level',amount:678061.10},
+        {id:cfId(),name:'Nicolwood',amount:26225},
+        {id:cfId(),name:'Christo Blinds',amount:5708},
+        {id:cfId(),name:'Window bars',amount:15000},
+        {id:cfId(),name:'Security',amount:20000}]},
+      {id:cfId(),name:'Ebony Robin',items:[
+        {id:cfId(),name:'Level',amount:813176.25},
+        {id:cfId(),name:'Nicolwood',amount:188670}]},
+      {id:cfId(),name:'Newlands Hilt',items:[
+        {id:cfId(),name:'Level',amount:90572}]}
+    ], credits:[
+      {id:cfId(),name:'Bond balance',amount:101693.58},
+      {id:cfId(),name:'Quickstep Bank balance',amount:1449470}
+    ]};
+  }
+  return DB.cashflow;
+}
+function ZAR2(v){ return 'R '+(+v||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function cfParse(s){ const n=parseFloat(String(s).replace(/[R,\s]/gi,'')); return isFinite(n)?n:0; }
+function cfTotals(){ const c=cashflowCfg();
+  const deb=c.groups.reduce((t,g)=>t+g.items.reduce((u,i)=>u+(+i.amount||0),0),0);
+  const cred=c.credits.reduce((t,x)=>t+(+x.amount||0),0);
+  return {deb,cred,net:cred-deb};
+}
+function renderCashflow(){
+  const c=cashflowCfg(); const t=cfTotals();
+  const P=document.getElementById('cashflowPane'); if(!P) return;
+  const groupHtml=c.groups.map(g=>{
+    const sub=g.items.reduce((u,i)=>u+(+i.amount||0),0);
+    const rows=g.items.map(i=>`<div class="cf-row">
+      <input class="cf-name" value="${tkEsc(i.name)}" onchange="cfEdit('${g.id}','${i.id}','name',this.value)">
+      <input class="cf-in" inputmode="decimal" value="${(+i.amount||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}" oninput="cfEdit('${g.id}','${i.id}','amount',this.value,true)" onchange="cfEdit('${g.id}','${i.id}','amount',this.value)">
+      <button class="cf-x" title="Delete item" onclick="cfDelItem('${g.id}','${i.id}')">×</button></div>`).join('');
+    return `<div class="card card-pad" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <input class="cf-name" style="font-family:var(--disp);font-weight:700;font-size:16px" value="${tkEsc(g.name)}" onchange="cfRenameGroup('${g.id}',this.value)">
+        <span class="mono" id="cf-sub-${g.id}" style="font-size:13px;color:var(--ink-soft);white-space:nowrap">${ZAR2(sub)}</span>
+        <button class="cf-x" title="Delete project" onclick="cfDelGroup('${g.id}')">×</button></div>
+      ${rows}
+      <button class="cf-add" onclick="cfAddItem('${g.id}')">+ add item</button>
+    </div>`;
+  }).join('');
+  const credRows=c.credits.map(x=>`<div class="cf-row">
+      <input class="cf-name" value="${tkEsc(x.name)}" onchange="cfEditCredit('${x.id}','name',this.value)">
+      <input class="cf-in" inputmode="decimal" value="${(+x.amount||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}" oninput="cfEditCredit('${x.id}','amount',this.value,true)" onchange="cfEditCredit('${x.id}','amount',this.value)">
+      <button class="cf-x" title="Delete" onclick="cfDelCredit('${x.id}')">×</button></div>`).join('');
+  P.innerHTML=`
+    <div class="grid g3" style="margin-bottom:22px">
+      <div class="card tile"><div class="accent-bar" style="background:var(--bad)"></div><div class="lbl">Committed (debits)</div><div class="num c-red" id="cf-tile-deb" style="font-size:27px">${ZAR2(t.deb)}</div><div class="foot">All projects</div></div>
+      <div class="card tile"><div class="accent-bar" style="background:var(--good)"></div><div class="lbl">Available (credits)</div><div class="num c-green" id="cf-tile-cred" style="font-size:27px">${ZAR2(t.cred)}</div><div class="foot">Funds on hand</div></div>
+      <div class="card tile"><div class="accent-bar" style="background:${t.net>=0?'var(--good)':'var(--bad)'}"></div><div class="lbl">Net position</div><div class="num ${t.net>=0?'c-green':'c-red'}" id="cf-tile-net" style="font-size:27px">${ZAR2(t.net)}</div><div class="foot" id="cf-tile-netlbl">${t.net>=0?'Surplus':'Shortfall'}</div></div>
+    </div>
+    <div class="grid g2" style="align-items:start">
+      <div>
+        <div class="kicker" style="margin-bottom:10px">Debits · by project</div>
+        ${groupHtml}
+        <button class="btn" onclick="cfAddGroup()">+ Add project</button>
+      </div>
+      <div>
+        <div class="kicker" style="margin-bottom:10px">Credits · available funds</div>
+        <div class="card card-pad">
+          ${credRows}
+          <button class="cf-add" onclick="cfAddCredit()">+ add credit</button>
+          <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between"><span class="mono" style="font-size:12px;color:var(--ink-faint)">Total credits</span><span class="mono" id="cf-cred-total" style="font-size:13px">${ZAR2(t.cred)}</span></div>
+        </div>
+        <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;margin-top:12px">Tap any name or amount to edit — changes save and sync automatically.</div>
+      </div>
+    </div>`;
+}
+function cfRefreshTotals(){ const t=cfTotals(); const c=cashflowCfg();
+  c.groups.forEach(g=>{ const el=document.getElementById('cf-sub-'+g.id); if(el) el.textContent=ZAR2(g.items.reduce((u,i)=>u+(+i.amount||0),0)); });
+  const d=document.getElementById('cf-tile-deb'); if(d) d.textContent=ZAR2(t.deb);
+  const cr=document.getElementById('cf-tile-cred'); if(cr) cr.textContent=ZAR2(t.cred);
+  const ct=document.getElementById('cf-cred-total'); if(ct) ct.textContent=ZAR2(t.cred);
+  const n=document.getElementById('cf-tile-net'); if(n){ n.textContent=ZAR2(t.net); n.classList.toggle('c-green',t.net>=0); n.classList.toggle('c-red',t.net<0); }
+  const nl=document.getElementById('cf-tile-netlbl'); if(nl) nl.textContent=t.net>=0?'Surplus':'Shortfall';
+}
+function cfEdit(gid,iid,field,val,live){ const g=cashflowCfg().groups.find(g=>g.id===gid); if(!g)return;
+  const i=g.items.find(i=>i.id===iid); if(!i)return;
+  i[field]= field==='amount' ? cfParse(val) : val.trim();
+  cfRefreshTotals(); if(!live) save();
+}
+function cfEditCredit(id,field,val,live){ const x=cashflowCfg().credits.find(x=>x.id===id); if(!x)return;
+  x[field]= field==='amount' ? cfParse(val) : val.trim();
+  cfRefreshTotals(); if(!live) save();
+}
+function cfAddItem(gid){ const g=cashflowCfg().groups.find(g=>g.id===gid); if(!g)return;
+  g.items.push({id:cfId(),name:'New item',amount:0}); save(); renderCashflow(); }
+function cfDelItem(gid,iid){ const g=cashflowCfg().groups.find(g=>g.id===gid); if(!g)return;
+  g.items=g.items.filter(i=>i.id!==iid); save(); renderCashflow(); }
+function cfAddGroup(){ cashflowCfg().groups.push({id:cfId(),name:'New project',items:[{id:cfId(),name:'New item',amount:0}]}); save(); renderCashflow(); }
+function cfDelGroup(gid){ const c=cashflowCfg(); const g=c.groups.find(g=>g.id===gid); if(!g)return;
+  if(g.items.length && !confirm('Delete "'+g.name+'" and its '+g.items.length+' item(s)?')) return;
+  c.groups=c.groups.filter(x=>x.id!==gid); save(); renderCashflow(); }
+function cfAddCredit(){ cashflowCfg().credits.push({id:cfId(),name:'New credit',amount:0}); save(); renderCashflow(); }
+function cfDelCredit(id){ const c=cashflowCfg(); c.credits=c.credits.filter(x=>x.id!==id); save(); renderCashflow(); }
 function exportData(){ const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`stuart-life-backup-${TODAY}.json`;a.click(); toast('Backup downloaded'); }
 function restoreData(input){ const f=input.files[0];if(!f)return;const r=new FileReader();
