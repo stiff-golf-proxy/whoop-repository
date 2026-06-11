@@ -522,12 +522,12 @@ app.post('/research/params', (req, res) => {
    Claude web-search deep dive using the saved parameters above, replaces the
    stored research list, and returns it. Takes ~1–2 minutes. One at a time.   */
 let RES_RUNNING = false;
-app.post('/research/run', async (req, res) => {
+async function runDeepDive(ranBy) {
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(501).json({ error: 'ANTHROPIC_API_KEY not set on the proxy' });
-  if (RES_RUNNING) return res.status(409).json({ error: 'A deep dive is already running — give it a minute.' });
+  if (!key) throw Object.assign(new Error('ANTHROPIC_API_KEY not set on the proxy'), { status: 501 });
+  if (RES_RUNNING) throw Object.assign(new Error('A deep dive is already running — give it a minute.'), { status: 409 });
   RES_RUNNING = true;
-  console.log('[RESEARCH/RUN] deep dive started');
+  console.log(`[RESEARCH/RUN] deep dive started (${ranBy})`);
   try {
     const p = readResParams();
     const prompt = p.brief
@@ -547,25 +547,44 @@ app.post('/research/run', async (req, res) => {
       })
     });
     const text = await r.text();
-    if (!r.ok) { console.log('[RESEARCH/RUN] API error', r.status, text.slice(0, 300)); return res.status(502).json({ error: 'Claude API ' + r.status }); }
+    if (!r.ok) { console.log('[RESEARCH/RUN] API error', r.status, text.slice(0, 300)); throw Object.assign(new Error('Claude API ' + r.status), { status: 502 }); }
     const j = JSON.parse(text);
     const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
     const m = reply.match(/\[[\s\S]*\]/);
-    if (!m) { console.log('[RESEARCH/RUN] no JSON in reply:', reply.slice(0, 200)); return res.status(500).json({ error: 'Deep dive returned no usable list — try again.' }); }
+    if (!m) { console.log('[RESEARCH/RUN] no JSON in reply:', reply.slice(0, 200)); throw new Error('Deep dive returned no usable list — try again.'); }
     const items = JSON.parse(m[0])
       .map(x => ({ category: x.category || 'General', title: x.title || '', insight: x.insight || '', url: x.url || x.link || '', source: x.source || '' }))
       .filter(x => x.title);
-    if (!items.length) return res.status(500).json({ error: 'Deep dive returned an empty list — try again.' });
-    const payload = { items, updatedAt: new Date().toISOString(), ranBy: 'on-demand' };
+    if (!items.length) throw new Error('Deep dive returned an empty list — try again.');
+    const payload = { items, updatedAt: new Date().toISOString(), ranBy };
     if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(RES_FILE, JSON.stringify(payload));
-    console.log(`[RESEARCH/RUN] deep dive stored ${items.length} items`);
-    res.json(payload);
-  } catch (e) {
-    console.log('[RESEARCH/RUN] failed', e.message);
-    res.status(500).json({ error: e.message });
+    console.log(`[RESEARCH/RUN] deep dive stored ${items.length} items (${ranBy})`);
+    return payload;
   } finally { RES_RUNNING = false; }
+}
+app.post('/research/run', async (req, res) => {
+  try { res.json(await runDeepDive('on-demand')); }
+  catch (e) { console.log('[RESEARCH/RUN] failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
 });
+
+/* WEEKLY AUTO-RUN — every Monday morning the server runs the deep dive itself
+   using the SAME saved brief, so the weekly list always follows the current
+   research direction (the old external scheduled task is no longer needed and
+   can be deleted — its POST /research pushes would overwrite this with the old
+   focus). Fires Mondays between 06:00-07:00 SAST; once per day max. */
+const RES_LAST_AUTO = DATA_DIR + '/research-last-auto.txt';
+setInterval(async () => {
+  try {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Johannesburg' }));
+    if (now.getDay() !== 1 || now.getHours() !== 6) return; // Mondays, 06:00-06:59 SAST
+    const today = now.toISOString().slice(0, 10);
+    try { if (fs.existsSync(RES_LAST_AUTO) && fs.readFileSync(RES_LAST_AUTO, 'utf8').trim() === today) return; } catch (e) {}
+    fs.writeFileSync(RES_LAST_AUTO, today);
+    console.log('[RESEARCH/AUTO] weekly Monday deep dive starting');
+    await runDeepDive('weekly-auto');
+  } catch (e) { console.log('[RESEARCH/AUTO] failed', e.message); }
+}, 10 * 60 * 1000);
 
 // Serve the LifePlatform dashboard itself at / and /app (same origin as the proxy,
 // so the platform auto-detects this URL and CORS is a non-issue).
