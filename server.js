@@ -403,6 +403,87 @@ app.post('/coach', async (req, res) => {
    Returns { text: "..." }
    Used by the golf scorecard reader (and anything else needing vision).
    ============================================================ */
+/* ============================================================
+   SWING — golf swing video analysis. The client extracts evenly-spaced
+   frames from the uploaded video (Claude can't take video directly) and
+   POSTs them as an ordered sequence; the coach reviews them as a motion
+   sequence and can answer follow-up questions in the same thread.
+   POST /swing {
+     frames: ["<base64 jpeg>", ...]   (first request only; ordered start->finish)
+     media_type, messages: [{role,content}], view: "face-on"|"down-the-line"|"",
+     handed: "right"|"left"
+   }
+   Returns { reply: "..." }
+   ============================================================ */
+const SWING_SYSTEM = COACH_SYSTEM + `
+
+You are now reviewing Stuart's GOLF SWING from a video. The user message contains an ordered sequence of still frames sampled evenly from address through to finish — read them as one continuous motion, left-to-right, top-to-bottom.
+
+Coaching the swing:
+- Work through the positions in order: setup/address, takeaway, halfway back, top of backswing, transition, downswing, impact, release, finish.
+- Call out 2-3 things working well, then the 1-2 highest-leverage faults — be specific about what you see in which frame (e.g. "by the top, the club crosses the line").
+- Give a concrete feel or drill for each fault, prioritised. Lead with the single change that would help most.
+- If frames are too blurry, dark, or the wrong angle to judge something, say so honestly rather than guessing.
+- Note the camera angle matters: face-on shows weight shift, sway and low point; down-the-line shows swing plane and path. If you can't tell the angle, infer it.
+- Keep it focused and actionable. After the first review, answer follow-ups conversationally, referring back to what you saw.`;
+
+app.post('/swing', async (req, res) => {
+  try {
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (!key) return res.status(501).json({ error: 'ANTHROPIC_API_KEY not set on the proxy' });
+    const { frames = [], media_type = 'image/jpeg', messages = [], view = '', handed = 'right' } = req.body || {};
+    const history = (Array.isArray(messages) ? messages : [])
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && (typeof m.content === 'string' || Array.isArray(m.content)))
+      .slice(-12);
+
+    // Build the message list. When frames are supplied they anchor the FIRST
+    // user turn (the visual evidence); the running text conversation follows.
+    // The client resends frames each live turn (stateless API), so the model
+    // always "sees" the swing. The first stored user note (if any) is folded
+    // into that first turn; subsequent turns are appended verbatim.
+    let apiMessages;
+    if (Array.isArray(frames) && frames.length) {
+      const clipped = frames.slice(0, 12); // payload / token budget cap
+      const angle = view ? `Camera angle: ${view}. ` : '';
+      const intro = `${angle}Golfer is ${handed}-handed. Here are ${clipped.length} frames of my golf swing in order from address to finish.`;
+      const content = [{ type: 'text', text: intro }];
+      clipped.forEach((f, i) => {
+        content.push({ type: 'text', text: `Frame ${i + 1}/${clipped.length}` });
+        content.push({ type: 'image', source: { type: 'base64', media_type, data: f } });
+      });
+      // fold the first user text turn (e.g. "This is my 7-iron") into the frame turn
+      const firstUser = history.find(m => m.role === 'user' && typeof m.content === 'string');
+      if (firstUser && firstUser.content.trim()) content.push({ type: 'text', text: firstUser.content.slice(0, 1000) });
+      content.push({ type: 'text', text: 'Please review it, or answer my latest question below if there is one.' });
+      apiMessages = [{ role: 'user', content }];
+      // append everything AFTER that first user turn (assistant replies + later questions)
+      const firstIdx = firstUser ? history.indexOf(firstUser) : -1;
+      const rest = history.filter((m, i) => i > firstIdx);
+      rest.forEach(m => apiMessages.push({ role: m.role, content: typeof m.content === 'string' ? m.content.slice(0, 4000) : m.content }));
+      // API requires the conversation to end on a user turn; if it ends on assistant, that's the
+      // pending review request already covered by the frame turn — drop a trailing assistant.
+      while (apiMessages.length > 1 && apiMessages[apiMessages.length - 1].role === 'assistant') apiMessages.pop();
+    } else {
+      // follow-up against a saved review (no frames in memory): text only
+      if (!history.length) return res.status(400).json({ error: 'no frames and no messages' });
+      apiMessages = history.map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content.slice(0, 4000) : m.content }));
+      while (apiMessages.length > 1 && apiMessages[apiMessages.length - 1].role === 'assistant') apiMessages.pop();
+    }
+
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 1500, system: SWING_SYSTEM, messages: apiMessages })
+    });
+    const text = await r.text();
+    if (!r.ok) { console.log('[SWING] API error', r.status, text.slice(0, 300)); return res.status(502).json({ error: `Claude API ${r.status}` }); }
+    const j = JSON.parse(text);
+    const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    console.log(`[SWING] reviewed (${(frames || []).length} frames, ${history.length} prior turns)`);
+    res.json({ reply: reply || '(no reply)' });
+  } catch (e) { console.log('[SWING] failed', e.message); res.status(500).json({ error: e.message }); }
+});
+
 app.post('/vision', async (req, res) => {
   try {
     const key = process.env.ANTHROPIC_API_KEY;

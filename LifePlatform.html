@@ -141,6 +141,11 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .dz:hover{border-color:var(--terra);background:rgba(14,124,134,.05)}
 .dz .dz-t{font-family:var(--disp);font-weight:600;font-size:17px}
 .dz .dz-s{font-family:var(--serif);font-style:italic;font-size:13px;color:var(--ink-faint);margin-top:6px}
+.sw-strip{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px}
+.sw-strip img{height:84px;border-radius:7px;border:1px solid var(--line2);flex:none}
+.sw-chat{display:flex;flex-direction:column;gap:12px;max-height:46vh;overflow-y:auto;padding:4px 2px 6px}
+.sw-saved{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
+.sw-saved:hover{border-color:var(--terra)}
 
 /* modal */
 .overlay{position:fixed;inset:0;background:rgba(44,38,34,.55);backdrop-filter:blur(5px);z-index:60;
@@ -2164,6 +2169,7 @@ function renderGolf(){
      <p>You're playing to a scoring average of <b>${avg?avg.toFixed(1):'—'}</b> across ${rounds.length} rounds, with a best of <b>${best||'—'}</b>. You've got <b>${withData.length}</b> of your <b>${bag.length}</b> bag clubs with range data so far. The fastest path to lower scores usually isn't more distance — it's tighter dispersion and reliable wedge numbers. Keep feeding sessions in and the gaps between clubs will tell their own story.</p></div>
    <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center">
      <button class="btn primary" onclick="openGolfImport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import range session</button>
+     <button class="btn" onclick="openSwingReview()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Swing review</button>
      <button class="btn" onclick="go('run')">Running log</button>
      <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${g.shots.length} shots · ${withData.length}/${bag.length} clubs · ${rounds.length} rounds</span>
    </div>
@@ -2197,6 +2203,179 @@ function renderGolf(){
        return `<tr><td class="mono">${(r.date||'').slice(0,10)}</td><td>${r.course}${r.layout?' · '+r.layout:''}</td><td class="r mono">${f}</td><td class="r mono">${b}</td><td class="r mono"><b>${r.total}</b> <span style="color:${ov>0?'var(--bad)':'var(--good)'}">(${ov>0?'+':''}${ov})</span></td></tr>`;}).join('')}
      </tbody></table></div>
    </div>`;
+}
+
+/* ============================================================
+   SWING REVIEW — upload a swing video, extract frames in-browser,
+   and chat with Coach about it. Claude can't take video directly, so
+   we sample evenly-spaced frames via a <video>+<canvas> and send them
+   as an ordered image sequence to POST /swing. The thread stays open
+   for follow-up questions. Reviews are saved (text only) to DB.golf.swings.
+   ============================================================ */
+let _swing = null; // { frames:[base64], messages:[{role,content}], view, handed, thumb }
+
+function golfSwings(){ const g=golf(); if(!Array.isArray(g.swings)) g.swings=[]; return g.swings; }
+
+function openSwingReview(){
+  const saved=golfSwings().slice().sort((a,b)=>(b.at||0)-(a.at||0));
+  const savedHtml = saved.length
+    ? `<div style="margin-bottom:14px"><div class="kicker" style="margin-bottom:8px">Past reviews</div>
+        ${saved.slice(0,6).map(s=>`<div class="sw-saved">
+          <div style="min-width:0"><div style="font-family:var(--disp);font-weight:600;font-size:13.5px">${tkEsc(s.title||'Swing review')}</div>
+            <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)">${fmtDate(new Date(s.at).toISOString())}${s.view?' · '+s.view:''}</div></div>
+          <div style="display:flex;gap:6px;flex-none"><button class="btn" style="padding:6px 10px;font-size:12px" onclick="viewSavedSwing('${s.id}')">Open</button>
+            <button class="cf-x" title="Delete" onclick="delSavedSwing('${s.id}')">×</button></div>
+        </div>`).join('')}</div>`
+    : '';
+  showModal(`<div class="modal-head">
+    <div><h2>Swing review</h2><div class="ms">Upload a swing video — Coach reviews it frame by frame, then you can ask follow-ups</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+  <div class="modal-body">
+    ${savedHtml}
+    <div class="row3" style="margin-bottom:14px">
+      <div class="field"><label>Camera angle</label><select id="sw_view">
+        <option value="">Auto-detect</option><option value="face-on">Face-on</option><option value="down-the-line">Down-the-line</option></select></div>
+      <div class="field"><label>Handed</label><select id="sw_hand"><option value="right">Right</option><option value="left">Left</option></select></div>
+      <div class="field"><label>Club (optional)</label><input id="sw_club" placeholder="e.g. 7-iron, Driver"></div>
+    </div>
+    <div class="dz" id="swdz" onclick="document.getElementById('swVid').click()">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      <div class="dz-t">Drop a swing video or tap to browse</div>
+      <div class="dz-s">MP4 / MOV / WEBM · a single swing, a few seconds, works best · processed on your device</div>
+    </div>
+    <input type="file" id="swVid" accept="video/*" style="display:none" onchange="handleSwingVideo(this.files[0])">
+    <div id="swArea"></div>
+  </div>`);
+  const dz=document.getElementById('swdz');
+  ['dragover','dragenter'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--terra)';}));
+  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--line2)';}));
+  dz.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0]) handleSwingVideo(ev.dataTransfer.files[0]); });
+}
+
+// Extract N evenly-spaced frames from a video file, resized, as base64 jpegs
+async function extractSwingFrames(file, count, maxPx){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const video=document.createElement('video');
+    video.preload='auto'; video.muted=true; video.playsInline=true; video.src=url;
+    const frames=[]; let times=[]; let idx=0;
+    const canvas=document.createElement('canvas'); const ctx=canvas.getContext('2d');
+    const fail=m=>{ URL.revokeObjectURL(url); reject(new Error(m)); };
+    video.onerror=()=>fail('Could not read that video format. Try MP4 or MOV.');
+    video.onloadedmetadata=()=>{
+      const dur=video.duration;
+      if(!dur||!isFinite(dur)){ return fail('Could not read the video length.'); }
+      // sample from 5% to 98% to skip black lead-in/out
+      const a=dur*0.05, b=dur*0.98;
+      times=Array.from({length:count},(_,i)=>a+(b-a)*(i/(count-1)));
+      const scale=Math.min(1, maxPx/Math.max(video.videoWidth,video.videoHeight));
+      canvas.width=Math.round(video.videoWidth*scale); canvas.height=Math.round(video.videoHeight*scale);
+      seek();
+    };
+    function seek(){ if(idx>=times.length){ URL.revokeObjectURL(url); return resolve(frames); } video.currentTime=times[idx]; }
+    video.onseeked=()=>{
+      try{ ctx.drawImage(video,0,0,canvas.width,canvas.height);
+        frames.push(canvas.toDataURL('image/jpeg',0.8).split(',')[1]);
+      }catch(e){ return fail('Could not capture a frame from the video.'); }
+      idx++; setTimeout(seek,30);
+    };
+  });
+}
+
+async function handleSwingVideo(file){
+  if(!file) return;
+  const base=proxyBase();
+  const area=document.getElementById('swArea');
+  if(!base){ area.innerHTML=`<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">Connect your proxy first (WHOOP tab → settings).</div>`; return; }
+  area.innerHTML=`<div style="margin-top:16px;font-family:var(--serif);font-style:italic;color:var(--ink-faint)">Extracting frames from your swing…</div>`;
+  let frames;
+  try{ frames=await extractSwingFrames(file, 9, 640); }
+  catch(e){ area.innerHTML=`<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ ${e.message}</div>`; return; }
+  if(!frames.length){ area.innerHTML=`<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">No frames could be read from that video.</div>`; return; }
+
+  const view=document.getElementById('sw_view').value;
+  const handed=document.getElementById('sw_hand').value;
+  const club=(document.getElementById('sw_club').value||'').trim();
+  _swing={ frames, messages:[], view, handed, club, thumb:frames[Math.floor(frames.length/2)], title:(club?club+' swing':'Swing review') };
+  if(club) _swing.messages.push({role:'user',content:'This is my '+club+'.'});
+
+  const strip=frames.map(f=>`<img src="data:image/jpeg;base64,${f}">`).join('');
+  area.innerHTML=`
+    <div style="margin-top:16px"><div class="kicker" style="margin-bottom:6px">${frames.length} frames · address → finish</div>
+      <div class="sw-strip">${strip}</div></div>
+    <div id="swChat" class="sw-chat"></div>
+    <div id="swStatus" style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin:6px 0">Coach is reviewing your swing…</div>
+    <div style="display:flex;gap:9px;margin-top:8px">
+      <input id="swMsg" placeholder="Ask a follow-up…" style="flex:1;background:var(--paper);border:1px solid var(--line2);border-radius:11px;padding:11px 13px;font-family:var(--serif);font-size:14px;color:var(--ink)" onkeydown="if(event.key==='Enter')sendSwingMsg()" disabled>
+      <button class="btn primary" id="swSendBtn" onclick="sendSwingMsg()" disabled>Send</button></div>`;
+  // kick off the first review automatically
+  runSwingReview(true);
+}
+
+function swPushMsg(role,text){
+  const c=document.getElementById('swChat'); if(!c) return;
+  const d=document.createElement('div'); d.className='cm '+(role==='user'?'user':'bot');
+  d.innerHTML=tkEsc(text).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>'); c.appendChild(d); c.scrollTop=c.scrollHeight;
+}
+
+async function runSwingReview(initial){
+  const base=proxyBase(); if(!base||!_swing) return;
+  const status=document.getElementById('swStatus'); const inp=document.getElementById('swMsg'); const btn=document.getElementById('swSendBtn');
+  if(status) status.style.display='';
+  try{
+    const body={ media_type:'image/jpeg', view:_swing.view, handed:_swing.handed, messages:_swing.messages };
+    if(_swing.frames && _swing.frames.length) body.frames=_swing.frames; // stateless API: resend frames each live turn
+    const r=await fetch(base+'/swing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    let j={}; try{ j=await r.json(); }catch(e){}
+    if(!r.ok||j.error){ if(status){status.style.display='';status.textContent='Coach unavailable: '+(j.error||('HTTP '+r.status));} return; }
+    const reply=j.reply||'(no reply)';
+    _swing.messages.push({role:'assistant',content:reply});
+    swPushMsg('bot',reply);
+    if(status) status.style.display='none';
+    if(inp){ inp.disabled=false; } if(btn){ btn.disabled=false; }
+    saveSwing(); // persist the conversation
+  }catch(e){ if(status){status.style.display='';status.textContent='Could not reach Coach (network). Try again.';} }
+}
+
+async function sendSwingMsg(){
+  const inp=document.getElementById('swMsg'); if(!inp||!_swing) return;
+  const text=(inp.value||'').trim(); if(!text) return;
+  inp.value=''; swPushMsg('user',text);
+  _swing.messages.push({role:'user',content:text});
+  const status=document.getElementById('swStatus'); if(status){ status.style.display=''; status.textContent='Coach is thinking…'; }
+  await runSwingReview(false); // no new frames; Claude still has them in the thread's first turn... but stateless API -> resend
+}
+
+function saveSwing(){
+  if(!_swing) return;
+  const list=golfSwings();
+  let rec=list.find(s=>s.id===_swing.id);
+  if(!rec){ rec={ id:_swing.id||('sw'+Date.now()), at:Date.now() }; _swing.id=rec.id; list.unshift(rec); }
+  rec.title=_swing.title; rec.view=_swing.view; rec.handed=_swing.handed; rec.club=_swing.club;
+  rec.thumb=_swing.thumb; rec.messages=_swing.messages;
+  if(list.length>30) list.length=30; // cap stored reviews
+  save();
+}
+
+function viewSavedSwing(id){
+  const rec=golfSwings().find(s=>s.id===id); if(!rec) return;
+  _swing={ id:rec.id, frames:[], messages:rec.messages||[], view:rec.view||'', handed:rec.handed||'right', club:rec.club||'', thumb:rec.thumb, title:rec.title };
+  const area=document.getElementById('swArea');
+  area.innerHTML=`
+    ${rec.thumb?`<div style="margin-top:16px"><div class="kicker" style="margin-bottom:6px">Saved review · ${tkEsc(rec.title||'Swing')}</div>
+      <img src="data:image/jpeg;base64,${rec.thumb}" style="height:120px;border-radius:9px;border:1px solid var(--line2)"></div>`:''}
+    <div id="swChat" class="sw-chat" style="margin-top:12px"></div>
+    <div id="swStatus" style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin:6px 0;display:none"></div>
+    <div style="display:flex;gap:9px;margin-top:8px">
+      <input id="swMsg" placeholder="Ask a follow-up…" style="flex:1;background:var(--paper);border:1px solid var(--line2);border-radius:11px;padding:11px 13px;font-family:var(--serif);font-size:14px;color:var(--ink)" onkeydown="if(event.key==='Enter')sendSwingMsg()">
+      <button class="btn primary" onclick="sendSwingMsg()">Send</button></div>
+    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:8px">Note: the original frames aren't re-sent on follow-ups to a saved review, so Coach answers from the discussion so far. For a fresh visual read, upload the video again.</div>`;
+  (rec.messages||[]).forEach(m=>{ if(m.role==='assistant') swPushMsg('bot',m.content); else if(m.role==='user' && !/^This is my /.test(m.content)) swPushMsg('user',m.content); });
+}
+
+function delSavedSwing(id){
+  const g=golf(); g.swings=(g.swings||[]).filter(s=>s.id!==id); save();
+  openSwingReview(); // refresh the list
 }
 
 /* ---- GOLF range CSV import (Garmin / launch-monitor) ---- */
