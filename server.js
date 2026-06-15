@@ -610,20 +610,22 @@ async function runScenario(ctx) {
 CONTEXT: ${profile}
 
 THREE scenarios: LOW (slow/friction), MEDIUM (consensus), HIGH (transformative).
-For each: 2 outcomes at 1 year, 2 at 2.5 years, 2 at 5 years.
+For each: 3 outcomes at 1 year, 3 at 2.5 years, 3 at 5 years.
 
-Each outcome — keep fields SHORT (1 sentence max each):
-"headline": specific title, "type": opportunity/threat/mixed, "state": what concretely happens, "action": single best move, "impact": one quantified estimate.
+Each outcome — 1 sentence max per field:
+"headline": specific title, "type": opportunity/threat/mixed, "state": what concretely happens, "action": single best move now, "impact": one quantified estimate.
 
-Name actual businesses/skills from the context. No filler.
+Name actual businesses/skills/assets from the context. No filler. Near-term = tangible, long-term = structural.
 
 Raw JSON only, no markdown:
-{"scenarios":{"low":{"label":"Low","summary":"1 sentence","horizons":{"1":[2 items],"2.5":[2 items],"5":[2 items]}},"medium":{"label":"Medium","summary":"1 sentence","horizons":{"1":[2],"2.5":[2],"5":[2]}},"high":{"label":"High","summary":"1 sentence","horizons":{"1":[2],"2.5":[2],"5":[2]}}}}`;
+{"scenarios":{"low":{"label":"Low — slower progress","summary":"1 sentence","horizons":{"1":[3 items],"2.5":[3 items],"5":[3 items]}},"medium":{"label":"Medium — steady progress","summary":"1 sentence","horizons":{"1":[3],"2.5":[3],"5":[3]}},"high":{"label":"High — transformative","summary":"1 sentence","horizons":{"1":[3],"2.5":[3],"5":[3]}}}}
+
+Each item: {"headline":"...","type":"...","state":"...","action":"...","impact":"..."}`;
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 2500, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
     });
     const text = await r.text();
     if (!r.ok) throw Object.assign(new Error('Claude API ' + r.status), { status: 502 });
@@ -653,13 +655,26 @@ Raw JSON only, no markdown:
 app.post('/scenario/run', async (req, res) => {
   const ctx = ((req.body || {}).ctx === 'gerber') ? 'gerber' : 'personal';
   if (scenRunning(ctx)) {
-    // Already running — return whatever is stored so the client can poll
     let stored = null;
     try { if (fs.existsSync(SCEN_FILE(ctx))) stored = JSON.parse(fs.readFileSync(SCEN_FILE(ctx))); } catch (e) {}
     return res.json({ running: true, ctx, scenarios: stored ? stored.scenarios : null, updatedAt: stored ? stored.updatedAt : null });
   }
-  try { res.json(await runScenario(ctx)); }
-  catch (e) { console.log('[SCENARIO] run failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+  // Keep Railway's proxy alive by flushing a space every 10s during generation.
+  // Railway resets its idle timeout on each byte written, so this prevents a
+  // 30s proxy cut-off on a 30-60s Claude generation. JSON.parse ignores leading whitespace.
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.write(' ');
+  const ping = setInterval(() => { try { res.write(' '); } catch (e) {} }, 10000);
+  try {
+    const result = await runScenario(ctx);
+    clearInterval(ping);
+    res.end(JSON.stringify(result));
+  } catch (e) {
+    clearInterval(ping);
+    console.log('[SCENARIO] run failed', e.message);
+    try { res.end(JSON.stringify({ error: e.message })); } catch (we) {}
+  }
 });
 // Poll endpoint — client calls this every 5s while waiting
 app.get('/scenario/status', (req, res) => {
