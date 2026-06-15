@@ -549,6 +549,125 @@ app.get('/kentridge', (req, res) => {
 const RES_FILE = DATA_DIR + '/research.json';
 
 /* ============================================================
+   SCENARIO PLANNER — expert forecast of how AI progress reshapes
+   Stuart's personal and Gerber (GGG) work life. Toggles between two
+   contexts; runs an on-demand web-search deep dive; returns LOW /
+   MEDIUM / HIGH AI-progress scenarios, each with the top 5 outcomes
+   at 1, 2.5 and 5 year horizons. Each outcome blends an
+   opportunity/threat read, the concrete predicted state, a
+   recommended action, and a quantified impact.
+   Files on the volume:  scenario-profiles.json (editable briefs),
+   scenario-personal.json / scenario-gerber.json (last forecasts).
+   ============================================================ */
+const SCEN_PROFILES_FILE = DATA_DIR + '/scenario-profiles.json';
+const SCEN_FILE = ctx => DATA_DIR + '/scenario-' + (ctx === 'gerber' ? 'gerber' : 'personal') + '.json';
+let SCEN_RUNNING = { personal: false, gerber: false };
+
+const SCEN_DEFAULT_PROFILES = {
+  personal: `Stuart is a Cape Town-based private-equity principal in his late 40s. His working life is investing, deal analysis, portfolio oversight and board work; his personal life includes golf, health/fitness tracking (WHOOP), and managing family wealth and trust structures. He uses AI tools heavily (this very platform is built with AI). Forecast how AI progress reshapes: (a) the value and nature of his investing/analytical skills, (b) how he spends his working time, (c) personal productivity, learning and health, (d) the broader economic and asset-price environment his wealth sits in, (e) risks to his role and relevance. Be concrete and personal, not generic.`,
+  gerber: `Gerber Goldschmidt Group (gerber.co.za) is a Cape Town private-equity group with ~20 South African trading, distribution and manufacturing businesses across five verticals: golf wholesale (Seed Sport), juice concentrate (Gerber Juice), outdoor textiles & upholstery (Gerber Textiles, Cedarbrook), telematics (Geotab Africa) and vehicle security tech (Sanji Electronics). Forecast how AI progress reshapes these operating businesses: demand, margins, competition, supply chains, labour, and the technology embedded in their products. Consider both how AI threatens each vertical and where it creates an edge (automation, AI-enhanced products, new markets). Ground it in the South African operating context.`
+};
+function readScenProfiles() {
+  try { if (fs.existsSync(SCEN_PROFILES_FILE)) return { ...SCEN_DEFAULT_PROFILES, ...JSON.parse(fs.readFileSync(SCEN_PROFILES_FILE)) }; } catch (e) {}
+  return { ...SCEN_DEFAULT_PROFILES };
+}
+app.get('/scenario/profiles', (req, res) => res.json(readScenProfiles()));
+app.post('/scenario/profiles', (req, res) => {
+  try {
+    const b = req.body || {}; const cur = readScenProfiles();
+    const p = {
+      personal: String(b.personal != null ? b.personal : cur.personal).slice(0, 5000),
+      gerber: String(b.gerber != null ? b.gerber : cur.gerber).slice(0, 5000)
+    };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(SCEN_PROFILES_FILE, JSON.stringify(p));
+    res.json({ ok: true, ...p });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/scenario', (req, res) => {
+  const ctx = req.query.ctx === 'gerber' ? 'gerber' : 'personal';
+  try { if (fs.existsSync(SCEN_FILE(ctx))) return res.json(JSON.parse(fs.readFileSync(SCEN_FILE(ctx)))); } catch (e) {}
+  res.json({ scenarios: null, updatedAt: null, ctx });
+});
+
+async function runScenario(ctx) {
+  ctx = ctx === 'gerber' ? 'gerber' : 'personal';
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw Object.assign(new Error('ANTHROPIC_API_KEY not set on the proxy'), { status: 501 });
+  if (SCEN_RUNNING[ctx]) throw Object.assign(new Error('A forecast is already running for this view.'), { status: 409 });
+  SCEN_RUNNING[ctx] = true;
+  console.log(`[SCENARIO] run started (${ctx})`);
+  try {
+    const profile = readScenProfiles()[ctx];
+    const today = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+    const subject = ctx === 'gerber' ? "the Gerber Goldschmidt Group's operating businesses" : "Stuart's personal and professional life";
+
+    const prompt =
+`You are a sharp, candid strategic foresight analyst. Today is ${today}. Produce an expert forecast of how AI progress will reshape ${subject} over the next 5 years.
+
+CONTEXT / PROFILE:
+${profile}
+
+METHOD:
+1. First use web search to ground yourself in the CURRENT (last few weeks/months) trajectory of AI: frontier model capability, agentic systems, adoption in relevant industries, labour-market and economic signals, and anything specific to the sectors above. Search several angles.
+2. Then build THREE scenarios for the pace/impact of AI progress: LOW (slower, plateauing, heavy friction), MEDIUM (steady, roughly consensus), HIGH (fast, transformative, capability overhang releases).
+3. For EACH scenario, give the TOP 5 OUTCOMES at EACH of three horizons: 1 year, 2.5 years, 5 years. (So 5 outcomes × 3 horizons × 3 scenarios = 45 outcomes.)
+
+Each outcome MUST contain, in this priority order:
+- "headline": a short, specific outcome title.
+- "type": one of "opportunity", "threat", or "mixed".
+- "state": the concrete predicted event or state at that horizon (what actually happens) — 1-2 sentences, specific not generic.
+- "action": the single most useful thing Stuart should do NOW (or by this horizon) to seize or defend against it.
+- "impact": a quantified or concrete impact where at all possible (revenue, time saved/lost, cost, asset value, headcount, margin) — estimate ranges are fine, label them as estimates.
+
+Rules:
+- Be specific to the profile. Name the actual businesses, skills, assets, roles. No filler.
+- Vary outcomes across horizons — near-term should be tangible, long-term more structural.
+- Honest about uncertainty, but commit to a view. This is decision-support.
+
+Respond with ONLY raw JSON (no markdown fences, no preamble) in EXACTLY this shape:
+{"scenarios":{
+  "low":{"label":"Low — slower progress","summary":"<1-2 sentence framing>","horizons":{"1":[{"headline":"","type":"","state":"","action":"","impact":""}, ...5],"2.5":[...5],"5":[...5]}},
+  "medium":{"label":"Medium — steady progress","summary":"...","horizons":{"1":[...5],"2.5":[...5],"5":[...5]}},
+  "high":{"label":"High — transformative","summary":"...","horizons":{"1":[...5],"2.5":[...5],"5":[...5]}}
+}}`;
+
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: COACH_MODEL,
+        max_tokens: 8000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const text = await r.text();
+    if (!r.ok) { console.log('[SCENARIO] API error', r.status, text.slice(0, 300)); throw Object.assign(new Error('Claude API ' + r.status), { status: 502 }); }
+    const j = JSON.parse(text);
+    const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const start = reply.indexOf('{'), end = reply.lastIndexOf('}');
+    if (start < 0 || end <= start) { console.log('[SCENARIO] no JSON:', reply.slice(0, 200)); throw new Error('Forecast returned no parseable result — try again.'); }
+    let parsed;
+    try { parsed = JSON.parse(reply.slice(start, end + 1)); }
+    catch (e) { throw new Error('Forecast returned malformed result — try again.'); }
+    if (!parsed.scenarios) throw new Error('Forecast missing scenarios — try again.');
+
+    const payload = { scenarios: parsed.scenarios, ctx, updatedAt: new Date().toISOString() };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(SCEN_FILE(ctx), JSON.stringify(payload));
+    console.log(`[SCENARIO] run stored (${ctx})`);
+    return payload;
+  } finally { SCEN_RUNNING[ctx] = false; }
+}
+app.post('/scenario/run', async (req, res) => {
+  try { res.json(await runScenario((req.body || {}).ctx)); }
+  catch (e) { console.log('[SCENARIO] run failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+});
+
+
+/* ============================================================
    PAIRS LIVE RECOMPUTE — refreshes the z-score / live status of the
    fixed pair list from free Yahoo Finance daily closes. The historical
    backtest (trades, equity curve, CAGR) stays as the embedded snapshot;
@@ -875,7 +994,7 @@ app.get('/status', (req, res) => {
     calendar: (() => { try { if (fs.existsSync(CAL_FILE)) { const j = JSON.parse(fs.readFileSync(CAL_FILE)); const fresh = j.updatedAt && (Date.now() - Date.parse(j.updatedAt)) < CAL_MAX_AGE_MS; return `push (${(j.events||[]).length} events, ${fresh ? 'fresh' : 'stale — run sync'})`; } } catch (e) {} return process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'waiting for first push (run sync-calendar.sh)'; })(),
     traffic: process.env.GOOGLE_MAPS_KEY ? 'configured (GOOGLE_MAPS_KEY)' : 'OFF — set GOOGLE_MAPS_KEY',
     coach: process.env.ANTHROPIC_API_KEY ? ('configured (' + COACH_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
-    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing','/pairs','/pairs/refresh'],
+    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing','/pairs','/pairs/refresh','/scenario','/scenario/run','/scenario/profiles'],
     connect: '/auth/login'
   });
 });

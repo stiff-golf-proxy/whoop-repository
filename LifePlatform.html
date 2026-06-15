@@ -411,6 +411,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
     <button data-pane="goals"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4h12l-2.5 4L17 12H5"/></svg>Goals</button>
     <button data-pane="finance"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>Wealth</button>
     <button data-pane="pairs"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-6 4 3 5-7M16 7h3v3"/></svg>Pairs</button>
+    <button data-pane="scenario"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg>Scenarios</button>
     <button data-pane="retire"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22a10 10 0 100-20 10 10 0 000 20zM12 6v6l4 2"/></svg>Retire</button>
   </nav>
 
@@ -432,6 +433,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   <section id="pane-goals" class="pane"></section>
   <section id="pane-wealth" class="pane"></section>
   <section id="pane-pairs" class="pane"></section>
+  <section id="pane-scenario" class="pane"></section>
   <section id="pane-retire" class="pane"></section>
 </div>
 
@@ -4112,7 +4114,164 @@ function cardPairsPicks(){
   </div>`;
 }
 
-function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire();renderPairs(); }
+
+/* ============================================================
+   SCENARIO PLANNER — AI-impact forecast, personal vs Gerber.
+   Toggles context, runs an on-demand deep dive on the proxy, and
+   shows LOW/MEDIUM/HIGH scenarios with the top-5 outcomes at
+   1 / 2.5 / 5 year horizons. Decision-support, not certainty.
+   ============================================================ */
+let _scenCtx='personal';        // 'personal' | 'gerber'
+let _scenBand='medium';         // 'low' | 'medium' | 'high'
+let _scenHorizon='1';           // '1' | '2.5' | '5'
+let _scenData={ personal:null, gerber:null };
+let _scenWhen={ personal:null, gerber:null };
+let _scenRunning=false;
+let _scenProfiles=null;
+let _scenKicked={ personal:false, gerber:false };
+
+async function loadScenario(ctx){
+  const base=proxyBase(); if(!base) return;
+  try{ const r=await fetch(base+'/scenario?ctx='+ctx+'&_='+Date.now()); if(!r.ok)return; const j=await r.json();
+    if(j && j.scenarios){ _scenData[ctx]=j.scenarios; _scenWhen[ctx]=j.updatedAt; renderScenario(); }
+  }catch(e){}
+}
+async function runScenarioNow(){
+  const base=proxyBase(); if(!base){ toast('Connect your proxy first.'); return; }
+  if(_scenRunning) return;
+  _scenRunning=true; renderScenario();
+  toast('Running AI-impact deep dive — this takes a minute or two…');
+  try{
+    const r=await fetch(base+'/scenario/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ctx:_scenCtx})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
+    _scenData[_scenCtx]=j.scenarios; _scenWhen[_scenCtx]=j.updatedAt;
+    toast('Forecast ready.');
+  }catch(e){ toast('Forecast failed: '+(e.message||'try again')); }
+  _scenRunning=false; renderScenario();
+}
+function scenSetCtx(c){ _scenCtx=c; renderScenario(); if(!_scenData[c]) loadScenario(c); }
+function scenSetBand(b){ _scenBand=b; renderScenario(); }
+function scenSetHorizon(h){ _scenHorizon=h; renderScenario(); }
+
+async function editScenProfile(){
+  const base=proxyBase();
+  if(!_scenProfiles && base){ try{ _scenProfiles=await (await fetch(base+'/scenario/profiles')).json(); }catch(e){} }
+  const prof=_scenProfiles||{};
+  const cur=_scenCtx==='gerber'?(prof.gerber||''):(prof.personal||'');
+  showModal(`<div class="modal-head"><div><h2>${_scenCtx==='gerber'?'Gerber':'Personal'} forecast brief</h2><div class="ms">What the AI grounds this scenario forecast on</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Profile &amp; questions to forecast against</label>
+        <textarea id="scp_text" rows="9" style="width:100%;font-family:var(--serif);font-size:14px;line-height:1.55;padding:11px;border:1px solid var(--line2);border-radius:9px;background:var(--paper);color:var(--ink);resize:vertical">${tkEsc(cur)}</textarea></div>
+      <div style="display:flex;gap:9px;flex-wrap:wrap">
+        <button class="btn primary" onclick="saveScenProfile(false)">Save</button>
+        <button class="btn" onclick="saveScenProfile(true)">Save &amp; run forecast</button>
+      </div></div>`);
+}
+async function saveScenProfile(run){
+  const base=proxyBase(); const v=document.getElementById('scp_text').value.trim();
+  if(!v){ toast('Brief cannot be empty'); return; }
+  const payload={}; payload[_scenCtx]=v;
+  try{ const r=await fetch(base+'/scenario/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    _scenProfiles=await r.json(); toast('Brief saved'); }catch(e){ toast('Save failed'); return; }
+  closeModal();
+  if(run) runScenarioNow();
+}
+
+function scenTypePill(t){
+  const map={opportunity:['var(--good)','Opportunity','↑'],threat:['var(--bad)','Threat','↓'],mixed:['var(--gold)','Mixed','↕']};
+  const [c,l,a]=map[t]||map.mixed;
+  return `<span style="font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.5px;color:${c};border:1px solid ${c};border-radius:5px;padding:2px 7px;white-space:nowrap">${a} ${l.toUpperCase()}</span>`;
+}
+function scenOutcomeCard(o,i){
+  const t=(o.type||'mixed').toLowerCase();
+  const edge = t==='opportunity'?'var(--good)':t==='threat'?'var(--bad)':'var(--gold)';
+  return `<div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:3px solid ${edge}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:9px">
+      <div style="font-family:var(--disp);font-weight:700;font-size:15px;line-height:1.25">${i+1}. ${tkEsc(o.headline||'')}</div>
+      ${scenTypePill(t)}
+    </div>
+    <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:11px">${tkEsc(o.state||'')}</div>
+    <div style="display:grid;grid-template-columns:1fr;gap:8px">
+      <div style="display:flex;gap:9px;align-items:flex-start">
+        <span style="font-family:var(--mono);font-size:8.5px;letter-spacing:1px;color:var(--terra);background:rgba(14,124,134,.08);padding:3px 7px;border-radius:5px;white-space:nowrap;margin-top:1px">DO NOW</span>
+        <span style="font-family:var(--serif);font-size:13px;color:var(--ink);line-height:1.5">${tkEsc(o.action||'')}</span>
+      </div>
+      ${o.impact?`<div style="display:flex;gap:9px;align-items:flex-start">
+        <span style="font-family:var(--mono);font-size:8.5px;letter-spacing:1px;color:var(--sage-deep);background:rgba(122,139,116,.12);padding:3px 7px;border-radius:5px;white-space:nowrap;margin-top:1px">IMPACT</span>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--ink-soft);line-height:1.5">${tkEsc(o.impact)}</span>
+      </div>`:''}
+    </div>
+  </div>`;
+}
+
+function scenWhenLabel(){
+  const w=_scenWhen[_scenCtx];
+  if(w){ const d=new Date(w); return 'Forecast run '+d.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}); }
+  return 'No forecast yet — press Run forecast';
+}
+
+function renderScenario(){
+  const P=document.getElementById('pane-scenario'); if(!P) return;
+  const data=_scenData[_scenCtx];
+  const bands=[['low','Low'],['medium','Medium'],['high','High']];
+  const horizons=[['1','1 year'],['2.5','2.5 years'],['5','5 years']];
+
+  // body
+  let body='';
+  if(_scenRunning){
+    body=`<div class="card card-pad" style="text-align:center;padding:50px 20px">
+      <div style="font-family:var(--disp);font-weight:700;font-size:17px;margin-bottom:8px">Running the deep dive…</div>
+      <div style="font-family:var(--serif);font-style:italic;color:var(--ink-soft);font-size:14px;max-width:48ch;margin:0 auto">Searching the current AI trajectory and modelling low / medium / high outcomes across all three horizons for your ${_scenCtx==='gerber'?'Gerber':'personal'} context. This usually takes a minute or two.</div></div>`;
+  } else if(!data){
+    body=`<div class="card card-pad" style="text-align:center;padding:46px 20px">
+      <div style="font-family:var(--disp);font-weight:700;font-size:17px;margin-bottom:8px">No forecast yet</div>
+      <div style="font-family:var(--serif);color:var(--ink-soft);font-size:14px;max-width:52ch;margin:0 auto 18px;line-height:1.6">Press <b>Run forecast</b> to have the AI research the current state of AI progress and project the top 5 opportunities &amp; threats for your <b>${_scenCtx==='gerber'?'Gerber'/* */:'personal'}</b> world under low, medium and high scenarios — at 1, 2.5 and 5 years.</div>
+      <button class="btn primary" onclick="runScenarioNow()">Run forecast</button></div>`;
+  } else {
+    const band=data[_scenBand]||data.medium||Object.values(data)[0];
+    const outcomes=(band && band.horizons && band.horizons[_scenHorizon])||[];
+    body=`
+      ${band&&band.summary?`<div class="card card-pad" style="margin-bottom:16px;border-left:3px solid var(--terra)">
+        <div class="kicker" style="margin-bottom:5px">${tkEsc(band.label||_scenBand)} · scenario framing</div>
+        <div style="font-family:var(--serif);font-size:14px;color:var(--ink-soft);line-height:1.6">${tkEsc(band.summary)}</div></div>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div class="h-sec" style="margin:0">Top 5 outcomes · ${horizons.find(h=>h[0]===_scenHorizon)[1]}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint)">${tkEsc((band.label||_scenBand))} AI-progress scenario</div>
+      </div>
+      ${outcomes.length? outcomes.map((o,i)=>scenOutcomeCard(o,i)).join('') : '<div class="empty" style="padding:24px 0">No outcomes returned for this slice — try re-running the forecast.</div>'}`;
+  }
+
+  P.innerHTML=`
+   <div class="coach"><div class="q">Scenario Planner · what AI does to your world</div>
+     <p>An expert forecast of how AI progress reshapes your life and businesses. Toggle <b>Personal</b> vs <b>Gerber</b>, pick a <b>Low / Medium / High</b> AI-progress scenario, and read the top 5 outcomes — opportunity or threat, the predicted state, what to do now, and the quantified impact — at <b>1, 2.5 and 5 years</b>. Grounded in live AI research. Decision-support, not certainty.</p></div>
+
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+     <div class="seg" style="margin:0">
+       <button class="seg-btn ${_scenCtx==='personal'?'active':''}" onclick="scenSetCtx('personal')">Personal</button>
+       <button class="seg-btn ${_scenCtx==='gerber'?'active':''}" onclick="scenSetCtx('gerber')">Gerber</button>
+     </div>
+     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+       <span style="font-family:var(--mono);font-size:10px;color:var(--ink-faint)">${scenWhenLabel()}</span>
+       <a onclick="editScenProfile()" style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);cursor:pointer">⚙ brief</a>
+       ${_scenRunning?`<span style="font-family:var(--mono);font-size:11px;color:var(--terra)">⏳ running…</span>`
+         :`<button class="btn" onclick="runScenarioNow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>${data?'Re-run':'Run'} forecast</button>`}
+     </div>
+   </div>
+
+   ${data&&!_scenRunning?`
+   <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:6px;align-items:flex-end">
+     <div><div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:5px">AI progress scenario</div>
+       <div class="seg" style="margin:0">${bands.map(b=>`<button class="seg-btn ${_scenBand===b[0]?'active':''}" onclick="scenSetBand('${b[0]}')">${b[1]}</button>`).join('')}</div></div>
+     <div><div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:5px">Horizon</div>
+       <div class="seg" style="margin:0">${horizons.map(h=>`<button class="seg-btn ${_scenHorizon===h[0]?'active':''}" onclick="scenSetHorizon('${h[0]}')">${h[1]}</button>`).join('')}</div></div>
+   </div>
+   <div style="height:14px"></div>`:''}
+
+   ${body}`;
+}
+
+function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire();renderPairs();renderScenario(); }
 document.getElementById('todayStr').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 // Handle nav for wealth & retire panes (lazy render already done in renderAll)
 document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{
@@ -4125,6 +4284,7 @@ document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',(
   // lazy-load the family dashboard the first time Finance/Wealth is opened
   if(b.dataset.pane==='finance'){ const f=document.getElementById('famFrame'); if(f && (!f.src || /about:blank/.test(f.src))) finTab('sbh'); }
   if(b.dataset.pane==='pairs' && !window._pairsKicked){ window._pairsKicked=true; loadPairs(); }
+  if(b.dataset.pane==='scenario' && !_scenKicked[_scenCtx]){ _scenKicked[_scenCtx]=true; loadScenario(_scenCtx); }
   window.scrollTo({top:0,behavior:'smooth'});
 }));
 renderAll();
