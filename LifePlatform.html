@@ -4140,30 +4140,31 @@ async function runScenarioNow(){
   const base=proxyBase(); if(!base){ toast('Connect your proxy first.'); return; }
   if(_scenRunning){ toast('A forecast is already running — please wait.'); return; }
   _scenRunning=true; renderScenario();
-  toast('Generating forecast…');
-  const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),90000);
+  toast('Generating AI-impact forecast…');
   try{
-    const r=await fetch(base+'/scenario/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ctx:_scenCtx}),signal:ctl.signal});
+    const r=await fetch(base+'/scenario/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ctx:_scenCtx})});
     const j=await r.json().catch(()=>({}));
-    if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
-    if(j.scenarios){ _scenData[_scenCtx]=j.scenarios; _scenWhen[_scenCtx]=j.updatedAt; toast('Forecast ready.'); }
-    else { toast('Running in background — check back in a moment.'); pollScenario(); }
+    if(j.scenarios){ _scenData[_scenCtx]=j.scenarios; _scenWhen[_scenCtx]=j.updatedAt; _scenRunning=false; renderScenario(); toast('Forecast ready.'); return; }
+    if(j.error) throw new Error(j.error);
+    // Background job started — poll until done
+    pollScenario(0);
   }catch(e){
-    const msg=e.name==='AbortError'?'Forecast timed out on the network — try again.':'Forecast failed: '+(e.message||'try again');
-    toast(msg);
-  } finally { clearTimeout(to); _scenRunning=false; renderScenario(); }
+    _scenRunning=false; renderScenario();
+    toast('Failed: '+(e.message||'try again'));
+  }
 }
 function pollScenario(n){
-  n=n||0; if(n>20) return;
+  if(n>24) return (_scenRunning=false, renderScenario(), toast('Forecast timed out — try again.'));
   const base=proxyBase(); if(!base) return;
   setTimeout(async()=>{
     try{
       const r=await fetch(base+'/scenario/status?ctx='+_scenCtx+'&_='+Date.now());
       const d=await r.json().catch(()=>({}));
-      if(d.scenarios){ _scenData[_scenCtx]=d.scenarios; _scenWhen[_scenCtx]=d.updatedAt; _scenRunning=false; renderScenario(); toast('Forecast ready.'); return; }
-      if(d.running) pollScenario(n+1);
-    }catch(e){}
-  },5000);
+      if(d.scenarios){ _scenData[_scenCtx]=d.scenarios; _scenWhen[_scenCtx]=d.updatedAt; _scenRunning=false; renderScenario(); toast('Forecast ready.'); }
+      else if(d.running){ pollScenario(n+1); }
+      else { _scenRunning=false; renderScenario(); toast('Forecast failed on the server — try again.'); }
+    }catch(e){ pollScenario(n+1); }
+  }, n===0 ? 12000 : 5000);
 }
 function scenSetCtx(c){ _scenCtx=c; renderScenario(); if(!_scenData[c]) loadScenario(c); }
 function scenSetBand(b){ _scenBand=b; renderScenario(); }

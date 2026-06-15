@@ -625,25 +625,35 @@ Each item: {"headline":"...","type":"...","state":"...","action":"...","impact":
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 2500, messages: [{ role: 'user', content: prompt }] })
     });
     const text = await r.text();
     if (!r.ok) throw Object.assign(new Error('Claude API ' + r.status), { status: 502 });
     const j = JSON.parse(text);
-    // Strip markdown fences if present, then extract the JSON object
     let reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n')
       .replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-    const start = reply.indexOf('{'), end = reply.lastIndexOf('}');
-    if (start < 0 || end <= start) throw new Error('No JSON in response — try again.');
-    let parsed;
-    try { parsed = JSON.parse(reply.slice(start, end + 1)); }
-    catch (e) {
-      // Try to repair truncated JSON by finding the last complete scenario object
-      const safe = reply.slice(start);
-      const fixed = safe.replace(/,\s*$/, '').replace(/,\s*\}$/, '}');
-      try { parsed = JSON.parse(fixed + (fixed.endsWith('}') ? '' : '}')); }
-    catch (e2) { throw new Error('Forecast result could not be parsed — try again.'); }
+    const start = reply.indexOf('{');
+    if (start < 0) throw new Error('No JSON in response — try again.');
+    let raw = reply.slice(start);
+    function repairJson(s) {
+      const stack = []; let inStr = false, esc = false;
+      for (const c of s) {
+        if (esc) { esc = false; continue; }
+        if (c === '\\' && inStr) { esc = true; continue; }
+        if (c === '"') { inStr = !inStr; continue; }
+        if (inStr) continue;
+        if (c === '{') stack.push('}');
+        else if (c === '[') stack.push(']');
+        else if ((c === '}' || c === ']') && stack.length && stack[stack.length - 1] === c) stack.pop();
+      }
+      let out = s;
+      if (inStr) out += '"';
+      out += stack.reverse().join('');
+      return out;
     }
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch (e) { try { parsed = JSON.parse(repairJson(raw)); } catch (e2) { throw new Error('Forecast could not be parsed — try again.'); } }
     if (!parsed.scenarios) throw new Error('Forecast missing scenarios — try again.');
     const payload = { scenarios: parsed.scenarios, ctx, updatedAt: new Date().toISOString() };
     if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -654,27 +664,13 @@ Each item: {"headline":"...","type":"...","state":"...","action":"...","impact":
 }
 app.post('/scenario/run', async (req, res) => {
   const ctx = ((req.body || {}).ctx === 'gerber') ? 'gerber' : 'personal';
-  if (scenRunning(ctx)) {
-    let stored = null;
-    try { if (fs.existsSync(SCEN_FILE(ctx))) stored = JSON.parse(fs.readFileSync(SCEN_FILE(ctx))); } catch (e) {}
-    return res.json({ running: true, ctx, scenarios: stored ? stored.scenarios : null, updatedAt: stored ? stored.updatedAt : null });
-  }
-  // Keep Railway's proxy alive by flushing a space every 10s during generation.
-  // Railway resets its idle timeout on each byte written, so this prevents a
-  // 30s proxy cut-off on a 30-60s Claude generation. JSON.parse ignores leading whitespace.
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.write(' ');
-  const ping = setInterval(() => { try { res.write(' '); } catch (e) {} }, 10000);
-  try {
-    const result = await runScenario(ctx);
-    clearInterval(ping);
-    res.end(JSON.stringify(result));
-  } catch (e) {
-    clearInterval(ping);
-    console.log('[SCENARIO] run failed', e.message);
-    try { res.end(JSON.stringify({ error: e.message })); } catch (we) {}
-  }
+  // Return immediately — generation runs in background; client polls /scenario/status
+  let stored = null;
+  try { if (fs.existsSync(SCEN_FILE(ctx))) stored = JSON.parse(fs.readFileSync(SCEN_FILE(ctx))); } catch (e) {}
+  if (scenRunning(ctx)) return res.json({ running: true, ctx, scenarios: stored ? stored.scenarios : null, updatedAt: stored ? stored.updatedAt : null });
+  res.json({ running: true, started: true, ctx, scenarios: null, updatedAt: null });
+  // Background job — Railway won't time it out since we already responded
+  runScenario(ctx).catch(e => console.log('[SCENARIO] background failed:', e.message));
 });
 // Poll endpoint — client calls this every 5s while waiting
 app.get('/scenario/status', (req, res) => {
