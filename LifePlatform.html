@@ -2257,28 +2257,55 @@ async function extractSwingFrames(file, count, maxPx){
   return new Promise((resolve,reject)=>{
     const url=URL.createObjectURL(file);
     const video=document.createElement('video');
-    video.preload='auto'; video.muted=true; video.playsInline=true; video.src=url;
-    const frames=[]; let times=[]; let idx=0;
+    video.preload='auto'; video.muted=true; video.playsInline=true;
+    video.setAttribute('playsinline',''); video.setAttribute('muted','');
+    const frames=[]; let times=[]; let idx=0; let done=false;
     const canvas=document.createElement('canvas'); const ctx=canvas.getContext('2d');
-    const fail=m=>{ URL.revokeObjectURL(url); reject(new Error(m)); };
-    video.onerror=()=>fail('Could not read that video format. Try MP4 or MOV.');
-    video.onloadedmetadata=()=>{
+    let seekTimer=null;
+    const cleanup=()=>{ clearTimeout(global); clearTimeout(seekTimer); try{video.removeAttribute('src');video.load();}catch(e){} URL.revokeObjectURL(url); };
+    const finish=()=>{ if(done)return; done=true; cleanup(); resolve(frames); };
+    const fail=m=>{ if(done)return; done=true; cleanup(); reject(new Error(m)); };
+    // Global watchdog — never let the UI hang. Return whatever we have, or error.
+    const global=setTimeout(()=>{ if(frames.length>=2) finish(); else fail('That video took too long to read — it may be an unsupported format (e.g. HEVC/H.265). Try exporting/recording as H.264 MP4, or screen-record it.'); }, 25000);
+
+    video.onerror=()=>fail('Could not read that video format. Try an H.264 MP4 or MOV.');
+    function begin(){
       const dur=video.duration;
-      if(!dur||!isFinite(dur)){ return fail('Could not read the video length.'); }
-      // sample from 5% to 98% to skip black lead-in/out
+      if(!dur||!isFinite(dur)||dur<=0){ return fail('Could not read the video length. Try a different format (H.264 MP4 works best).'); }
+      if(!video.videoWidth||!video.videoHeight){ return fail('Could not read the video dimensions — the format may be unsupported. Try an H.264 MP4.'); }
       const a=dur*0.05, b=dur*0.98;
       times=Array.from({length:count},(_,i)=>a+(b-a)*(i/(count-1)));
       const scale=Math.min(1, maxPx/Math.max(video.videoWidth,video.videoHeight));
       canvas.width=Math.round(video.videoWidth*scale); canvas.height=Math.round(video.videoHeight*scale);
       seek();
-    };
-    function seek(){ if(idx>=times.length){ URL.revokeObjectURL(url); return resolve(frames); } video.currentTime=times[idx]; }
-    video.onseeked=()=>{
-      try{ ctx.drawImage(video,0,0,canvas.width,canvas.height);
-        frames.push(canvas.toDataURL('image/jpeg',0.8).split(',')[1]);
-      }catch(e){ return fail('Could not capture a frame from the video.'); }
-      idx++; setTimeout(seek,30);
-    };
+    }
+    video.onloadedmetadata=begin;
+    // Some browsers fire loadeddata but not loadedmetadata reliably for certain files
+    video.onloadeddata=()=>{ if(!times.length && video.readyState>=1 && video.duration) begin(); };
+
+    function seek(){
+      if(done) return;
+      if(idx>=times.length){ return finish(); }
+      clearTimeout(seekTimer);
+      // Per-seek watchdog: if onseeked never fires, capture what's there and move on
+      seekTimer=setTimeout(()=>{ capture(true); }, 4000);
+      try{ video.currentTime=times[idx]; }catch(e){ capture(true); }
+    }
+    function capture(skipOnStall){
+      if(done) return;
+      clearTimeout(seekTimer);
+      try{
+        ctx.drawImage(video,0,0,canvas.width,canvas.height);
+        const data=canvas.toDataURL('image/jpeg',0.8).split(',')[1];
+        if(data && data.length>100) frames.push(data);
+      }catch(e){ if(!skipOnStall) return fail('Could not capture a frame from the video.'); }
+      idx++; setTimeout(seek,40);
+    }
+    video.onseeked=()=>capture(false);
+
+    video.src=url;
+    // Nudge load on browsers that wait for interaction
+    try{ video.load(); }catch(e){}
   });
 }
 
@@ -2322,19 +2349,24 @@ async function runSwingReview(initial){
   const base=proxyBase(); if(!base||!_swing) return;
   const status=document.getElementById('swStatus'); const inp=document.getElementById('swMsg'); const btn=document.getElementById('swSendBtn');
   if(status) status.style.display='';
+  const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(), 90000);
   try{
     const body={ media_type:'image/jpeg', view:_swing.view, handed:_swing.handed, messages:_swing.messages };
     if(_swing.frames && _swing.frames.length) body.frames=_swing.frames; // stateless API: resend frames each live turn
-    const r=await fetch(base+'/swing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const r=await fetch(base+'/swing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctl.signal});
     let j={}; try{ j=await r.json(); }catch(e){}
-    if(!r.ok||j.error){ if(status){status.style.display='';status.textContent='Coach unavailable: '+(j.error||('HTTP '+r.status));} return; }
+    if(!r.ok||j.error){ if(status){status.style.display='';status.textContent='Coach unavailable: '+(j.error||('HTTP '+r.status));} if(inp){inp.disabled=false;} if(btn){btn.disabled=false;} return; }
     const reply=j.reply||'(no reply)';
     _swing.messages.push({role:'assistant',content:reply});
     swPushMsg('bot',reply);
     if(status) status.style.display='none';
     if(inp){ inp.disabled=false; } if(btn){ btn.disabled=false; }
     saveSwing(); // persist the conversation
-  }catch(e){ if(status){status.style.display='';status.textContent='Could not reach Coach (network). Try again.';} }
+  }catch(e){
+    const msg = e.name==='AbortError' ? 'Coach took too long to respond — please try again.' : 'Could not reach Coach (network). Try again.';
+    if(status){status.style.display='';status.textContent=msg;}
+    if(inp){inp.disabled=false;} if(btn){btn.disabled=false;}
+  } finally { clearTimeout(to); }
 }
 
 async function sendSwingMsg(){
