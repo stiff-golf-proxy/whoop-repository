@@ -4140,15 +4140,39 @@ async function runScenarioNow(){
   const base=proxyBase(); if(!base){ toast('Connect your proxy first.'); return; }
   if(_scenRunning) return;
   _scenRunning=true; renderScenario();
-  toast('Running AI-impact deep dive — this takes a minute or two…');
+  toast('Starting deep dive — searching AI progress and building scenarios…');
   try{
+    // Fire the job (returns immediately — forecast runs in background on the proxy)
     const r=await fetch(base+'/scenario/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ctx:_scenCtx})});
     const j=await r.json().catch(()=>({}));
-    if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
-    _scenData[_scenCtx]=j.scenarios; _scenWhen[_scenCtx]=j.updatedAt;
-    toast('Forecast ready.');
-  }catch(e){ toast('Forecast failed: '+(e.message||'try again')); }
-  _scenRunning=false; renderScenario();
+    if(j.error) throw new Error(j.error);
+    // Poll /scenario/status every 6s until done (max ~4 min)
+    let attempts=0;
+    const poll=async()=>{
+      try{
+        const s=await fetch(base+'/scenario/status?ctx='+_scenCtx+'&_='+Date.now());
+        const d=await s.json().catch(()=>({}));
+        if(d.scenarios){
+          _scenData[_scenCtx]=d.scenarios; _scenWhen[_scenCtx]=d.updatedAt;
+          _scenRunning=false; renderScenario();
+          toast('Forecast ready.');
+          return;
+        }
+        if(d.running===false && !d.scenarios){
+          throw new Error('Forecast completed with no results — try again.');
+        }
+      }catch(e){
+        if(attempts>38){ _scenRunning=false; renderScenario(); toast('Forecast timed out — try again.'); return; }
+      }
+      attempts++;
+      if(attempts>38){ _scenRunning=false; renderScenario(); toast('Forecast is taking very long — check back in a minute.'); return; }
+      setTimeout(poll, 6000);
+    };
+    setTimeout(poll, 8000); // first poll after 8s
+  }catch(e){
+    _scenRunning=false; renderScenario();
+    toast('Forecast failed: '+(e.message||'try again'));
+  }
 }
 function scenSetCtx(c){ _scenCtx=c; renderScenario(); if(!_scenData[c]) loadScenario(c); }
 function scenSetBand(b){ _scenBand=b; renderScenario(); }

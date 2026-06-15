@@ -662,8 +662,25 @@ Respond with ONLY raw JSON (no markdown fences, no preamble) in EXACTLY this sha
   } finally { SCEN_RUNNING[ctx] = false; }
 }
 app.post('/scenario/run', async (req, res) => {
-  try { res.json(await runScenario((req.body || {}).ctx)); }
-  catch (e) { console.log('[SCENARIO] run failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+  const ctx = ((req.body || {}).ctx === 'gerber') ? 'gerber' : 'personal';
+  // If already running, return current status so the client can start polling
+  if (SCEN_RUNNING[ctx]) { return res.json({ running: true, ctx, scenarios: null, updatedAt: null }); }
+  // Reset any stale stuck flag (safety valve — should never need this)
+  if (SCEN_RUNNING[ctx] === true) SCEN_RUNNING[ctx] = false;
+  // Fire the forecast in the background; respond immediately so Railway doesn't time out
+  res.json({ running: true, ctx, started: true, scenarios: null, updatedAt: null });
+  runScenario(ctx).then(payload => {
+    console.log(`[SCENARIO] background run complete (${ctx})`);
+  }).catch(e => {
+    console.log(`[SCENARIO] background run failed (${ctx}):`, e.message);
+  });
+});
+// Poll endpoint — client calls this every 5s while waiting
+app.get('/scenario/status', (req, res) => {
+  const ctx = req.query.ctx === 'gerber' ? 'gerber' : 'personal';
+  let stored = null;
+  try { if (fs.existsSync(SCEN_FILE(ctx))) stored = JSON.parse(fs.readFileSync(SCEN_FILE(ctx))); } catch (e) {}
+  res.json({ running: SCEN_RUNNING[ctx], ctx, scenarios: stored ? stored.scenarios : null, updatedAt: stored ? stored.updatedAt : null });
 });
 
 
@@ -994,7 +1011,7 @@ app.get('/status', (req, res) => {
     calendar: (() => { try { if (fs.existsSync(CAL_FILE)) { const j = JSON.parse(fs.readFileSync(CAL_FILE)); const fresh = j.updatedAt && (Date.now() - Date.parse(j.updatedAt)) < CAL_MAX_AGE_MS; return `push (${(j.events||[]).length} events, ${fresh ? 'fresh' : 'stale — run sync'})`; } } catch (e) {} return process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'waiting for first push (run sync-calendar.sh)'; })(),
     traffic: process.env.GOOGLE_MAPS_KEY ? 'configured (GOOGLE_MAPS_KEY)' : 'OFF — set GOOGLE_MAPS_KEY',
     coach: process.env.ANTHROPIC_API_KEY ? ('configured (' + COACH_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
-    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing','/pairs','/pairs/refresh','/scenario','/scenario/run','/scenario/profiles'],
+    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing','/pairs','/pairs/refresh','/scenario','/scenario/run','/scenario/status','/scenario/profiles'],
     connect: '/auth/login'
   });
 });
