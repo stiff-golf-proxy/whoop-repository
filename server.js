@@ -611,19 +611,41 @@ async function runDeepDive(ranBy) {
   console.log(`[RESEARCH/RUN] deep dive started (${ranBy})`);
   try {
     const p = readResParams();
+
+    // Gather what we've already shown so the model doesn't repeat it.
+    // `seen` is a rolling list of recent item titles kept in the research file.
+    let prev = {};
+    try { if (fs.existsSync(RES_FILE)) prev = JSON.parse(fs.readFileSync(RES_FILE)) || {}; } catch (e) {}
+    const prevTitles = (prev.items || []).map(i => i.title).filter(Boolean);
+    const seen = Array.isArray(prev.seen) ? prev.seen : [];
+    const avoid = Array.from(new Set([...prevTitles, ...seen])).slice(-60);
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\b(the|a|an|of|to|for|and|in|on|as|is|sa|south africa)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    const avoidSet = new Set(avoid.map(norm));
+
     const prompt = p.brief
       + '\n\nFocus areas: ' + p.categories
-      + '\n\nToday is ' + new Date().toDateString() + '. Use web search to research each focus area, then produce '
-      + (p.itemCount || '8-12') + ' items.'
+      + '\n\nToday is ' + dateStr + '.'
+      + '\n\nSTRICT REQUIREMENTS:'
+      + '\n- Surface only genuinely NEW developments published in the LAST 7 DAYS (14 at the absolute most). Lead every web search with the current month and year, and discard anything older.'
+      + '\n- Each item must be a specific, datable event — a launch, deal, result, price move, regulation, court ruling, earnings print, appointment. NO evergreen explainers, "trends", round-ups, or background pieces.'
+      + '\n- Prefer primary and reputable trade sources over aggregators. Include the publication date in your reasoning and only keep recent ones.'
+      + '\n- Do NOT include anything substantially similar to items already covered (listed below). Find fresh stories, not new framings of the same news.'
+      + '\n- If a focus area genuinely has no material news this week, return fewer items rather than padding with stale or generic content. Quality over quantity.'
+      + (avoid.length ? ('\n\nALREADY COVERED — do not repeat these or close variants:\n- ' + avoid.slice(-40).join('\n- ')) : '')
+      + '\n\nProduce up to ' + (p.itemCount || '8-12') + ' items.'
       + '\n\nRespond with ONLY a raw JSON array (no markdown fences, no commentary) where each item is: '
-      + '{"category":"<one of the focus areas, short label>","title":"<headline in your own words>","insight":"<1-2 sentences on why it matters to this portfolio>","url":"<source url>","source":"<publisher name>"}';
+      + '{"category":"<one of the focus areas, short label>","title":"<specific headline in your own words>","insight":"<1-2 sentences: why it matters to this specific portfolio company>","date":"<YYYY-MM-DD of the news>","url":"<source url>","source":"<publisher name>"}';
+
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: COACH_MODEL,
         max_tokens: 4000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 10 }],
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -633,11 +655,18 @@ async function runDeepDive(ranBy) {
     const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
     const m = reply.match(/\[[\s\S]*\]/);
     if (!m) { console.log('[RESEARCH/RUN] no JSON in reply:', reply.slice(0, 200)); throw new Error('Deep dive returned no usable list — try again.'); }
-    const items = JSON.parse(m[0])
-      .map(x => ({ category: x.category || 'General', title: x.title || '', insight: x.insight || '', url: x.url || x.link || '', source: x.source || '' }))
+    let items = JSON.parse(m[0])
+      .map(x => ({ category: x.category || 'General', title: x.title || '', insight: x.insight || '', date: x.date || '', url: x.url || x.link || '', source: x.source || '' }))
       .filter(x => x.title);
-    if (!items.length) throw new Error('Deep dive returned an empty list — try again.');
-    const payload = { items, updatedAt: new Date().toISOString(), ranBy };
+    // Drop anything that matches a recently-shown title (belt-and-braces dedup)
+    const before = items.length;
+    items = items.filter(x => !avoidSet.has(norm(x.title)));
+    if (items.length < before) console.log(`[RESEARCH/RUN] filtered ${before - items.length} repeat item(s)`);
+    if (!items.length) throw new Error('Deep dive found nothing new this run — the recent news may already be covered. Try again later.');
+
+    // Update rolling seen-list (keep last ~60 titles)
+    const newSeen = Array.from(new Set([...seen, ...items.map(i => i.title)])).slice(-60);
+    const payload = { items, updatedAt: new Date().toISOString(), ranBy, seen: newSeen };
     if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(RES_FILE, JSON.stringify(payload));
     console.log(`[RESEARCH/RUN] deep dive stored ${items.length} items (${ranBy})`);
