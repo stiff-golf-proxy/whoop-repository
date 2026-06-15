@@ -561,7 +561,8 @@ const RES_FILE = DATA_DIR + '/research.json';
    ============================================================ */
 const SCEN_PROFILES_FILE = DATA_DIR + '/scenario-profiles.json';
 const SCEN_FILE = ctx => DATA_DIR + '/scenario-' + (ctx === 'gerber' ? 'gerber' : 'personal') + '.json';
-let SCEN_RUNNING = { personal: false, gerber: false };
+const SCEN_RUNNING = { personal: 0, gerber: 0 }; // timestamp of run start, 0 = not running
+function scenRunning(ctx){ return SCEN_RUNNING[ctx] && (Date.now()-SCEN_RUNNING[ctx] < 90000); }
 
 const SCEN_DEFAULT_PROFILES = {
   personal: `Stuart is a Cape Town-based private-equity principal in his late 40s. His working life is investing, deal analysis, portfolio oversight and board work; his personal life includes golf, health/fitness tracking (WHOOP), and managing family wealth and trust structures. He uses AI tools heavily (this very platform is built with AI). Forecast how AI progress reshapes: (a) the value and nature of his investing/analytical skills, (b) how he spends his working time, (c) personal productivity, learning and health, (d) the broader economic and asset-price environment his wealth sits in, (e) risks to his role and relevance. Be concrete and personal, not generic.`,
@@ -595,8 +596,8 @@ async function runScenario(ctx) {
   ctx = ctx === 'gerber' ? 'gerber' : 'personal';
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw Object.assign(new Error('ANTHROPIC_API_KEY not set on the proxy'), { status: 501 });
-  if (SCEN_RUNNING[ctx]) throw Object.assign(new Error('A forecast is already running for this view.'), { status: 409 });
-  SCEN_RUNNING[ctx] = true;
+  if (scenRunning(ctx)) throw Object.assign(new Error('A forecast is already running for this view.'), { status: 409 });
+  SCEN_RUNNING[ctx] = Date.now();
   console.log(`[SCENARIO] run started (${ctx})`);
   try {
     const profile = readScenProfiles()[ctx];
@@ -651,11 +652,11 @@ Respond with ONLY raw JSON (no markdown fences, no preamble) in EXACTLY this sha
     fs.writeFileSync(SCEN_FILE(ctx), JSON.stringify(payload));
     console.log(`[SCENARIO] run stored (${ctx})`);
     return payload;
-  } finally { SCEN_RUNNING[ctx] = false; }
+  } finally { SCEN_RUNNING[ctx] = 0; }
 }
 app.post('/scenario/run', async (req, res) => {
   const ctx = ((req.body || {}).ctx === 'gerber') ? 'gerber' : 'personal';
-  if (SCEN_RUNNING[ctx]) {
+  if (scenRunning(ctx)) {
     // Already running — return whatever is stored so the client can poll
     let stored = null;
     try { if (fs.existsSync(SCEN_FILE(ctx))) stored = JSON.parse(fs.readFileSync(SCEN_FILE(ctx))); } catch (e) {}
@@ -669,7 +670,7 @@ app.get('/scenario/status', (req, res) => {
   const ctx = req.query.ctx === 'gerber' ? 'gerber' : 'personal';
   let stored = null;
   try { if (fs.existsSync(SCEN_FILE(ctx))) stored = JSON.parse(fs.readFileSync(SCEN_FILE(ctx))); } catch (e) {}
-  res.json({ running: SCEN_RUNNING[ctx], ctx, scenarios: stored ? stored.scenarios : null, updatedAt: stored ? stored.updatedAt : null });
+  res.json({ running: scenRunning(ctx), ctx, scenarios: stored ? stored.scenarios : null, updatedAt: stored ? stored.updatedAt : null });
 });
 
 
