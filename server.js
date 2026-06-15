@@ -605,34 +605,43 @@ async function runScenario(ctx) {
     const subject = ctx === 'gerber' ? "the Gerber Goldschmidt Group's operating businesses" : "Stuart's personal and professional life";
 
     const prompt =
-`You are a strategic foresight analyst. Today is ${today}. Forecast how AI progress reshapes ${subject} over 5 years.
+`You are a strategic foresight analyst. Forecast how AI reshapes ${subject} over 5 years. Today: ${today}.
 
-CONTEXT:
-${profile}
+CONTEXT: ${profile}
 
-THREE scenarios — LOW (slow/friction), MEDIUM (consensus), HIGH (transformative acceleration).
-For each: top 3 outcomes at 1 year, 2.5 years, 5 years.
+THREE scenarios: LOW (slow/friction), MEDIUM (consensus), HIGH (transformative).
+For each: 2 outcomes at 1 year, 2 at 2.5 years, 2 at 5 years.
 
-Each outcome: "headline" (specific title), "type" (opportunity/threat/mixed), "state" (1 sentence: what concretely happens), "action" (single best move now), "impact" (quantified estimate).
+Each outcome — keep fields SHORT (1 sentence max each):
+"headline": specific title, "type": opportunity/threat/mixed, "state": what concretely happens, "action": single best move, "impact": one quantified estimate.
 
-Be specific to the profile — name actual businesses, skills, assets. No generic filler.
+Name actual businesses/skills from the context. No filler.
 
-Respond ONLY as raw JSON, no fences:
-{"scenarios":{"low":{"label":"Low — slower progress","summary":"2 sentences","horizons":{"1":[3 outcomes],"2.5":[3 outcomes],"5":[3 outcomes]}},"medium":{"label":"Medium — steady progress","summary":"...","horizons":{"1":[3],"2.5":[3],"5":[3]}},"high":{"label":"High — transformative","summary":"...","horizons":{"1":[3],"2.5":[3],"5":[3]}}}}`;
+Raw JSON only, no markdown:
+{"scenarios":{"low":{"label":"Low","summary":"1 sentence","horizons":{"1":[2 items],"2.5":[2 items],"5":[2 items]}},"medium":{"label":"Medium","summary":"1 sentence","horizons":{"1":[2],"2.5":[2],"5":[2]}},"high":{"label":"High","summary":"1 sentence","horizons":{"1":[2],"2.5":[2],"5":[2]}}}}`;
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 2500, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1800, messages: [{ role: 'user', content: prompt }] })
     });
     const text = await r.text();
     if (!r.ok) throw Object.assign(new Error('Claude API ' + r.status), { status: 502 });
     const j = JSON.parse(text);
-    const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+    // Strip markdown fences if present, then extract the JSON object
+    let reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n')
+      .replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     const start = reply.indexOf('{'), end = reply.lastIndexOf('}');
-    if (start < 0 || end <= start) throw new Error('Forecast returned no parseable result — try again.');
+    if (start < 0 || end <= start) throw new Error('No JSON in response — try again.');
     let parsed;
-    try { parsed = JSON.parse(reply.slice(start, end + 1)); } catch (e) { throw new Error('Forecast returned malformed result — try again.'); }
+    try { parsed = JSON.parse(reply.slice(start, end + 1)); }
+    catch (e) {
+      // Try to repair truncated JSON by finding the last complete scenario object
+      const safe = reply.slice(start);
+      const fixed = safe.replace(/,\s*$/, '').replace(/,\s*\}$/, '}');
+      try { parsed = JSON.parse(fixed + (fixed.endsWith('}') ? '' : '}')); }
+      catch (e2) { throw new Error('Forecast result could not be parsed — try again.'); }
+    }
     if (!parsed.scenarios) throw new Error('Forecast missing scenarios — try again.');
     const payload = { scenarios: parsed.scenarios, ctx, updatedAt: new Date().toISOString() };
     if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
