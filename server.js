@@ -605,38 +605,25 @@ async function runScenario(ctx) {
     const subject = ctx === 'gerber' ? "the Gerber Goldschmidt Group's operating businesses" : "Stuart's personal and professional life";
 
     const prompt =
-`You are a sharp, candid strategic foresight analyst. Today is ${today}. Produce an expert forecast of how AI progress will reshape ${subject} over the next 5 years. Draw on your deep knowledge of AI capability trajectories, industry disruption patterns, South African market context, and the specific profile below.
+`You are a strategic foresight analyst. Today is ${today}. Forecast how AI progress reshapes ${subject} over 5 years.
 
-CONTEXT / PROFILE:
+CONTEXT:
 ${profile}
 
-Build THREE scenarios for the pace/impact of AI progress:
-- LOW: slower progress, plateau in frontier capability, heavy adoption friction, regulatory headwinds
-- MEDIUM: steady compounding, roughly consensus expectations, broad but uneven adoption
-- HIGH: transformative acceleration, capability overhang releases, rapid labour and business model disruption
+THREE scenarios — LOW (slow/friction), MEDIUM (consensus), HIGH (transformative acceleration).
+For each: top 3 outcomes at 1 year, 2.5 years, 5 years.
 
-For EACH scenario, give the TOP 5 OUTCOMES at EACH of three horizons: 1 year, 2.5 years, 5 years.
+Each outcome: "headline" (specific title), "type" (opportunity/threat/mixed), "state" (1 sentence: what concretely happens), "action" (single best move now), "impact" (quantified estimate).
 
-Each outcome MUST contain:
-- "headline": a short, specific outcome title (not generic)
-- "type": one of "opportunity", "threat", or "mixed"
-- "state": the concrete predicted event or state at that horizon — 1-2 sentences, specific to the profile
-- "action": the single most important thing to do NOW or by this horizon to seize or defend against it
-- "impact": quantified or concrete impact where possible (revenue %, time saved, cost, asset value, headcount, margin) — estimates with ranges are fine
+Be specific to the profile — name actual businesses, skills, assets. No generic filler.
 
-Rules:
-- Name actual businesses, skills, roles, assets from the profile. No filler.
-- Near-term outcomes should be tangible and imminent; long-term more structural.
-- Be honest about uncertainty but commit to a view.
-- Vary the mix of opportunities and threats realistically per scenario.
-
-Respond with ONLY raw JSON (no markdown fences, no preamble) in EXACTLY this shape:
-{"scenarios":{"low":{"label":"Low — slower progress","summary":"<2 sentence framing>","horizons":{"1":[5 outcomes],"2.5":[5 outcomes],"5":[5 outcomes]}},"medium":{"label":"Medium — steady progress","summary":"...","horizons":{"1":[5],"2.5":[5],"5":[5]}},"high":{"label":"High — transformative","summary":"...","horizons":{"1":[5],"2.5":[5],"5":[5]}}}}`;
+Respond ONLY as raw JSON, no fences:
+{"scenarios":{"low":{"label":"Low — slower progress","summary":"2 sentences","horizons":{"1":[3 outcomes],"2.5":[3 outcomes],"5":[3 outcomes]}},"medium":{"label":"Medium — steady progress","summary":"...","horizons":{"1":[3],"2.5":[3],"5":[3]}},"high":{"label":"High — transformative","summary":"...","horizons":{"1":[3],"2.5":[3],"5":[3]}}}}`;
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 6000, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 2500, messages: [{ role: 'user', content: prompt }] })
     });
     const text = await r.text();
     if (!r.ok) throw Object.assign(new Error('Claude API ' + r.status), { status: 502 });
