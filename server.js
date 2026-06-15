@@ -623,7 +623,7 @@ Raw JSON only, no markdown:
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1800, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 2500, messages: [{ role: 'user', content: prompt }] })
     });
     const text = await r.text();
     if (!r.ok) throw Object.assign(new Error('Claude API ' + r.status), { status: 502 });
@@ -640,9 +640,9 @@ Raw JSON only, no markdown:
       const safe = reply.slice(start);
       const fixed = safe.replace(/,\s*$/, '').replace(/,\s*\}$/, '}');
       try { parsed = JSON.parse(fixed + (fixed.endsWith('}') ? '' : '}')); }
-    catch (e2) { throw new Error('PARSE_FAIL:' + reply.slice(start, start+300)); }
+    catch (e2) { throw new Error('Forecast result could not be parsed — try again.'); }
     }
-    if (!parsed.scenarios) throw new Error('NO_SCENARIOS:' + JSON.stringify(Object.keys(parsed)).slice(0,100));
+    if (!parsed.scenarios) throw new Error('Forecast missing scenarios — try again.');
     const payload = { scenarios: parsed.scenarios, ctx, updatedAt: new Date().toISOString() };
     if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(SCEN_FILE(ctx), JSON.stringify(payload));
