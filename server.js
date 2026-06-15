@@ -640,9 +640,9 @@ Raw JSON only, no markdown:
       const safe = reply.slice(start);
       const fixed = safe.replace(/,\s*$/, '').replace(/,\s*\}$/, '}');
       try { parsed = JSON.parse(fixed + (fixed.endsWith('}') ? '' : '}')); }
-      catch (e2) { throw new Error('Forecast result could not be parsed — try again.'); }
+    catch (e2) { throw new Error('PARSE_FAIL:' + reply.slice(start, start+300)); }
     }
-    if (!parsed.scenarios) throw new Error('Forecast missing scenarios — try again.');
+    if (!parsed.scenarios) throw new Error('NO_SCENARIOS:' + JSON.stringify(Object.keys(parsed)).slice(0,100));
     const payload = { scenarios: parsed.scenarios, ctx, updatedAt: new Date().toISOString() };
     if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(SCEN_FILE(ctx), JSON.stringify(payload));
