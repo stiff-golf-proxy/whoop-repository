@@ -604,56 +604,48 @@ async function runScenario(ctx) {
     const subject = ctx === 'gerber' ? "the Gerber Goldschmidt Group's operating businesses" : "Stuart's personal and professional life";
 
     const prompt =
-`You are a sharp, candid strategic foresight analyst. Today is ${today}. Produce an expert forecast of how AI progress will reshape ${subject} over the next 5 years.
+`You are a sharp, candid strategic foresight analyst. Today is ${today}. Produce an expert forecast of how AI progress will reshape ${subject} over the next 5 years. Draw on your deep knowledge of AI capability trajectories, industry disruption patterns, South African market context, and the specific profile below.
 
 CONTEXT / PROFILE:
 ${profile}
 
-METHOD:
-1. First use web search to ground yourself in the CURRENT (last few weeks/months) trajectory of AI: frontier model capability, agentic systems, adoption in relevant industries, labour-market and economic signals, and anything specific to the sectors above. Search several angles.
-2. Then build THREE scenarios for the pace/impact of AI progress: LOW (slower, plateauing, heavy friction), MEDIUM (steady, roughly consensus), HIGH (fast, transformative, capability overhang releases).
-3. For EACH scenario, give the TOP 5 OUTCOMES at EACH of three horizons: 1 year, 2.5 years, 5 years. (So 5 outcomes × 3 horizons × 3 scenarios = 45 outcomes.)
+Build THREE scenarios for the pace/impact of AI progress:
+- LOW: slower progress, plateau in frontier capability, heavy adoption friction, regulatory headwinds
+- MEDIUM: steady compounding, roughly consensus expectations, broad but uneven adoption
+- HIGH: transformative acceleration, capability overhang releases, rapid labour and business model disruption
 
-Each outcome MUST contain, in this priority order:
-- "headline": a short, specific outcome title.
-- "type": one of "opportunity", "threat", or "mixed".
-- "state": the concrete predicted event or state at that horizon (what actually happens) — 1-2 sentences, specific not generic.
-- "action": the single most useful thing Stuart should do NOW (or by this horizon) to seize or defend against it.
-- "impact": a quantified or concrete impact where at all possible (revenue, time saved/lost, cost, asset value, headcount, margin) — estimate ranges are fine, label them as estimates.
+For EACH scenario, give the TOP 5 OUTCOMES at EACH of three horizons: 1 year, 2.5 years, 5 years.
+
+Each outcome MUST contain:
+- "headline": a short, specific outcome title (not generic)
+- "type": one of "opportunity", "threat", or "mixed"
+- "state": the concrete predicted event or state at that horizon — 1-2 sentences, specific to the profile
+- "action": the single most important thing to do NOW or by this horizon to seize or defend against it
+- "impact": quantified or concrete impact where possible (revenue %, time saved, cost, asset value, headcount, margin) — estimates with ranges are fine
 
 Rules:
-- Be specific to the profile. Name the actual businesses, skills, assets, roles. No filler.
-- Vary outcomes across horizons — near-term should be tangible, long-term more structural.
-- Honest about uncertainty, but commit to a view. This is decision-support.
+- Name actual businesses, skills, roles, assets from the profile. No filler.
+- Near-term outcomes should be tangible and imminent; long-term more structural.
+- Be honest about uncertainty but commit to a view.
+- Vary the mix of opportunities and threats realistically per scenario.
 
 Respond with ONLY raw JSON (no markdown fences, no preamble) in EXACTLY this shape:
-{"scenarios":{
-  "low":{"label":"Low — slower progress","summary":"<1-2 sentence framing>","horizons":{"1":[{"headline":"","type":"","state":"","action":"","impact":""}, ...5],"2.5":[...5],"5":[...5]}},
-  "medium":{"label":"Medium — steady progress","summary":"...","horizons":{"1":[...5],"2.5":[...5],"5":[...5]}},
-  "high":{"label":"High — transformative","summary":"...","horizons":{"1":[...5],"2.5":[...5],"5":[...5]}}
-}}`;
+{"scenarios":{"low":{"label":"Low — slower progress","summary":"<2 sentence framing>","horizons":{"1":[5 outcomes],"2.5":[5 outcomes],"5":[5 outcomes]}},"medium":{"label":"Medium — steady progress","summary":"...","horizons":{"1":[5],"2.5":[5],"5":[5]}},"high":{"label":"High — transformative","summary":"...","horizons":{"1":[5],"2.5":[5],"5":[5]}}}}`;
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: COACH_MODEL,
-        max_tokens: 8000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 6000, messages: [{ role: 'user', content: prompt }] })
     });
     const text = await r.text();
-    if (!r.ok) { console.log('[SCENARIO] API error', r.status, text.slice(0, 300)); throw Object.assign(new Error('Claude API ' + r.status), { status: 502 }); }
+    if (!r.ok) throw Object.assign(new Error('Claude API ' + r.status), { status: 502 });
     const j = JSON.parse(text);
     const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
     const start = reply.indexOf('{'), end = reply.lastIndexOf('}');
-    if (start < 0 || end <= start) { console.log('[SCENARIO] no JSON:', reply.slice(0, 200)); throw new Error('Forecast returned no parseable result — try again.'); }
+    if (start < 0 || end <= start) throw new Error('Forecast returned no parseable result — try again.');
     let parsed;
-    try { parsed = JSON.parse(reply.slice(start, end + 1)); }
-    catch (e) { throw new Error('Forecast returned malformed result — try again.'); }
+    try { parsed = JSON.parse(reply.slice(start, end + 1)); } catch (e) { throw new Error('Forecast returned malformed result — try again.'); }
     if (!parsed.scenarios) throw new Error('Forecast missing scenarios — try again.');
-
     const payload = { scenarios: parsed.scenarios, ctx, updatedAt: new Date().toISOString() };
     if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(SCEN_FILE(ctx), JSON.stringify(payload));
@@ -663,17 +655,14 @@ Respond with ONLY raw JSON (no markdown fences, no preamble) in EXACTLY this sha
 }
 app.post('/scenario/run', async (req, res) => {
   const ctx = ((req.body || {}).ctx === 'gerber') ? 'gerber' : 'personal';
-  // If already running, return current status so the client can start polling
-  if (SCEN_RUNNING[ctx]) { return res.json({ running: true, ctx, scenarios: null, updatedAt: null }); }
-  // Reset any stale stuck flag (safety valve — should never need this)
-  if (SCEN_RUNNING[ctx] === true) SCEN_RUNNING[ctx] = false;
-  // Fire the forecast in the background; respond immediately so Railway doesn't time out
-  res.json({ running: true, ctx, started: true, scenarios: null, updatedAt: null });
-  runScenario(ctx).then(payload => {
-    console.log(`[SCENARIO] background run complete (${ctx})`);
-  }).catch(e => {
-    console.log(`[SCENARIO] background run failed (${ctx}):`, e.message);
-  });
+  if (SCEN_RUNNING[ctx]) {
+    // Already running — return whatever is stored so the client can poll
+    let stored = null;
+    try { if (fs.existsSync(SCEN_FILE(ctx))) stored = JSON.parse(fs.readFileSync(SCEN_FILE(ctx))); } catch (e) {}
+    return res.json({ running: true, ctx, scenarios: stored ? stored.scenarios : null, updatedAt: stored ? stored.updatedAt : null });
+  }
+  try { res.json(await runScenario(ctx)); }
+  catch (e) { console.log('[SCENARIO] run failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
 });
 // Poll endpoint — client calls this every 5s while waiting
 app.get('/scenario/status', (req, res) => {
