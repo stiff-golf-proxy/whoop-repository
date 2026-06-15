@@ -697,7 +697,7 @@ app.get('/status', (req, res) => {
     calendar: (() => { try { if (fs.existsSync(CAL_FILE)) { const j = JSON.parse(fs.readFileSync(CAL_FILE)); const fresh = j.updatedAt && (Date.now() - Date.parse(j.updatedAt)) < CAL_MAX_AGE_MS; return `push (${(j.events||[]).length} events, ${fresh ? 'fresh' : 'stale — run sync'})`; } } catch (e) {} return process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'waiting for first push (run sync-calendar.sh)'; })(),
     traffic: process.env.GOOGLE_MAPS_KEY ? 'configured (GOOGLE_MAPS_KEY)' : 'OFF — set GOOGLE_MAPS_KEY',
     coach: process.env.ANTHROPIC_API_KEY ? ('configured (' + COACH_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
-    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params'],
+    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing'],
     connect: '/auth/login'
   });
 });
