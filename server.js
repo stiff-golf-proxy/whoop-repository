@@ -547,6 +547,155 @@ app.get('/kentridge', (req, res) => {
    Gerber portfolio and POSTs them here. Dashboard reads GET /research.
    ============================================================ */
 const RES_FILE = DATA_DIR + '/research.json';
+
+/* ============================================================
+   PAIRS LIVE RECOMPUTE — refreshes the z-score / live status of the
+   fixed pair list from free Yahoo Finance daily closes. The historical
+   backtest (trades, equity curve, CAGR) stays as the embedded snapshot;
+   what we recompute live is each pair's CURRENT spread z-score and
+   whether it's firing (|z|>1.5 = LIVE, >1.2 = NEAR), plus a fresh zhist
+   tail for the sparkline. Stored on the volume; the dashboard reads
+   GET /pairs and can trigger POST /pairs/refresh.
+   Method mirrors the original: z of the log price ratio vs its own
+   ~6-month (126-trading-day) rolling mean and std.
+   ============================================================ */
+const PAIRS_FILE = DATA_DIR + '/pairs.json';
+let PAIRS_RUNNING = false;
+
+const PAIRS_TICKERS = {
+  'Northam': 'NPH.JO', 'Impala': 'IMP.JO', 'Growthpoint': 'GRT.JO', 'Redefine': 'RDF.JO',
+  'Thungela': 'TGA.JO', 'Reunert': 'RLO.JO', 'Hudaco': 'HDC.JO', 'Kumba': 'KIO.JO',
+  'Coronation': 'CML.JO', 'Ninety One': 'NY1.JO', 'Mr Price': 'MRP.JO', 'TFG': 'TFG.JO',
+  'Truworths': 'TRU.JO', 'Hyprop': 'HYP.JO', 'Resilient': 'RES.JO', 'DRDGold': 'DRD.JO',
+  'Harmony': 'HAR.JO', 'AngloAmer': 'AGL.JO', 'ARM': 'ARI.JO', 'Exxaro': 'EXX.JO',
+  'Tharisa': 'THA.JO', 'BHP': 'BHG.JO',
+  'Platinum': 'PL=F', 'Palladium': 'PA=F', 'Copper': 'HG=F', 'Aluminium': 'ALI=F'
+  // NOTE: 'Coal' deliberately omitted — Yahoo has no clean free daily coal series
+  // (QC=F is noisy/contract-rolled), so coal-leg pairs keep their snapshot z and
+  // are flagged live_stale rather than showing a bogus recomputed value.
+};
+
+async function yahooCloses(symbol) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=10mo`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  if (!r.ok) throw new Error(`yahoo ${symbol} HTTP ${r.status}`);
+  const j = await r.json();
+  const res = j.chart && j.chart.result && j.chart.result[0];
+  if (!res) throw new Error(`yahoo ${symbol} no result`);
+  const ts = res.timestamp || [];
+  const closes = (((res.indicators || {}).quote || [])[0] || {}).close || [];
+  const out = [];
+  for (let i = 0; i < ts.length; i++) if (closes[i] != null) out.push({ t: ts[i], c: closes[i] });
+  if (out.length < 60) throw new Error(`yahoo ${symbol} too few points (${out.length})`);
+  return out;
+}
+
+function alignCloses(A, B) {
+  const mapB = new Map(B.map(d => [new Date(d.t * 1000).toISOString().slice(0, 10), d.c]));
+  const out = [];
+  for (const d of A) {
+    const key = new Date(d.t * 1000).toISOString().slice(0, 10);
+    if (mapB.has(key)) out.push({ a: d.c, b: mapB.get(key) });
+  }
+  return out;
+}
+
+function zSeries(aligned, win) {
+  const ratio = aligned.map(p => Math.log(p.a / p.b));
+  const z = [];
+  for (let i = 0; i < ratio.length; i++) {
+    const lo = Math.max(0, i - win + 1);
+    const w = ratio.slice(lo, i + 1);
+    if (w.length < 20) { z.push(null); continue; }
+    const m = w.reduce((s, v) => s + v, 0) / w.length;
+    const sd = Math.sqrt(w.reduce((s, v) => s + (v - m) * (v - m), 0) / w.length) || 1e-9;
+    z.push((ratio[i] - m) / sd);
+  }
+  return z;
+}
+
+async function refreshPairs() {
+  if (PAIRS_RUNNING) throw Object.assign(new Error('A pairs refresh is already running.'), { status: 409 });
+  PAIRS_RUNNING = true;
+  console.log('[PAIRS] refresh started');
+  try {
+    let base = [];
+    try { if (fs.existsSync(PAIRS_FILE)) base = (JSON.parse(fs.readFileSync(PAIRS_FILE)) || {}).pairs || []; } catch (e) {}
+    if (!base.length) throw Object.assign(new Error('No pairs baseline yet — open the Pairs tab once to seed it.'), { status: 425 });
+
+    const needed = new Set();
+    base.forEach(p => { needed.add(p.a); needed.add(p.b); });
+    const series = {};
+    const failed = [];
+    for (const name of needed) {
+      const sym = PAIRS_TICKERS[name];
+      if (!sym) { failed.push(name); continue; }
+      try { series[name] = await yahooCloses(sym); }
+      catch (e) { failed.push(name); console.log('[PAIRS]', e.message); }
+      await new Promise(r => setTimeout(r, 120));
+    }
+
+    let updated = 0;
+    const out = base.map(p => {
+      const A = series[p.a], B = series[p.b];
+      if (!A || !B) return { ...p, live_stale: true };
+      const aligned = alignCloses(A, B);
+      if (aligned.length < 40) return { ...p, live_stale: true };
+      const z = zSeries(aligned, 126).filter(v => v != null);
+      if (!z.length) return { ...p, live_stale: true };
+      const cur = +z[z.length - 1].toFixed(2);
+      if (!isFinite(cur) || Math.abs(cur) > 4) return { ...p, live_stale: true }; // bad/illiquid data → keep snapshot
+      const status = Math.abs(cur) > 1.5 ? 'LIVE' : Math.abs(cur) > 1.2 ? 'NEAR' : 'idle';
+      updated++;
+      return { ...p, cur_z: cur, status, zhist: z.slice(-176).map(v => +v.toFixed(2)), live_stale: false };
+    });
+
+    const payload = { pairs: out, updatedAt: new Date().toISOString(), priced: updated, failed };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(PAIRS_FILE, JSON.stringify(payload));
+    console.log(`[PAIRS] refresh done — ${updated}/${base.length} repriced${failed.length ? ', failed: ' + failed.join(',') : ''}`);
+    return payload;
+  } finally { PAIRS_RUNNING = false; }
+}
+
+app.get('/pairs', (req, res) => {
+  try { if (fs.existsSync(PAIRS_FILE)) return res.json(JSON.parse(fs.readFileSync(PAIRS_FILE))); } catch (e) {}
+  res.json({ pairs: [], updatedAt: null });
+});
+app.post('/pairs/seed', (req, res) => {
+  try {
+    const body = req.body || {};
+    const pairs = Array.isArray(body.pairs) ? body.pairs : [];
+    if (!pairs.length) return res.status(400).json({ error: 'pairs array required' });
+    let existing = null;
+    try { if (fs.existsSync(PAIRS_FILE)) existing = JSON.parse(fs.readFileSync(PAIRS_FILE)); } catch (e) {}
+    if (existing && existing.pairs && existing.pairs.length && !body.force) return res.json(existing);
+    const payload = { pairs, updatedAt: null, priced: 0, seeded: true };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(PAIRS_FILE, JSON.stringify(payload));
+    res.json(payload);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/pairs/refresh', async (req, res) => {
+  try { res.json(await refreshPairs()); }
+  catch (e) { console.log('[PAIRS] refresh failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+});
+
+const PAIRS_LAST_AUTO = DATA_DIR + '/pairs-last-auto.txt';
+setInterval(async () => {
+  try {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Johannesburg' }));
+    const dow = now.getDay();
+    if (dow === 0 || dow === 6) return;
+    if (now.getHours() !== 18) return;
+    const today = now.toISOString().slice(0, 10);
+    try { if (fs.existsSync(PAIRS_LAST_AUTO) && fs.readFileSync(PAIRS_LAST_AUTO, 'utf8').trim() === today) return; } catch (e) {}
+    fs.writeFileSync(PAIRS_LAST_AUTO, today);
+    console.log('[PAIRS] weekday auto-refresh starting');
+    await refreshPairs();
+  } catch (e) { console.log('[PAIRS] auto-refresh failed', e.message); }
+}, 10 * 60 * 1000);
+
 app.post('/research', (req, res) => {
   try {
     if (CAL_TOKEN && req.get('x-cal-token') !== CAL_TOKEN) return res.status(401).json({ error: 'bad token' });
@@ -726,7 +875,7 @@ app.get('/status', (req, res) => {
     calendar: (() => { try { if (fs.existsSync(CAL_FILE)) { const j = JSON.parse(fs.readFileSync(CAL_FILE)); const fresh = j.updatedAt && (Date.now() - Date.parse(j.updatedAt)) < CAL_MAX_AGE_MS; return `push (${(j.events||[]).length} events, ${fresh ? 'fresh' : 'stale — run sync'})`; } } catch (e) {} return process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'waiting for first push (run sync-calendar.sh)'; })(),
     traffic: process.env.GOOGLE_MAPS_KEY ? 'configured (GOOGLE_MAPS_KEY)' : 'OFF — set GOOGLE_MAPS_KEY',
     coach: process.env.ANTHROPIC_API_KEY ? ('configured (' + COACH_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
-    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing'],
+    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing','/pairs','/pairs/refresh'],
     connect: '/auth/login'
   });
 });
