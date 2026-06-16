@@ -637,7 +637,7 @@ Return ONLY raw JSON, no markdown:
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: COACH_MODEL, max_tokens: 2500, messages: [{ role: 'user', content: prompt }] })
+        body: JSON.stringify({ model: COACH_MODEL, max_tokens: 3500, messages: [{ role: 'user', content: prompt }] })
       });
       const text = await r.text();
       if (!r.ok) throw Object.assign(new Error(`Claude API ${r.status} on ${band}`), { status: 502 });
