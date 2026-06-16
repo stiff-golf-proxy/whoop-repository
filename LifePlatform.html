@@ -2189,6 +2189,7 @@ function renderGolf(){
      <div class="card card-pad"><div class="kicker">The bag</div><div class="h-sec">Avg carry by club</div>
        ${withData.length?barChart(withData.map(c=>({label:CLUB_ABBR[c]||c.slice(0,3),value:clubAgg(c).avgCarry||0,color:'var(--terra)'})),{h:200,yFmt:v=>Math.round(v),showVal:true,valFmt:v=>Math.round(v)}):'<div class="empty">No range data yet — import a session to see your distances</div>'}</div>
    </div>
+   <div class="card card-pad" style="margin-bottom:18px">${adamScottSection()}</div>
    <div class="card card-pad" style="margin-bottom:18px"><div class="kicker">Range</div><div class="h-sec">The bag<span class="sub">your most recent session per club, with the trend vs the session before · tap for full detail</span></div>
      <div class="scroll-x"><table class="clean"><thead><tr><th>Club</th><th class="r">Last session</th><th class="r">Total</th><th class="r">Dispersion ±</th><th class="r">Disp %</th><th class="r">Strike</th><th class="r">Distance</th><th class="r">Accuracy</th><th></th></tr></thead><tbody>
      ${bag.map(c=>{const a=clubAgg(c);const dim=a.n===0?'opacity:.45':'';const click=a.n>0?`style="cursor:pointer;${dim}" onclick="openClubDetail('${c.replace(/'/g,"\\'")}')"`:`style="${dim}"`;
@@ -2208,6 +2209,131 @@ function renderGolf(){
        return `<tr><td class="mono">${(r.date||'').slice(0,10)}</td><td>${r.course}${r.layout?' · '+r.layout:''}</td><td class="r mono">${f}</td><td class="r mono">${b}</td><td class="r mono"><b>${r.total}</b> <span style="color:${ov>0?'var(--bad)':'var(--good)'}">(${ov>0?'+':''}${ov})</span></td></tr>`;}).join('')}
      </tbody></table></div>
    </div>`;
+}
+
+/* ============================================================
+   ADAM SCOTT SWING COMPARISON
+   Key positions with SVG stick figures + checkpoints per position.
+   Adam Scott is widely regarded as having one of the most technically
+   correct swings on tour — balanced, powerful, high finish.
+   ============================================================ */
+const AS_POSITIONS = [
+  { id:'address', label:'Address', desc:'Setup',
+    keys:['Wide stance, shoulder width for irons, slightly wider for driver','Spine tilted away from target ~5°, ball forward for driver','Neutral grip — neither strong nor weak, Vs pointing at right shoulder','Weight evenly distributed 50/50, arms hang naturally','Very slight knee flex, back straight not arched'],
+    note:'Adam takes his time at address — deliberate, still, unhurried. The foundation of his tempo starts here.',
+    svg:`<circle cx="50" cy="14" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="21" x2="50" y2="52" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="28" x2="35" y2="44" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="28" x2="65" y2="44" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="52" x2="40" y2="75" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="52" x2="60" y2="75" stroke="currentColor" stroke-width="2"/>
+<line x1="40" y1="75" x2="38" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="60" y1="75" x2="58" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="35" y1="44" x2="22" y2="60" stroke="currentColor" stroke-width="2.5"/>
+<line x1="22" y1="60" x2="8" y2="82" stroke="currentColor" stroke-width="2.5"/>` },
+  { id:'takeaway', label:'Takeaway', desc:'First move — club to hip height',
+    keys:['One-piece takeaway — arms, hands and club move together as a unit','Club stays very LOW and WIDE along the ground for the first 18 inches','Triangle formed by arms and chest stays intact for the first 2 feet','Weight starts barely shifting to trail side — no lateral sway','Clubface stays square to the arc, toe pointing slightly skyward at hip height'],
+    note:'His takeaway is famously wide and smooth. No manipulation — the body rotation moves the arms, not the other way around.',
+    svg:`<circle cx="50" cy="14" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="21" x2="50" y2="52" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="28" x2="62" y2="42" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="28" x2="68" y2="38" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="52" x2="40" y2="75" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="52" x2="60" y2="75" stroke="currentColor" stroke-width="2"/>
+<line x1="40" y1="75" x2="38" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="60" y1="75" x2="58" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="68" y1="38" x2="80" y2="28" stroke="currentColor" stroke-width="2.5"/>
+<line x1="80" y1="28" x2="88" y2="18" stroke="currentColor" stroke-width="2.5"/>` },
+  { id:'halfway', label:'Halfway Back', desc:'Club parallel to ground',
+    keys:['Lead arm parallel to the ground and pointing down the target line','Shaft parallel to target line when viewed from behind','Left wrist flat (not cupped) — face matches lead forearm angle','Significant shoulder turn initiated — about 45° at this point','Hips resist rotation, creating first signs of torque/coil'],
+    note:'The hallmark of his backswing: the left arm is laser-straight and perfectly on plane. No lifting, no rolling.',
+    svg:`<circle cx="50" cy="14" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="21" x2="49" y2="54" stroke="currentColor" stroke-width="2" transform="rotate(-8 50 37)"/>
+<line x1="50" y1="28" x2="72" y2="32" stroke="currentColor" stroke-width="2"/>
+<line x1="50" y1="28" x2="65" y2="46" stroke="currentColor" stroke-width="2"/>
+<line x1="49" y1="54" x2="40" y2="75" stroke="currentColor" stroke-width="2"/>
+<line x1="49" y1="54" x2="59" y2="74" stroke="currentColor" stroke-width="2"/>
+<line x1="40" y1="75" x2="38" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="59" y1="74" x2="57" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="72" y1="32" x2="88" y2="24" stroke="currentColor" stroke-width="2.5"/>
+<line x1="88" y1="24" x2="94" y2="24" stroke="currentColor" stroke-width="2.5"/>` },
+  { id:'top', label:'Top of Backswing', desc:'Full shoulder turn',
+    keys:['Full ~90° shoulder turn — left shoulder under the chin','Club just short of parallel (he shortened his swing post-2011 for consistency)','Left arm is DEAD STRAIGHT — no bend at the elbow','Hips turn only ~45° — the differential creates massive torque','Weight loaded on inside of trail foot, not outside (no sway)','Slight wrist hinge — left wrist flat, right wrist bent back'],
+    note:'Post-2011, Adam deliberately shortened his swing from across-the-line to just short of parallel. It costs almost no distance and gains enormous consistency.',
+    svg:`<circle cx="56" cy="14" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+<line x1="56" y1="21" x2="52" y2="54" stroke="currentColor" stroke-width="2"/>
+<line x1="54" y1="34" x2="74" y2="26" stroke="currentColor" stroke-width="2"/>
+<line x1="54" y1="34" x2="62" y2="52" stroke="currentColor" stroke-width="2"/>
+<line x1="52" y1="54" x2="42" y2="76" stroke="currentColor" stroke-width="2"/>
+<line x1="52" y1="54" x2="62" y2="74" stroke="currentColor" stroke-width="2"/>
+<line x1="42" y1="76" x2="40" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="62" y1="74" x2="60" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="74" y1="26" x2="82" y2="16" stroke="currentColor" stroke-width="2.5"/>
+<line x1="82" y1="16" x2="92" y2="10" stroke="currentColor" stroke-width="2.5"/>` },
+  { id:'impact', label:'Impact', desc:'The moment of truth',
+    keys:['Hips OPEN to target significantly — ~40-45° at impact','Hands clearly AHEAD of the ball at impact — forward shaft lean','Weight fully transferred to lead side — ~80% on lead foot','Head BEHIND the ball — spine tilt maintained through impact','Clubface square, not flipping — arms fully extended through the ball','Knees driving toward target — active lower body'],
+    note:'Adam\'s impact is textbook: every Tour pro analyst points to the combination of hip rotation and lag retention. His hips are driving, not sliding.',
+    svg:`<circle cx="44" cy="14" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+<line x1="44" y1="21" x2="46" y2="54" stroke="currentColor" stroke-width="2"/>
+<line x1="45" y1="32" x2="28" y2="44" stroke="currentColor" stroke-width="2"/>
+<line x1="45" y1="32" x2="62" y2="28" stroke="currentColor" stroke-width="2"/>
+<line x1="46" y1="54" x2="34" y2="76" stroke="currentColor" stroke-width="2"/>
+<line x1="46" y1="54" x2="58" y2="72" stroke="currentColor" stroke-width="2"/>
+<line x1="34" y1="76" x2="30" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="58" y1="72" x2="62" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="62" y1="28" x2="72" y2="44" stroke="currentColor" stroke-width="2.5"/>
+<line x1="72" y1="44" x2="76" y2="86" stroke="currentColor" stroke-width="2.5"/>
+<circle cx="76" cy="90" r="4" fill="var(--gold)" stroke="none"/>` },
+  { id:'followthrough', label:'Follow-Through', desc:'Release and extension',
+    keys:['Full extension of both arms through the ball — no collapse','Club swings through to a balanced, high finish','Both elbows pointing at the target at belt height in early follow-through','Weight 100% on lead foot by mid follow-through','Chest fully facing the target at finish','BALANCE — he can hold the finish pose effortlessly. He often does.'],
+    note:'The finish is the proof of everything that came before. Adam holds his finish beautifully balanced every time — the sign of a synchronized swing where nothing was forced.',
+    svg:`<circle cx="42" cy="14" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+<line x1="42" y1="21" x2="44" y2="54" stroke="currentColor" stroke-width="2"/>
+<line x1="43" y1="32" x2="24" y2="26" stroke="currentColor" stroke-width="2"/>
+<line x1="43" y1="32" x2="58" y2="44" stroke="currentColor" stroke-width="2"/>
+<line x1="44" y1="54" x2="32" y2="74" stroke="currentColor" stroke-width="2"/>
+<line x1="44" y1="54" x2="54" y2="74" stroke="currentColor" stroke-width="2"/>
+<line x1="32" y1="74" x2="30" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="54" y1="74" x2="56" y2="88" stroke="currentColor" stroke-width="2"/>
+<line x1="24" y1="26" x2="14" y2="14" stroke="currentColor" stroke-width="2.5"/>
+<line x1="14" y1="14" x2="8" y2="6" stroke="currentColor" stroke-width="2.5"/>` }
+];
+let _asExpanded=false;
+function adamScottSection(){
+  const lastSwing=(golf().swings||[]).sort((a,b)=>(b.at||0)-(a.at||0))[0]||null;
+  const thumbHtml=lastSwing&&lastSwing.thumb
+    ? `<div style="margin-top:12px;padding:12px;background:var(--paper2);border-radius:10px;border:1px solid var(--line)">
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:7px">Your last swing review · mid-swing frame</div>
+        <img src="data:image/jpeg;base64,${lastSwing.thumb}" style="height:90px;border-radius:7px;border:1px solid var(--line2)">
+        <div style="font-family:var(--serif);font-size:12px;color:var(--ink-soft);margin-top:6px;font-style:italic">Compare your mid-swing position against the reference positions below. For a full frame-by-frame analysis, tap Swing review.</div>
+      </div>` : `<div style="margin-top:12px;font-family:var(--serif);font-size:13px;color:var(--ink-faint);font-style:italic">Upload a swing video via Swing Review to compare your positions against this reference guide.</div>`;
+  const cardsHtml=AS_POSITIONS.map((pos,i)=>`
+    <div class="card" style="flex:none;width:270px;padding:14px 16px;margin-right:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+          <div style="font-family:var(--disp);font-weight:700;font-size:14px">${pos.label}</div>
+          <div style="font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);letter-spacing:.5px">${pos.desc}</div>
+        </div>
+        <svg width="54" height="96" viewBox="0 0 100 96" fill="none" stroke="var(--terra)" stroke-linecap="round" stroke-linejoin="round">${pos.svg}</svg>
+      </div>
+      <div style="font-family:var(--serif);font-style:italic;font-size:12px;color:var(--terra-deep);line-height:1.5;margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid var(--line)">${pos.note}</div>
+      <ul style="margin:0;padding:0 0 0 14px;font-family:var(--serif);font-size:12.5px;color:var(--ink-soft);line-height:1.65">
+        ${pos.keys.map(k=>`<li>${k}</li>`).join('')}
+      </ul>
+    </div>`).join('');
+  return `<div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <div class="kicker">Swing model reference</div>
+        <div class="h-sec" style="margin-bottom:0">Adam Scott · key positions</div>
+      </div>
+      <a onclick="_asExpanded=!_asExpanded;renderGolf()" style="font-family:var(--mono);font-size:10.5px;color:var(--terra);cursor:pointer">${_asExpanded?'▲ collapse':'▼ expand'}</a>
+    </div>
+    <div style="font-family:var(--serif);font-size:13px;color:var(--ink-soft);margin-top:7px;line-height:1.55">Adam Scott is widely regarded as the most technically correct swing on the PGA Tour — built on a wide arc, flat left wrist, shoulder-hip differential at the top, and a perfectly balanced finish. Use these checkpoints as a reference against your own swing.</div>
+    ${_asExpanded ? `${thumbHtml}<div style="display:flex;overflow-x:auto;padding:16px 0 4px;gap:0;-webkit-overflow-scrolling:touch">${cardsHtml}</div>
+    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:8px">Scroll right to see all six positions. Tap Swing Review to upload your video and get a Coach analysis comparing your swing to these checkpoints.</div>
+    <div style="margin-top:14px"><button class="btn" onclick="openSwingReview()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Upload my swing for Coach comparison</button></div>` : ''}
+  </div>`;
 }
 
 /* ============================================================

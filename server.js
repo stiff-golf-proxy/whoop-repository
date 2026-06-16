@@ -565,8 +565,8 @@ const SCEN_RUNNING = { personal: 0, gerber: 0 }; // timestamp of run start, 0 = 
 function scenRunning(ctx){ return SCEN_RUNNING[ctx] && (Date.now()-SCEN_RUNNING[ctx] < 90000); }
 
 const SCEN_DEFAULT_PROFILES = {
-  personal: `Stuart is a Cape Town-based private-equity principal in his late 40s. His working life is investing, deal analysis, portfolio oversight and board work; his personal life includes golf, health/fitness tracking (WHOOP), and managing family wealth and trust structures. He uses AI tools heavily (this very platform is built with AI). Forecast how AI progress reshapes: (a) the value and nature of his investing/analytical skills, (b) how he spends his working time, (c) personal productivity, learning and health, (d) the broader economic and asset-price environment his wealth sits in, (e) risks to his role and relevance. Be concrete and personal, not generic.`,
-  gerber: `Gerber Goldschmidt Group (gerber.co.za) is a Cape Town private-equity group with ~20 South African trading, distribution and manufacturing businesses across five verticals: golf wholesale (Seed Sport), juice concentrate (Gerber Juice), outdoor textiles & upholstery (Gerber Textiles, Cedarbrook), telematics (Geotab Africa) and vehicle security tech (Sanji Electronics). Forecast how AI progress reshapes these operating businesses: demand, margins, competition, supply chains, labour, and the technology embedded in their products. Consider both how AI threatens each vertical and where it creates an edge (automation, AI-enhanced products, new markets). Ground it in the South African operating context.`
+  personal: `Stuart Harris is a Cape Town-based investment principal in his late 40s. He holds stakes in GGG Holdings (an investment group owning ~20 South African traditional businesses in trading, distribution and manufacturing) and manages the SBH Family Trust with a four-property portfolio and personal pension/RA assets. His daily work is portfolio oversight of traditional businesses, financial performance analysis, board participation, and family wealth management — NOT institutional PE, NOT fundraising, NOT tech investing. He built this AI dashboard himself and uses AI tools daily. Forecast concretely how AI reshapes: (a) the value of his analytical and oversight skills as an investor in traditional businesses, (b) how he spends his working time on portfolio monitoring and board work, (c) his personal productivity and decision-making, (d) the economic environment and asset values he holds, (e) the risk to his relevance when AI can do much of what he does. Be specific — name actual things he does, not generic "AI will disrupt investing" statements.`,
+  gerber: `Gerber Goldschmidt Group (GGG, gerber.co.za) is a Cape Town investment holding company with ~20 TRADITIONAL South African operating businesses — physical goods, B2B distribution, manufacturing, SA market. Five verticals: (1) Golf wholesale: Seed Sport distributes premium golf equipment and accessories to SA pro shops and retailers — a relationship and logistics business; (2) Juice concentrate: Gerber Juice processes SA citrus/fruit into juice concentrate at ~1 million litres/month, with some export — exposed to crop conditions and global pricing; (3) Outdoor textiles/upholstery: Gerber Textiles and Cedarbrook Fabrics distribute technical outdoor and indoor fabrics to manufacturers and upholsterers — a materials supply business; (4) Telematics: Geotab Africa is a fleet tracking and GPS telematics reseller/integrator — a technology-adjacent business already in the AI space; (5) Vehicle security: Sanji Electronics manufactures vehicle anti-hijack and security systems for the SA market — hardware manufacturing in a crime-specific niche. These are NOT tech companies. Forecast AI impact on each vertical specifically: which face automation of their core function, where margins compress, where AI is a product/ops opportunity, how labour requirements change, and what the competitive landscape looks like in each case. One section per vertical.`
 };
 function readScenProfiles() {
   try { if (fs.existsSync(SCEN_PROFILES_FILE)) return { ...SCEN_DEFAULT_PROFILES, ...JSON.parse(fs.readFileSync(SCEN_PROFILES_FILE)) }; } catch (e) {}
@@ -605,27 +605,29 @@ async function runScenario(ctx) {
     const subject = ctx === 'gerber' ? "the Gerber Goldschmidt Group's operating businesses" : "Stuart's personal and professional life";
 
     const prompt =
-`You are a strategic foresight analyst. Forecast how AI reshapes ${subject} over 5 years. Today: ${today}.
+`You are a sharp strategic foresight analyst. Today is ${today}.
 
-CONTEXT: ${profile}
+Forecast how AI progress reshapes ${subject} over 5 years. Be SPECIFIC — name actual businesses, skills, roles, and assets from the profile. No generic statements about "AI disrupting industries."
 
-THREE scenarios: LOW (slow/friction), MEDIUM (consensus), HIGH (transformative).
-For each: 3 outcomes at 1 year, 3 at 2.5 years, 3 at 5 years.
+PROFILE:
+${profile}
 
-Each outcome — 1 sentence max per field:
-"headline": specific title, "type": opportunity/threat/mixed, "state": what concretely happens, "action": single best move now, "impact": one quantified estimate.
+Produce THREE scenarios (LOW = AI adoption is slow, regulatory friction, capability plateau; MEDIUM = steady compounding, broad but uneven adoption; HIGH = rapid capability gains, transformative disruption). For EACH scenario give EXACTLY 3 outcomes at each of 3 horizons: 1 year, 2.5 years, 5 years. You MUST fill all 27 slots.
 
-Name actual businesses/skills/assets from the context. No filler. Near-term = tangible, long-term = structural.
+Each outcome must have ALL five fields — be substantive, not one-liners:
+- headline: specific, named outcome referencing actual businesses/skills/assets
+- type: "opportunity", "threat", or "mixed"  
+- state: 2-3 sentences on what concretely happens. A predicted event or state, not a trend description.
+- action: the single most important thing to act on NOW to seize or defend against this
+- impact: a concrete estimated impact with numbers — revenue %, cost saving, time freed, headcount, margin points, asset value change. Use ranges and label as estimates.
 
-Raw JSON only, no markdown:
-{"scenarios":{"low":{"label":"Low — slower progress","summary":"1 sentence","horizons":{"1":[3 items],"2.5":[3 items],"5":[3 items]}},"medium":{"label":"Medium — steady progress","summary":"1 sentence","horizons":{"1":[3],"2.5":[3],"5":[3]}},"high":{"label":"High — transformative","summary":"1 sentence","horizons":{"1":[3],"2.5":[3],"5":[3]}}}}
-
-Each item: {"headline":"...","type":"...","state":"...","action":"...","impact":"..."}`;
+Return ONLY raw JSON (no markdown fences, no explanation) in this shape:
+{"scenarios":{"low":{"label":"Low — slow adoption","summary":"2 sentence framing","horizons":{"1":[3 outcome objects],"2.5":[3 outcome objects],"5":[3 outcome objects]}},"medium":{"label":"Medium — steady progress","summary":"2 sentences","horizons":{"1":[3],"2.5":[3],"5":[3]}},"high":{"label":"High — transformative","summary":"2 sentences","horizons":{"1":[3],"2.5":[3],"5":[3]}}}}`;
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 2500, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 6000, messages: [{ role: 'user', content: prompt }] })
     });
     const text = await r.text();
     if (!r.ok) throw Object.assign(new Error('Claude API ' + r.status), { status: 502 });
