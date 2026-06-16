@@ -596,7 +596,7 @@ async function runScenario(ctx) {
   ctx = ctx === 'gerber' ? 'gerber' : 'personal';
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw Object.assign(new Error('ANTHROPIC_API_KEY not set on the proxy'), { status: 501 });
-  if (scenRunning(ctx)) throw Object.assign(new Error('A forecast is already running for this view.'), { status: 409 });
+  if (scenRunning(ctx)) throw Object.assign(new Error('A forecast is already running.'), { status: 409 });
   SCEN_RUNNING[ctx] = Date.now();
   console.log(`[SCENARIO] run started (${ctx})`);
   try {
@@ -604,66 +604,78 @@ async function runScenario(ctx) {
     const today = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
     const subject = ctx === 'gerber' ? "the Gerber Goldschmidt Group's operating businesses" : "Stuart's personal and professional life";
 
-    const prompt =
+    const bandDef = {
+      low:    { label: 'Low — slow adoption',         desc: 'AI adoption is slow: regulatory friction, capability plateau, high integration costs. Disruption is real but gradual.' },
+      medium: { label: 'Medium — steady compounding', desc: 'Steady AI progress, broad but uneven adoption. Most businesses adapt; some are disrupted. Consensus expectations.' },
+      high:   { label: 'High — transformative',       desc: 'Rapid capability gains. Agentic AI and automation accelerate sharply. Major structural disruption to businesses and roles.' }
+    };
+    const scenarios = {};
+
+    for (const [band, def] of Object.entries(bandDef)) {
+      const prompt =
 `You are a sharp strategic foresight analyst. Today is ${today}.
 
-Forecast how AI progress reshapes ${subject} over 5 years. Be SPECIFIC — name actual businesses, skills, roles, and assets from the profile. No generic statements about "AI disrupting industries."
+Produce the ${def.label.toUpperCase()} AI scenario for ${subject}.
+
+Scenario premise: ${def.desc}
 
 PROFILE:
 ${profile}
 
-Produce THREE scenarios (LOW = AI adoption is slow, regulatory friction, capability plateau; MEDIUM = steady compounding, broad but uneven adoption; HIGH = rapid capability gains, transformative disruption). For EACH scenario give EXACTLY 3 outcomes at each of 3 horizons: 1 year, 2.5 years, 5 years. You MUST fill all 27 slots.
+Give EXACTLY 3 outcomes at 1 year, EXACTLY 3 at 2.5 years, EXACTLY 3 at 5 years. All 9 must be filled.
 
-Each outcome must have ALL five fields — be substantive, not one-liners:
-- headline: specific, named outcome referencing actual businesses/skills/assets
-- type: "opportunity", "threat", or "mixed"  
-- state: 2-3 sentences on what concretely happens. A predicted event or state, not a trend description.
-- action: the single most important thing to act on NOW to seize or defend against this
-- impact: a concrete estimated impact with numbers — revenue %, cost saving, time freed, headcount, margin points, asset value change. Use ranges and label as estimates.
+Each outcome — all five fields required, be substantive not thin:
+- headline: specific named outcome, references actual businesses/assets/skills from the profile
+- type: "opportunity", "threat", or "mixed"
+- state: 2 concise sentences — what concretely happens. A specific event or state, not a vague trend.
+- action: 1 sentence — the single most important move to make NOW
+- impact: 1 line with numbers — revenue %, cost, time saved, margin, headcount, asset value. Use ranges, label estimates.
 
-Return ONLY raw JSON (no markdown fences, no explanation) in this shape:
-{"scenarios":{"low":{"label":"Low — slow adoption","summary":"2 sentence framing","horizons":{"1":[3 outcome objects],"2.5":[3 outcome objects],"5":[3 outcome objects]}},"medium":{"label":"Medium — steady progress","summary":"2 sentences","horizons":{"1":[3],"2.5":[3],"5":[3]}},"high":{"label":"High — transformative","summary":"2 sentences","horizons":{"1":[3],"2.5":[3],"5":[3]}}}}`;
+Return ONLY raw JSON, no markdown:
+{"label":"${def.label}","summary":"2 sentence scenario framing","horizons":{"1":[3 outcomes],"2.5":[3 outcomes],"5":[3 outcomes]}}`;
 
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 6000, messages: [{ role: 'user', content: prompt }] })
-    });
-    const text = await r.text();
-    if (!r.ok) throw Object.assign(new Error('Claude API ' + r.status), { status: 502 });
-    const j = JSON.parse(text);
-    let reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n')
-      .replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-    const start = reply.indexOf('{');
-    if (start < 0) throw new Error('No JSON in response — try again.');
-    let raw = reply.slice(start);
-    function repairJson(s) {
-      const stack = []; let inStr = false, esc = false;
-      for (const c of s) {
-        if (esc) { esc = false; continue; }
-        if (c === '\\' && inStr) { esc = true; continue; }
-        if (c === '"') { inStr = !inStr; continue; }
-        if (inStr) continue;
-        if (c === '{') stack.push('}');
-        else if (c === '[') stack.push(']');
-        else if ((c === '}' || c === ']') && stack.length && stack[stack.length - 1] === c) stack.pop();
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: COACH_MODEL, max_tokens: 2500, messages: [{ role: 'user', content: prompt }] })
+      });
+      const text = await r.text();
+      if (!r.ok) throw Object.assign(new Error(`Claude API ${r.status} on ${band}`), { status: 502 });
+      const j = JSON.parse(text);
+      let reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n')
+        .replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+      const start = reply.indexOf('{');
+      if (start < 0) throw new Error(`No JSON in ${band} response`);
+      let raw = reply.slice(start);
+      function repairJson(s) {
+        const stack = []; let inStr = false, esc = false;
+        for (const c of s) {
+          if (esc) { esc = false; continue; }
+          if (c === '\\' && inStr) { esc = true; continue; }
+          if (c === '"') { inStr = !inStr; continue; }
+          if (inStr) continue;
+          if (c === '{') stack.push('}');
+          else if (c === '[') stack.push(']');
+          else if ((c === '}' || c === ']') && stack.length && stack[stack.length - 1] === c) stack.pop();
+        }
+        let out = s; if (inStr) out += '"';
+        out += stack.reverse().join(''); return out;
       }
-      let out = s;
-      if (inStr) out += '"';
-      out += stack.reverse().join('');
-      return out;
+      let parsed;
+      try { parsed = JSON.parse(raw); }
+      catch (e) { try { parsed = JSON.parse(repairJson(raw)); } catch (e2) { throw new Error(`${band} parse failed — try again.`); } }
+      scenarios[band] = parsed;
+      console.log(`[SCENARIO] ${band} done (${ctx}): ${Object.values(parsed.horizons||{}).reduce((n,v)=>n+(v||[]).length,0)} outcomes`);
     }
-    let parsed;
-    try { parsed = JSON.parse(raw); }
-    catch (e) { try { parsed = JSON.parse(repairJson(raw)); } catch (e2) { throw new Error('Forecast could not be parsed — try again.'); } }
-    if (!parsed.scenarios) throw new Error('Forecast missing scenarios — try again.');
-    const payload = { scenarios: parsed.scenarios, ctx, updatedAt: new Date().toISOString() };
+
+    const payload = { scenarios, ctx, updatedAt: new Date().toISOString() };
     if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(SCEN_FILE(ctx), JSON.stringify(payload));
-    console.log(`[SCENARIO] run stored (${ctx})`);
+    console.log(`[SCENARIO] all 3 bands stored (${ctx})`);
     return payload;
   } finally { SCEN_RUNNING[ctx] = 0; }
 }
+
 app.post('/scenario/run', async (req, res) => {
   const ctx = ((req.body || {}).ctx === 'gerber') ? 'gerber' : 'personal';
   // Return immediately — generation runs in background; client polls /scenario/status
