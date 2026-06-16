@@ -427,6 +427,72 @@ Coaching the swing:
 - Note the camera angle matters: face-on shows weight shift, sway and low point; down-the-line shows swing plane and path. If you can't tell the angle, infer it.
 - Keep it focused and actionable. After the first review, answer follow-ups conversationally, referring back to what you saw.`;
 
+/* POST /swing/annotate
+   Takes one frame (base64 JPEG) + position label. Claude vision identifies
+   the golfer's key joints and returns the exact lines a coach would draw:
+   spine angle, shoulder line, hip line, lead arm, club shaft. The client
+   draws these on a canvas overlay so they appear directly on the user's photo.
+   Returns: { lines:[{fromPct,toPct,color,label}], note:"", visible:bool } */
+app.post('/swing/annotate', async (req, res) => {
+  try {
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (!key) return res.status(501).json({ error: 'ANTHROPIC_API_KEY not set' });
+    const { image, media_type = 'image/jpeg', position = 'swing' } = req.body || {};
+    if (!image) return res.status(400).json({ error: 'image required' });
+
+    const prompt = `You are a PGA golf coach annotating a "${position}" frame for coaching analysis.
+
+Look at this golf swing image carefully. Identify the golfer's body and draw the key coaching lines.
+
+Return ONLY a raw JSON object (no markdown, no explanation):
+{
+  "visible": true,
+  "lines": [
+    {
+      "fromPct": [x_percent, y_percent],
+      "toPct": [x_percent, y_percent],
+      "color": "#hex",
+      "label": "short label",
+      "dashed": true
+    }
+  ],
+  "note": "1-2 sentence coaching observation about what you see at this position"
+}
+
+Coordinates are percentages from top-left of the image (0-100).
+Draw EXACTLY these lines (skip any you cannot confidently locate):
+- Spine angle (#3B82F6, dashed): from top of head through center of hips — shows forward tilt
+- Shoulder line (#14B8A6, dashed): through both shoulders left-to-right — shows shoulder tilt/turn
+- Hip line (#10B981, dashed): through both hips — shows hip rotation vs shoulder
+- Lead arm (#EF4444, solid): from lead shoulder to grip — shows arm straightness
+- Club shaft (#F97316, dashed): from grip to club head — shows shaft angle
+
+If the golfer is not clearly visible, return {"visible":false,"lines":[],"note":"Golfer not clearly visible in this frame"}.`;
+
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: COACH_MODEL, max_tokens: 700,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type, data: image } },
+          { type: 'text', text: prompt }
+        ]}]
+      })
+    });
+    const text = await r.text();
+    if (!r.ok) return res.status(502).json({ error: 'Claude API ' + r.status });
+    const j = JSON.parse(text);
+    const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    const start = reply.indexOf('{'), end = reply.lastIndexOf('}');
+    if (start < 0) return res.status(500).json({ error: 'No annotation returned' });
+    let ann;
+    try { ann = JSON.parse(reply.slice(start, end + 1)); } catch (e) { return res.status(500).json({ error: 'Parse failed' }); }
+    console.log(`[ANNOTATE] ${position}: ${(ann.lines||[]).length} lines drawn`);
+    res.json(ann);
+  } catch (e) { console.log('[ANNOTATE] failed', e.message); res.status(500).json({ error: e.message }); }
+});
+
 app.post('/swing', async (req, res) => {
   try {
     const key = process.env.ANTHROPIC_API_KEY;

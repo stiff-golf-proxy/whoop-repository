@@ -2211,6 +2211,23 @@ function renderGolf(){
        return `<tr><td class="mono">${(r.date||'').slice(0,10)}</td><td>${r.course}${r.layout?' · '+r.layout:''}</td><td class="r mono">${f}</td><td class="r mono">${b}</td><td class="r mono"><b>${r.total}</b> <span style="color:${ov>0?'var(--bad)':'var(--good)'}">(${ov>0?'+':''}${ov})</span></td></tr>`;}).join('')}
      </tbody></table></div>
    </div>`;
+  // After render, populate existing swing frames and saved annotations onto canvases
+  requestAnimationFrame(()=>{
+    const g2=golf(),last=(g2.swings||[]).sort((a,b)=>(b.at||0)-(a.at||0))[0]||null;
+    const kf=last?(last.keyFrames||[]):[];const liveF=_swing&&(_swing.frames||[]).length>=8?_swing.frames:null;
+    const fIdx=[0,1,3,4,6,8];
+    AS_POS.forEach((pos,i)=>{
+      const canvas=document.getElementById('as-canvas-'+pos.id);if(!canvas)return;
+      const frame=liveF?liveF[fIdx[i]]:kf[i];if(!frame)return;
+      const img=new Image();
+      img.onload=()=>{
+        canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;
+        const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0);
+        const ann=_asAnnotations[pos.id];if(ann&&ann.lines)asDrawAnnotation(canvas,ann.lines);
+      };
+      img.src='data:image/jpeg;base64,'+frame;
+    });
+  });
 }
 
 /* ============================================================
@@ -2220,399 +2237,457 @@ function renderGolf(){
    correct swings on tour — balanced, powerful, high finish.
    ============================================================ */
 /* ============================================================
-   ADAM SCOTT SWING COMPARISON — 6 key positions, side-by-side with
-   the user's own frames (saved from swing review). SVG figures use
-   coloured guide lines that show the key angles: spine tilt (blue),
-   lead arm / arm triangle (red), hip line (green), shoulder line
-   (teal), club shaft / swing plane (orange).
+   ADAM SCOTT SWING COMPARISON
+   - Proper SVG instruction figures (filled body shapes, not stick men)
+   - AI-drawn coaching lines on the user's actual swing frames via /swing/annotate
+   - Side-by-side: reference figure LEFT | annotated user frame RIGHT
    ============================================================ */
 
-// Guide line legend shared across all positions
-const AS_GUIDES = [
-  { col:'#3B82F6', key:'Spine angle' },
-  { col:'#EF4444', key:'Lead arm / arm triangle' },
-  { col:'#10B981', key:'Hip line' },
-  { col:'#14B8A6', key:'Shoulder line' },
-  { col:'#F97316', key:'Club / swing plane' }
+const AS_LABEL = {
+  '#3B82F6': 'Spine angle',
+  '#14B8A6': 'Shoulder line',
+  '#10B981': 'Hip line',
+  '#EF4444': 'Lead arm',
+  '#F97316': 'Club shaft'
+};
+
+// Position definitions: SVG figures use filled shapes + coloured guide lines
+// viewBox="0 0 200 270", golfer faces left (target = left), right-handed
+const AS_POS = [
+  { id:'address', label:'Address', frame:0,
+    focus:'Spine angle · arm triangle · ball position',
+    note:'Adam takes his time here. The arm triangle is everything — it moves as one unit. Spine angle must be maintained all the way through impact.',
+    keys:['Feet shoulder-width, right foot slightly flared','Spine 30° forward tilt from hips — not crouching','Right shoulder slightly lower than left (spine tilts away from target)','Arms hang forming a TRIANGLE — both elbows point at hips','Weight 50/50, soft knees, straight back'],
+    svg:`<svg viewBox="0 0 200 270" fill="none" xmlns="http://www.w3.org/2000/svg">
+<line x1="10" y1="255" x2="190" y2="255" stroke="#D1D5DB" stroke-width="1.5"/>
+<circle cx="55" cy="251" r="7" fill="white" stroke="#9CA3AF" stroke-width="1.5"/>
+<!-- GUIDE LINES under body -->
+<line x1="102" y1="15" x2="99" y2="148" stroke="#3B82F6" stroke-width="2.5" stroke-dasharray="7 4" opacity="0.9"/>
+<path d="M74,78 L94,162 L128,78" fill="none" stroke="#EF4444" stroke-width="2" stroke-dasharray="6 4" opacity="0.85"/>
+<line x1="58" y1="148" x2="155" y2="148" stroke="#10B981" stroke-width="2" stroke-dasharray="5 3" opacity="0.8"/>
+<line x1="58" y1="80" x2="155" y2="78" stroke="#14B8A6" stroke-width="2" stroke-dasharray="5 3" opacity="0.8"/>
+<line x1="94" y1="162" x2="55" y2="251" stroke="#F97316" stroke-width="2" stroke-dasharray="5 3" opacity="0.8"/>
+<!-- BODY: feet -->
+<ellipse cx="82" cy="253" rx="22" ry="6" fill="#1E3A5F"/>
+<ellipse cx="118" cy="253" rx="22" ry="6" fill="#1E3A5F"/>
+<!-- legs -->
+<line x1="86" y1="200" x2="82" y2="252" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<line x1="116" y1="200" x2="118" y2="252" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<circle cx="86" cy="200" r="11" fill="#1E3A5F"/>
+<circle cx="116" cy="200" r="11" fill="#1E3A5F"/>
+<line x1="91" y1="148" x2="86" y2="200" stroke="#1E3A5F" stroke-width="20" stroke-linecap="round"/>
+<line x1="109" y1="148" x2="116" y2="200" stroke="#1E3A5F" stroke-width="20" stroke-linecap="round"/>
+<!-- hips -->
+<ellipse cx="100" cy="146" rx="28" ry="13" fill="#1E3A5F"/>
+<!-- torso -->
+<path d="M73,80 C78,72 98,66 100,66 C102,66 122,72 127,80 L120,148 L80,148 Z" fill="#1E3A5F"/>
+<!-- arms: trail (right) -->
+<line x1="125" y1="86" x2="118" y2="136" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<line x1="118" y1="136" x2="96" y2="162" stroke="#1E3A5F" stroke-width="12" stroke-linecap="round"/>
+<!-- arms: lead (left) — straight! -->
+<line x1="76" y1="86" x2="72" y2="134" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<line x1="72" y1="134" x2="96" y2="162" stroke="#1E3A5F" stroke-width="12" stroke-linecap="round"/>
+<!-- grip -->
+<circle cx="96" cy="162" r="9" fill="#374151"/>
+<!-- club -->
+<line x1="96" y1="170" x2="55" y2="251" stroke="#6B7280" stroke-width="4" stroke-linecap="round"/>
+<rect x="40" y="245" width="26" height="13" rx="4" fill="#6B7280"/>
+<!-- neck -->
+<line x1="100" y1="56" x2="100" y2="68" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<!-- head -->
+<circle cx="100" cy="40" r="22" fill="#1E3A5F"/>
+<ellipse cx="88" cy="38" rx="6" ry="8" fill="#374151" opacity="0.35"/>
+<!-- guide labels -->
+<text x="160" y="150" font-size="9" fill="#10B981" font-family="monospace" font-weight="bold">HIPS</text>
+<text x="160" y="82" font-size="9" fill="#14B8A6" font-family="monospace" font-weight="bold">SHLDRS</text>
+<circle cx="99" cy="148" r="5" fill="#3B82F6"/>
+</svg>` },
+
+  { id:'halfway', label:'Halfway Back', frame:1,
+    focus:'One-piece takeaway · shaft on plane · toe up',
+    note:'Club stays low and WIDE for the first 18 inches. No independent wrist action — the triangle moves as a unit. At hip height the toe points skyward and the shaft is parallel to the target line.',
+    keys:['ONE-PIECE move: hands, arms and shoulders all move together','Club low and wide along the ground — no picking up','At hip height: club parallel to ground AND to target line','Toe of club points skyward — face matches the arc','Lead shoulder begins turning DOWN, not across'],
+    svg:`<svg viewBox="0 0 200 270" fill="none" xmlns="http://www.w3.org/2000/svg">
+<line x1="10" y1="255" x2="190" y2="255" stroke="#D1D5DB" stroke-width="1.5"/>
+<circle cx="55" cy="251" r="7" fill="white" stroke="#9CA3AF" stroke-width="1.5"/>
+<!-- GUIDE LINES -->
+<line x1="102" y1="15" x2="99" y2="148" stroke="#3B82F6" stroke-width="2.5" stroke-dasharray="7 4" opacity="0.9"/>
+<line x1="55" y1="251" x2="170" y2="90" stroke="#F97316" stroke-width="2" stroke-dasharray="6 4" opacity="0.8"/>
+<path d="M78,76 L148,102 L118,76" fill="none" stroke="#EF4444" stroke-width="2" stroke-dasharray="6 4" opacity="0.8"/>
+<!-- BODY: feet/legs same -->
+<ellipse cx="82" cy="253" rx="22" ry="6" fill="#1E3A5F"/>
+<ellipse cx="118" cy="253" rx="22" ry="6" fill="#1E3A5F"/>
+<line x1="86" y1="200" x2="82" y2="252" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<line x1="116" y1="200" x2="118" y2="252" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<circle cx="86" cy="200" r="11" fill="#1E3A5F"/>
+<circle cx="116" cy="200" r="11" fill="#1E3A5F"/>
+<line x1="91" y1="148" x2="86" y2="200" stroke="#1E3A5F" stroke-width="20" stroke-linecap="round"/>
+<line x1="109" y1="148" x2="116" y2="200" stroke="#1E3A5F" stroke-width="20" stroke-linecap="round"/>
+<ellipse cx="100" cy="146" rx="28" ry="13" fill="#1E3A5F"/>
+<path d="M74,80 C79,72 98,66 100,66 C102,66 121,72 126,80 L119,148 L81,148 Z" fill="#1E3A5F"/>
+<!-- arms moved back-right: trail arm goes back, lead arm extends -->
+<line x1="124" y1="85" x2="148" y2="102" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<line x1="78" y1="82" x2="118" y2="102" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<!-- grip at right side at hip height -->
+<circle cx="133" cy="102" r="9" fill="#374151"/>
+<!-- club parallel to ground (going right/back), toe up -->
+<line x1="133" y1="102" x2="170" y2="90" stroke="#6B7280" stroke-width="4" stroke-linecap="round"/>
+<line x1="170" y1="90" x2="172" y2="72" stroke="#6B7280" stroke-width="3.5" stroke-linecap="round"/>
+<circle cx="172" cy="64" r="9" fill="#6B7280"/>
+<!-- neck + head -->
+<line x1="100" y1="56" x2="100" y2="68" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<circle cx="100" cy="40" r="22" fill="#1E3A5F"/>
+<ellipse cx="88" cy="38" rx="6" ry="8" fill="#374151" opacity="0.35"/>
+<circle cx="99" cy="148" r="5" fill="#3B82F6"/>
+<text x="158" y="105" font-size="9" fill="#F97316" font-family="monospace" font-weight="bold">PLANE</text>
+</svg>` },
+
+  { id:'top', label:'Top of Backswing', frame:3,
+    focus:'Shoulder-hip separation · left arm straight · on plane',
+    note:'The power source: ~90° shoulder turn vs ~45° hip turn. Left arm is dead straight — this sets the radius of the entire arc. Adam shortened post-2011, going just short of parallel. It changed nothing on distance and gained enormous consistency.',
+    keys:['FULL ~90° shoulder turn — left shoulder under the chin','Hips only ~45° — the DIFFERENTIAL is where power comes from','LEFT ARM DEAD STRAIGHT — no bend at the elbow whatsoever','Club just short of parallel (not across the line)','Weight on INSIDE of trail foot — not outside edge (no sway)'],
+    svg:`<svg viewBox="0 0 200 270" fill="none" xmlns="http://www.w3.org/2000/svg">
+<line x1="10" y1="255" x2="190" y2="255" stroke="#D1D5DB" stroke-width="1.5"/>
+<circle cx="55" cy="251" r="7" fill="white" stroke="#9CA3AF" stroke-width="1.5"/>
+<!-- GUIDES -->
+<line x1="104" y1="15" x2="100" y2="148" stroke="#3B82F6" stroke-width="2.5" stroke-dasharray="7 4" opacity="0.9"/>
+<!-- shoulder line rotated (full turn) -->
+<line x1="55" y1="95" x2="148" y2="60" stroke="#14B8A6" stroke-width="2" stroke-dasharray="5 3" opacity="0.85"/>
+<!-- hip line less rotated -->
+<line x1="62" y1="140" x2="148" y2="128" stroke="#10B981" stroke-width="2" stroke-dasharray="5 3" opacity="0.8"/>
+<!-- lead arm straight to top -->
+<line x1="82" y1="70" x2="170" y2="48" stroke="#EF4444" stroke-width="2" stroke-dasharray="6 4" opacity="0.85"/>
+<!-- swing plane -->
+<line x1="55" y1="251" x2="170" y2="48" stroke="#F97316" stroke-width="2" stroke-dasharray="5 3" opacity="0.75"/>
+<!-- BODY -->
+<ellipse cx="84" cy="253" rx="20" ry="6" fill="#1E3A5F"/>
+<ellipse cx="120" cy="253" rx="20" ry="6" fill="#1E3A5F"/>
+<line x1="88" y1="200" x2="84" y2="252" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<line x1="118" y1="200" x2="120" y2="252" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<circle cx="88" cy="200" r="11" fill="#1E3A5F"/>
+<circle cx="118" cy="200" r="11" fill="#1E3A5F"/>
+<!-- trail side weighted (inside) -->
+<line x1="94" y1="145" x2="88" y2="200" stroke="#1E3A5F" stroke-width="20" stroke-linecap="round"/>
+<line x1="108" y1="145" x2="118" y2="200" stroke="#1E3A5F" stroke-width="20" stroke-linecap="round"/>
+<ellipse cx="101" cy="143" rx="27" ry="12" fill="#1E3A5F" transform="rotate(-5 101 143)"/>
+<!-- torso rotated significantly -->
+<path d="M76,78 C82,70 98,65 102,65 C106,65 124,70 128,78 L118,143 L84,143 Z" fill="#1E3A5F"/>
+<!-- trail arm: bent right angle, forearm pointing up -->
+<line x1="126" y1="82" x2="148" y2="78" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<line x1="148" y1="78" x2="170" y2="50" stroke="#1E3A5F" stroke-width="12" stroke-linecap="round"/>
+<!-- lead arm DEAD STRAIGHT to top -->
+<line x1="80" y1="72" x2="170" y2="48" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<!-- grip -->
+<circle cx="170" cy="48" r="9" fill="#374151"/>
+<!-- club just short of parallel, pointing left (target direction) -->
+<line x1="170" y1="48" x2="132" y2="22" stroke="#6B7280" stroke-width="4" stroke-linecap="round"/>
+<circle cx="128" cy="16" r="9" fill="#6B7280"/>
+<!-- neck + head -->
+<line x1="102" y1="56" x2="102" y2="67" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<circle cx="104" cy="40" r="22" fill="#1E3A5F"/>
+<ellipse cx="92" cy="38" rx="6" ry="8" fill="#374151" opacity="0.35"/>
+<circle cx="100" cy="143" r="5" fill="#3B82F6"/>
+<text x="150" y="135" font-size="9" fill="#10B981" font-family="monospace" font-weight="bold">HIPS 45°</text>
+<text x="105" y="60" font-size="9" fill="#14B8A6" font-family="monospace" font-weight="bold">SHLDRS 90°</text>
+</svg>` },
+
+  { id:'impact', label:'Impact', frame:5,
+    focus:'Hips open · hands forward · head behind ball',
+    note:'Every analyst cites Adams impact as textbook. Hips are open 40-45° ahead of the shoulders. Hands are clearly ahead of the ball — forward shaft lean. Head stays behind. You cannot manually create this: it is the result of correct sequencing.',
+    keys:['HIPS 40-45° OPEN to target — well ahead of shoulders','HANDS AHEAD of the ball: shaft leans forward, not scooping','HEAD BEHIND the ball — maintain spine tilt from address','80%+ weight on lead foot, actively pushing off the trail foot','Lead knee driving toward the target, not sagging in'],
+    svg:`<svg viewBox="0 0 200 270" fill="none" xmlns="http://www.w3.org/2000/svg">
+<line x1="10" y1="255" x2="190" y2="255" stroke="#D1D5DB" stroke-width="1.5"/>
+<circle cx="55" cy="251" r="7" fill="white" stroke="#9CA3AF" stroke-width="1.5"/>
+<!-- GUIDES -->
+<!-- spine: tilted AWAY from target (head behind ball) -->
+<line x1="86" y1="16" x2="94" y2="142" stroke="#3B82F6" stroke-width="2.5" stroke-dasharray="7 4" opacity="0.9"/>
+<!-- hips open (rotated toward target = left) significantly -->
+<line x1="42" y1="136" x2="148" y2="148" stroke="#10B981" stroke-width="2" stroke-dasharray="5 3" opacity="0.85"/>
+<!-- shoulders less open than hips: key separation -->
+<line x1="52" y1="82" x2="150" y2="92" stroke="#14B8A6" stroke-width="2" stroke-dasharray="5 3" opacity="0.8"/>
+<!-- lead arm pulled through, hands forward -->
+<line x1="68" y1="74" x2="65" y2="174" stroke="#EF4444" stroke-width="2" stroke-dasharray="6 4" opacity="0.85"/>
+<!-- shaft: forward lean (hands ahead of club head) -->
+<line x1="62" y1="174" x2="55" y2="251" stroke="#F97316" stroke-width="2" stroke-dasharray="5 3" opacity="0.8"/>
+<!-- BODY -->
+<!-- lead foot planted, trail foot rolling onto toe -->
+<ellipse cx="80" cy="253" rx="22" ry="6" fill="#1E3A5F"/>
+<circle cx="108" cy="246" r="9" fill="#1E3A5F"/><!-- trail toe only -->
+<!-- lead leg: nearly straight/braced -->
+<line x1="82" y1="200" x2="80" y2="252" stroke="#1E3A5F" stroke-width="18" stroke-linecap="round"/>
+<!-- trail knee: driven forward/toward lead knee -->
+<line x1="106" y1="195" x2="100" y2="245" stroke="#1E3A5F" stroke-width="16" stroke-linecap="round"/>
+<circle cx="82" cy="200" r="11" fill="#1E3A5F"/>
+<circle cx="106" cy="195" r="11" fill="#1E3A5F"/>
+<line x1="88" y1="145" x2="82" y2="200" stroke="#1E3A5F" stroke-width="20" stroke-linecap="round"/>
+<!-- trail knee drives target-ward -->
+<line x1="110" y1="143" x2="106" y2="195" stroke="#1E3A5F" stroke-width="18" stroke-linecap="round"/>
+<!-- hips: fully open (rotated left significantly) -->
+<ellipse cx="100" cy="143" rx="26" ry="12" fill="#1E3A5F" transform="rotate(18 100 143)"/>
+<!-- torso: less open than hips -->
+<path d="M68,86 C74,78 94,72 98,72 C102,72 120,78 126,86 L118,143 L82,143 Z" fill="#1E3A5F"/>
+<!-- lead arm: pulled through, driving to impact -->
+<line x1="70" y1="80" x2="68" y2="140" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<line x1="68" y1="140" x2="64" y2="174" stroke="#1E3A5F" stroke-width="12" stroke-linecap="round"/>
+<!-- trail arm: now straightening through ball -->
+<line x1="124" y1="88" x2="90" y2="155" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<!-- grip: hands AHEAD of ball -->
+<circle cx="65" cy="174" r="9" fill="#374151"/>
+<!-- club: forward shaft lean pointing to ball -->
+<line x1="65" y1="182" x2="55" y2="251" stroke="#6B7280" stroke-width="4" stroke-linecap="round"/>
+<rect x="40" y="245" width="26" height="13" rx="4" fill="#6B7280"/>
+<!-- HEAD BEHIND the ball -->
+<line x1="88" y1="30" x2="92" y2="44" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<circle cx="86" cy="26" r="22" fill="#1E3A5F"/>
+<ellipse cx="74" cy="24" rx="6" ry="8" fill="#374151" opacity="0.35"/>
+<circle cx="94" cy="142" r="5" fill="#3B82F6"/>
+<text x="28" y="140" font-size="9" fill="#10B981" font-family="monospace" font-weight="bold">HIPS</text>
+<text x="28" y="85" font-size="9" fill="#14B8A6" font-family="monospace" font-weight="bold">SHLDRS</text>
+</svg>` },
+
+  { id:'followthrough', label:'Follow-Through', frame:7,
+    focus:'Extension · body rotation continues · no chicken wing',
+    note:'Arms extend fully through to the target — both elbows pointing down the line. No chicken wing on the lead arm. The body unwinds, it is not just an arm swing. The club mirrors the takeaway: toe pointing up at hip height on the other side.',
+    keys:['Both arms fully extended through impact — no collapse or chicken wing','Chest rotates toward target as the body continues to unwind','At hip height on the left side: club parallel to ground, toe pointing UP (mirror of takeaway)','Trail foot rolling onto the toe, heel lifting — weight transferring','Head begins to release as eyes track the ball downrange'],
+    svg:`<svg viewBox="0 0 200 270" fill="none" xmlns="http://www.w3.org/2000/svg">
+<line x1="10" y1="255" x2="190" y2="255" stroke="#D1D5DB" stroke-width="1.5"/>
+<circle cx="55" cy="251" r="7" fill="white" stroke="#9CA3AF" stroke-width="1.5"/>
+<!-- GUIDES -->
+<line x1="94" y1="14" x2="97" y2="145" stroke="#3B82F6" stroke-width="2.5" stroke-dasharray="7 4" opacity="0.9"/>
+<!-- arms extending through toward target (left) -->
+<line x1="36" y1="106" x2="108" y2="68" stroke="#EF4444" stroke-width="2" stroke-dasharray="6 4" opacity="0.85"/>
+<!-- club through: swing plane continuation -->
+<line x1="36" y1="106" x2="170" y2="190" stroke="#F97316" stroke-width="2" stroke-dasharray="5 3" opacity="0.75"/>
+<!-- BODY -->
+<ellipse cx="82" cy="253" rx="22" ry="6" fill="#1E3A5F"/>
+<!-- trail foot: toe only -->
+<circle cx="116" cy="226" r="9" fill="#1E3A5F"/>
+<!-- lead leg straight/braced -->
+<line x1="82" y1="200" x2="82" y2="252" stroke="#1E3A5F" stroke-width="18" stroke-linecap="round"/>
+<!-- trail leg: knee toward lead, on toe -->
+<line x1="112" y1="195" x2="104" y2="225" stroke="#1E3A5F" stroke-width="16" stroke-linecap="round"/>
+<circle cx="82" cy="200" r="11" fill="#1E3A5F"/>
+<circle cx="112" cy="195" r="11" fill="#1E3A5F"/>
+<line x1="86" y1="145" x2="82" y2="200" stroke="#1E3A5F" stroke-width="20" stroke-linecap="round"/>
+<line x1="112" y1="143" x2="112" y2="195" stroke="#1E3A5F" stroke-width="18" stroke-linecap="round"/>
+<ellipse cx="100" cy="143" rx="26" ry="12" fill="#1E3A5F" transform="rotate(22 100 143)"/>
+<!-- torso rotating toward target -->
+<path d="M68,80 C74,72 94,66 98,66 C102,66 120,72 126,80 L118,143 L82,143 Z" fill="#1E3A5F"/>
+<!-- BOTH ARMS EXTENDING toward target/left — LONG straight reach -->
+<!-- Lead arm: extending toward left -->
+<line x1="74" y1="75" x2="50" y2="94" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<line x1="50" y1="94" x2="36" y2="106" stroke="#1E3A5F" stroke-width="12" stroke-linecap="round"/>
+<!-- Trail arm: extending and wrapping through -->
+<line x1="120" y1="76" x2="78" y2="92" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<!-- grip -->
+<circle cx="36" cy="106" r="9" fill="#374151"/>
+<!-- club: through-impact, going left, toe pointing UP -->
+<line x1="36" y1="106" x2="18" y2="118" stroke="#6B7280" stroke-width="4" stroke-linecap="round"/>
+<line x1="18" y1="118" x2="14" y2="98" stroke="#6B7280" stroke-width="3.5" stroke-linecap="round"/>
+<circle cx="12" cy="90" r="9" fill="#6B7280"/>
+<!-- neck + head -->
+<line x1="97" y1="54" x2="97" y2="66" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<circle cx="97" cy="40" r="22" fill="#1E3A5F"/>
+<ellipse cx="85" cy="38" rx="6" ry="8" fill="#374151" opacity="0.35"/>
+<circle cx="97" cy="145" r="5" fill="#3B82F6"/>
+</svg>` },
+
+  { id:'finish', label:'Finish', frame:8,
+    focus:'Balance · full rotation · high hands',
+    note:'The finish is the proof of everything before it. Adam holds his finish with effortless balance every single time. If you stumble, something went wrong before impact. Work backwards from here.',
+    keys:['PERFECT BALANCE — can hold this pose indefinitely. If you stumble, fix what came before.','Hands high — both elbows near or above the left shoulder','Chest fully FACES the target — complete rotation, nothing blocked','100% weight on lead foot — trail foot balanced on toe only','Right knee drives toward lead knee: nearly touching at full finish'],
+    svg:`<svg viewBox="0 0 200 270" fill="none" xmlns="http://www.w3.org/2000/svg">
+<line x1="10" y1="255" x2="190" y2="255" stroke="#D1D5DB" stroke-width="1.5"/>
+<!-- GUIDES -->
+<!-- spine: upright at finish -->
+<line x1="96" y1="14" x2="96" y2="148" stroke="#3B82F6" stroke-width="2.5" stroke-dasharray="7 4" opacity="0.9"/>
+<!-- shoulders: fully rotated to face target -->
+<line x1="50" y1="94" x2="148" y2="68" stroke="#14B8A6" stroke-width="2" stroke-dasharray="5 3" opacity="0.85"/>
+<!-- BODY -->
+<!-- lead foot planted -->
+<ellipse cx="82" cy="253" rx="22" ry="6" fill="#1E3A5F"/>
+<!-- trail foot: toe only, heel up -->
+<circle cx="110" cy="228" r="9" fill="#1E3A5F"/>
+<!-- lead leg braced -->
+<line x1="82" y1="200" x2="82" y2="252" stroke="#1E3A5F" stroke-width="18" stroke-linecap="round"/>
+<!-- trail: toe, knee toward lead -->
+<line x1="108" y1="195" x2="100" y2="226" stroke="#1E3A5F" stroke-width="16" stroke-linecap="round"/>
+<circle cx="82" cy="200" r="11" fill="#1E3A5F"/>
+<circle cx="108" cy="195" r="11" fill="#1E3A5F"/>
+<line x1="86" y1="148" x2="82" y2="200" stroke="#1E3A5F" stroke-width="20" stroke-linecap="round"/>
+<line x1="108" y1="148" x2="108" y2="195" stroke="#1E3A5F" stroke-width="18" stroke-linecap="round"/>
+<ellipse cx="98" cy="146" rx="26" ry="12" fill="#1E3A5F" transform="rotate(28 98 146)"/>
+<!-- torso: chest fully faces target -->
+<path d="M65,82 C72,74 94,68 98,68 C102,68 120,74 126,82 L118,146 L78,146 Z" fill="#1E3A5F"/>
+<!-- arms HIGH — lead arm wrapped around over left shoulder, trail arm elevated -->
+<!-- lead arm: wrapped left and high -->
+<line x1="72" y1="78" x2="48" y2="62" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<line x1="48" y1="62" x2="32" y2="40" stroke="#1E3A5F" stroke-width="12" stroke-linecap="round"/>
+<!-- trail arm: high finish -->
+<line x1="120" y1="76" x2="76" y2="52" stroke="#1E3A5F" stroke-width="14" stroke-linecap="round"/>
+<line x1="76" y1="52" x2="46" y2="34" stroke="#1E3A5F" stroke-width="12" stroke-linecap="round"/>
+<!-- grip: high -->
+<circle cx="34" cy="40" r="9" fill="#374151"/>
+<!-- club: high, pointing down the back -->
+<line x1="34" y1="40" x2="18" y2="20" stroke="#6B7280" stroke-width="4" stroke-linecap="round"/>
+<circle cx="14" cy="12" r="9" fill="#6B7280"/>
+<!-- neck + head -->
+<line x1="97" y1="56" x2="97" y2="68" stroke="#1E3A5F" stroke-width="17" stroke-linecap="round"/>
+<circle cx="97" cy="40" r="22" fill="#1E3A5F"/>
+<ellipse cx="85" cy="38" rx="6" ry="8" fill="#374151" opacity="0.35"/>
+<circle cx="96" cy="148" r="5" fill="#3B82F6"/>
+<text x="148" y="76" font-size="9" fill="#14B8A6" font-family="monospace" font-weight="bold">FULLY OPEN</text>
+</svg>` }
 ];
 
-// Each position: id, label, notes, keys (checkpoints), and the SVG figure with overlaid guide lines.
-// Figures are face-on view, golfer faces left (target direction), right-handed.
-// Body colour: #374151  •  Joint circles: same  •  Club: #6B7280
-// viewBox="0 0 190 250" for each
-
-function asBody(segments){ return segments.join(''); }
-
-// Common ground + ball element
-const asGround = `<line x1="15" y1="232" x2="175" y2="232" stroke="#D1D5DB" stroke-width="2"/>
-<circle cx="55" cy="228" r="6" fill="white" stroke="#9CA3AF" stroke-width="1.5"/>`;
-
-// Legend badges in the card footer
-function asLegend(indices){
-  return AS_GUIDES.filter((_,i)=>indices.includes(i))
-    .map(g=>`<span style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;color:var(--ink-soft);margin-right:10px">
-      <span style="display:inline-block;width:14px;height:3px;background:${g.col};border-radius:2px"></span>${g.key}</span>`).join('');
-}
-
-const AS_POSITIONS = [
-  {
-    id:'address', label:'Address', guideFocus:'Spine angle · arm triangle · ball position',
-    note:'Deliberate and still — Adam takes his time here. The arm triangle is the foundation of everything that follows. Spine angle must be maintained throughout the swing.',
-    guideIdx:[0,1,2,3,4],
-    keys:[
-      'Shoulder-width stance (slightly wider for driver), right foot flared slightly open',
-      'Spine tilted forward ~30° from vertical — not crouching, athletic forward bend from the hips',
-      'Right shoulder fractionally lower than left — correct spine tilt away from target',
-      'Arms hang naturally forming a TRIANGLE with the chest; this triangle moves as one unit on the takeaway',
-      'Weight 50/50, soft knees, back straight — NOT rounded'
-    ],
-    svg:`<svg viewBox="0 0 190 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-${asGround}
-<!-- GUIDES: spine (blue), arm triangle (red), hip line (green), shoulder line (teal), club plane (orange) -->
-<line x1="100" y1="12" x2="97" y2="122" stroke="#3B82F6" stroke-width="1.8" stroke-dasharray="6 4" opacity="0.85"/>
-<line x1="55" y1="228" x2="90" y2="152" stroke="#F97316" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.8"/>
-<line x1="62" y1="120" x2="148" y2="120" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.75"/>
-<line x1="62" y1="62" x2="148" y2="60" stroke="#14B8A6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.75"/>
-<path d="M82,64 L88,152 L116,64" fill="none" stroke="#EF4444" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.8"/>
-<!-- LEGS -->
-<line x1="108" y1="122" x2="106" y2="178" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="106" y1="178" x2="108" y2="230" stroke="#374151" stroke-width="13" stroke-linecap="round"/>
-<line x1="90" y1="122" x2="86" y2="178" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="86" y1="178" x2="88" y2="230" stroke="#374151" stroke-width="13" stroke-linecap="round"/>
-<ellipse cx="112" cy="231" rx="20" ry="5" fill="#374151"/>
-<ellipse cx="82" cy="231" rx="20" ry="5" fill="#374151"/>
-<!-- HIPS -->
-<ellipse cx="99" cy="120" rx="24" ry="10" fill="#374151"/>
-<!-- TORSO -->
-<line x1="99" y1="120" x2="100" y2="62" stroke="#374151" stroke-width="24" stroke-linecap="round"/>
-<!-- ARMS: trail arm (right in diagram, left of golfer) -->
-<line x1="114" y1="68" x2="110" y2="120" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<line x1="110" y1="120" x2="90" y2="152" stroke="#374151" stroke-width="11" stroke-linecap="round"/>
-<!-- ARMS: lead arm (left in diagram) — STRAIGHT -->
-<line x1="84" y1="68" x2="80" y2="118" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<line x1="80" y1="118" x2="90" y2="152" stroke="#374151" stroke-width="11" stroke-linecap="round"/>
-<!-- GRIP -->
-<circle cx="90" cy="152" r="8" fill="#6B7280"/>
-<!-- CLUB SHAFT + HEAD -->
-<line x1="90" y1="158" x2="55" y2="228" stroke="#6B7280" stroke-width="3.5" stroke-linecap="round"/>
-<rect x="42" y="222" width="24" height="12" rx="3" fill="#6B7280"/>
-<!-- HEAD -->
-<circle cx="100" cy="26" r="19" fill="#374151"/>
-<circle cx="92" cy="23" r="4" fill="#6B7280" opacity="0.45"/>
-<!-- Guide dot markers -->
-<circle cx="97" cy="122" r="5" fill="#3B82F6"/>
-<circle cx="62" cy="120" r="4" fill="#10B981"/>
-<circle cx="62" cy="61" r="4" fill="#14B8A6"/>
-</svg>`
-  },
-  {
-    id:'takeaway', label:'Takeaway', guideFocus:'One-piece move · triangle · shaft on plane',
-    note:'The first 18 inches define the swing. Adam keeps the triangle intact and the club low and wide — no manipulation, no wrist roll. The body rotation drives the arms, not the other way around.',
-    guideIdx:[0,1,4],
-    keys:[
-      'ONE-PIECE TAKEAWAY: hands, arms, shoulders all move together — no independent wrist action',
-      'Club stays LOW and WIDE along the ground for the first 18 inches — not picked up',
-      'At hip height, club is parallel to the ground AND parallel to the target line',
-      'Toe of club points skyward at hip height — face matches the swing arc, not open or closed',
-      'Lead shoulder begins turning DOWN — no lifting, no lateral sway'
-    ],
-    svg:`<svg viewBox="0 0 190 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-${asGround}
-<!-- GUIDES: spine (blue), arm triangle (red), club plane (orange) -->
-<line x1="100" y1="12" x2="97" y2="122" stroke="#3B82F6" stroke-width="1.8" stroke-dasharray="6 4" opacity="0.85"/>
-<line x1="55" y1="228" x2="165" y2="80" stroke="#F97316" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.8"/>
-<!-- Arms tracking the triangle (moved right as club goes back) -->
-<path d="M80,60 L140,90 L110,60" fill="none" stroke="#EF4444" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.8"/>
-<!-- LEGS (same as address) -->
-<line x1="108" y1="122" x2="106" y2="178" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="106" y1="178" x2="108" y2="230" stroke="#374151" stroke-width="13" stroke-linecap="round"/>
-<line x1="90" y1="122" x2="86" y2="178" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="86" y1="178" x2="88" y2="230" stroke="#374151" stroke-width="13" stroke-linecap="round"/>
-<ellipse cx="112" cy="231" rx="20" ry="5" fill="#374151"/>
-<ellipse cx="82" cy="231" rx="20" ry="5" fill="#374151"/>
-<!-- HIPS (barely moved) -->
-<ellipse cx="99" cy="120" rx="24" ry="10" fill="#374151"/>
-<!-- TORSO (very slight rotation start) -->
-<line x1="99" y1="120" x2="101" y2="62" stroke="#374151" stroke-width="24" stroke-linecap="round"/>
-<!-- TRAIL ARM: elevated and extended right -->
-<line x1="116" y1="68" x2="140" y2="90" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<!-- LEAD ARM: still relatively straight, extending further right -->
-<line x1="84" y1="68" x2="110" y2="90" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<!-- GRIP (has moved to the right) -->
-<circle cx="125" cy="90" r="8" fill="#6B7280"/>
-<!-- CLUB: now at hip height, parallel to ground (pointing right-to-left = away from target) -->
-<line x1="125" y1="90" x2="160" y2="78" stroke="#6B7280" stroke-width="3.5" stroke-linecap="round"/>
-<!-- Club head at top: toe pointing UP -->
-<line x1="160" y1="78" x2="165" y2="64" stroke="#6B7280" stroke-width="3" stroke-linecap="round"/>
-<circle cx="165" cy="60" r="8" fill="#6B7280"/>
-<!-- HEAD (stays still over the ball) -->
-<circle cx="100" cy="26" r="19" fill="#374151"/>
-<circle cx="92" cy="23" r="4" fill="#6B7280" opacity="0.45"/>
-<!-- Guide markers -->
-<circle cx="97" cy="122" r="5" fill="#3B82F6"/>
-</svg>`
-  },
-  {
-    id:'top', label:'Top of Backswing', guideFocus:'Shoulder-hip separation · left arm straight · on-plane',
-    note:'The key is SEPARATION: ~90° shoulder turn vs ~45° hip turn creates maximum torque. Left arm is dead straight. Adam shortened his swing from across-the-line post-2011 — it costs nothing and gains consistency.',
-    guideIdx:[0,1,2,3,4],
-    keys:[
-      'Full ~90° SHOULDER TURN — left shoulder should be under your chin',
-      'Hips only ~45° rotation: the DIFFERENCE between shoulder and hip turn is where your power lives',
-      'LEFT ARM DEAD STRAIGHT — no bend. This is the radius of your swing arc.',
-      'Club just short of parallel (Adam shortened from across-the-line in 2011 — still massive power)',
-      'Weight loaded on the INSIDE of the trail foot — not the outside (no lateral sway)'
-    ],
-    svg:`<svg viewBox="0 0 190 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-${asGround}
-<!-- GUIDES: spine (blue), lead arm line (red), hip line (green), shoulder turn (teal), plane (orange) -->
-<line x1="103" y1="12" x2="99" y2="122" stroke="#3B82F6" stroke-width="1.8" stroke-dasharray="6 4" opacity="0.85"/>
-<!-- Shoulder line: tilted significantly (90 degree turn) -->
-<line x1="62" y1="88" x2="148" y2="52" stroke="#14B8A6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>
-<!-- Hip line: less rotated -->
-<line x1="68" y1="118" x2="140" y2="110" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.75"/>
-<!-- Lead arm line (straight) -->
-<line x1="88" y1="62" x2="162" y2="45" stroke="#EF4444" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.8"/>
-<!-- Swing plane line -->
-<line x1="55" y1="228" x2="162" y2="45" stroke="#F97316" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.7"/>
-<!-- LEGS: trail foot loaded inside -->
-<line x1="110" y1="120" x2="115" y2="178" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="115" y1="178" x2="118" y2="228" stroke="#374151" stroke-width="13" stroke-linecap="round"/>
-<line x1="90" y1="120" x2="82" y2="178" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="82" y1="178" x2="80" y2="228" stroke="#374151" stroke-width="13" stroke-linecap="round"/>
-<ellipse cx="122" cy="230" rx="18" ry="5" fill="#374151"/>
-<ellipse cx="76" cy="230" rx="20" ry="5" fill="#374151"/>
-<!-- HIPS: partially turned -->
-<ellipse cx="100" cy="118" rx="24" ry="10" fill="#374151" transform="rotate(-8 100 118)"/>
-<!-- TORSO: rotated significantly -->
-<line x1="100" y1="118" x2="103" y2="62" stroke="#374151" stroke-width="24" stroke-linecap="round"/>
-<!-- TRAIL ARM: bent at elbow (right angle), upper arm near vertical -->
-<line x1="118" y1="70" x2="140" y2="68" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<line x1="140" y1="68" x2="162" y2="50" stroke="#374151" stroke-width="11" stroke-linecap="round"/>
-<!-- LEAD ARM: dead straight, extending toward top-right -->
-<line x1="86" y1="62" x2="162" y2="46" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<!-- GRIP at top -->
-<circle cx="162" cy="46" r="8" fill="#6B7280"/>
-<!-- CLUB: just short of parallel, pointing roughly at target (left in diagram) -->
-<line x1="162" y1="46" x2="125" y2="22" stroke="#6B7280" stroke-width="3.5" stroke-linecap="round"/>
-<circle cx="121" cy="18" r="8" fill="#6B7280"/>
-<!-- HEAD -->
-<circle cx="103" cy="26" r="19" fill="#374151"/>
-<circle cx="95" cy="23" r="4" fill="#6B7280" opacity="0.45"/>
-<!-- Guide markers -->
-<circle cx="99" cy="122" r="5" fill="#3B82F6"/>
-<circle cx="68" cy="118" r="4" fill="#10B981"/>
-<circle cx="62" cy="88" r="4" fill="#14B8A6"/>
-</svg>`
-  },
-  {
-    id:'impact', label:'Impact', guideFocus:'Hips open · hands forward · head behind ball',
-    note:'Every tour pro analyst cites Adams impact as exemplary. Hips drive — they do not slide. Hands are clearly ahead of the ball. Head stays behind. This is the result of a sequenced downswing, not something you manually create.',
-    guideIdx:[0,1,2,3],
-    keys:[
-      'HIPS OPEN 40-45° to the target — significantly ahead of the shoulders at impact',
-      'HANDS AHEAD of the ball: forward shaft lean. The ball is compressed, not scooped.',
-      'HEAD BEHIND the ball — spine tilt maintained, allows the club to swing from inside',
-      'Weight 80%+ on the lead foot — actively pushing off the trail foot',
-      'Lead knee driving TOWARD the target, not collapsing — active lower body, not passive'
-    ],
-    svg:`<svg viewBox="0 0 190 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-${asGround}
-<!-- GUIDES: spine (blue, tilted back), lead arm (red), hip open (green), shoulder (teal) -->
-<!-- Spine: tilted AWAY from target (head behind ball) -->
-<line x1="85" y1="14" x2="92" y2="118" stroke="#3B82F6" stroke-width="1.8" stroke-dasharray="6 4" opacity="0.85"/>
-<!-- Hip line: hips are open to target (rotated left of shoulders) -->
-<line x1="50" y1="110" x2="135" y2="126" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>
-<!-- Shoulder line: less open than hips (key separation at impact) -->
-<line x1="60" y1="70" x2="148" y2="78" stroke="#14B8A6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.75"/>
-<!-- Lead arm line: straight through to ball -->
-<line x1="70" y1="60" x2="55" y2="220" stroke="#EF4444" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.8"/>
-<!-- LEGS: lead leg straightening, trail knee driving forward -->
-<line x1="100" y1="120" x2="92" y2="175" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="92" y1="175" x2="88" y2="228" stroke="#374151" stroke-width="13" stroke-linecap="round"/>
-<!-- Trail knee drives forward significantly -->
-<line x1="118" y1="118" x2="100" y2="168" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="100" y1="168" x2="102" y2="228" stroke="#374151" stroke-width="13" stroke-linecap="round"/>
-<!-- Trail heel comes off ground -->
-<ellipse cx="100" cy="228" rx="18" ry="5" fill="#374151" transform="rotate(-8 100 228)"/>
-<ellipse cx="84" cy="228" rx="20" ry="5" fill="#374151"/>
-<!-- HIPS: fully open to target — rotated significantly left -->
-<ellipse cx="110" cy="118" rx="24" ry="10" fill="#374151" transform="rotate(20 110 118)"/>
-<!-- TORSO: less rotated than hips (hip-shoulder separation) -->
-<line x1="110" y1="118" x2="95" y2="68" stroke="#374151" stroke-width="24" stroke-linecap="round"/>
-<!-- LEAD ARM: straight, pulled through to impact zone -->
-<line x1="74" y1="65" x2="68" y2="138" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<line x1="68" y1="138" x2="62" y2="165" stroke="#374151" stroke-width="11" stroke-linecap="round"/>
-<!-- TRAIL ARM: now straightening through impact -->
-<line x1="118" y1="72" x2="88" y2="145" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<!-- GRIP: hands AHEAD of ball -->
-<circle cx="72" cy="164" r="8" fill="#6B7280"/>
-<!-- CLUB: forward shaft lean, hands ahead -->
-<line x1="72" y1="170" x2="56" y2="228" stroke="#6B7280" stroke-width="3.5" stroke-linecap="round"/>
-<rect x="43" y="222" width="24" height="12" rx="3" fill="#6B7280"/>
-<!-- HEAD: BEHIND the ball -->
-<circle cx="83" cy="24" r="19" fill="#374151"/>
-<circle cx="74" cy="21" r="4" fill="#6B7280" opacity="0.45"/>
-<!-- Guide markers -->
-<circle cx="92" cy="118" r="5" fill="#3B82F6"/>
-<circle cx="50" cy="110" r="4" fill="#10B981"/>
-<circle cx="60" cy="70" r="4" fill="#14B8A6"/>
-</svg>`
-  },
-  {
-    id:'followthrough', label:'Follow-Through', guideFocus:'Extension · body rotation · left arm control',
-    note:'The release and extension after impact is the payoff. Arms extend toward the target with both elbows pointing down the line. No chicken wing — the lead arm stays connected.',
-    guideIdx:[0,1,4],
-    keys:[
-      'Both arms extend fully through impact toward the target — no chicken wing on the lead arm',
-      'Chest begins to ROTATE toward the target — the body unwinds, not just the arms',
-      'Club swings to a position parallel to ground on the left side, toe pointing skyward (mirror of takeaway)',
-      'Trail foot begins to roll onto the toe as weight fully transfers to lead side',
-      'Head begins to release — eyes track the ball, body can finally rotate fully'
-    ],
-    svg:`<svg viewBox="0 0 190 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-${asGround}
-<!-- GUIDES: spine (blue, continuing tilt), arm extension (red), club (orange) -->
-<line x1="92" y1="12" x2="96" y2="118" stroke="#3B82F6" stroke-width="1.8" stroke-dasharray="6 4" opacity="0.85"/>
-<!-- Arms extending through impact toward target (left) -->
-<line x1="38" y1="95" x2="100" y2="60" stroke="#EF4444" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.8"/>
-<!-- Swing plane through follow-through -->
-<line x1="38" y1="95" x2="162" y2="182" stroke="#F97316" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.7"/>
-<!-- LEGS: weight shifting, trail foot on toe -->
-<line x1="106" y1="118" x2="100" y2="172" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="100" y1="172" x2="95" y2="228" stroke="#374151" stroke-width="13" stroke-linecap="round"/>
-<!-- Trail foot on toe only -->
-<line x1="115" y1="120" x2="108" y2="175" stroke="#374151" stroke-width="15" stroke-linecap="round"/>
-<line x1="108" y1="175" x2="112" y2="215" stroke="#374151" stroke-width="11" stroke-linecap="round"/>
-<circle cx="114" cy="215" r="8" fill="#374151"/><!-- toe only -->
-<ellipse cx="88" cy="228" rx="20" ry="5" fill="#374151"/>
-<!-- HIPS: fully open now -->
-<ellipse cx="112" cy="116" rx="24" ry="10" fill="#374151" transform="rotate(28 112 116)"/>
-<!-- TORSO: rotating toward target -->
-<line x1="112" y1="116" x2="96" y2="62" stroke="#374151" stroke-width="24" stroke-linecap="round"/>
-<!-- BOTH ARMS EXTENDING through to the left -->
-<line x1="82" y1="68" x2="55" y2="90" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<line x1="55" y1="90" x2="38" y2="95" stroke="#374151" stroke-width="11" stroke-linecap="round"/>
-<line x1="110" y1="68" x2="78" y2="88" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<circle cx="38" cy="95" r="8" fill="#6B7280"/>
-<!-- CLUB: swinging through to left side, parallel to ground -->
-<line x1="38" y1="95" x2="18" y2="110" stroke="#6B7280" stroke-width="3.5" stroke-linecap="round"/>
-<!-- Toe pointing UP (mirror of takeaway) -->
-<line x1="18" y1="110" x2="14" y2="94" stroke="#6B7280" stroke-width="3" stroke-linecap="round"/>
-<circle cx="12" cy="90" r="8" fill="#6B7280"/>
-<!-- HEAD -->
-<circle cx="95" cy="26" r="19" fill="#374151"/>
-<circle cx="86" cy="23" r="4" fill="#6B7280" opacity="0.45"/>
-<!-- Guide markers -->
-<circle cx="96" cy="118" r="5" fill="#3B82F6"/>
-</svg>`
-  },
-  {
-    id:'finish', label:'Finish', guideFocus:'Balance · full rotation · high hands',
-    note:'The finish is the proof of everything that came before. Adam holds his finish beautifully — perfectly balanced, effortlessly. A forced or stumbled finish means something was off earlier. Work backwards from here.',
-    guideIdx:[0,3],
-    keys:[
-      'BALANCE: Adams can hold this pose indefinitely. If you stumble, something went wrong before impact.',
-      'Hands HIGH — both elbows roughly pointing toward the target, hands near or above the left shoulder',
-      'CHEST faces the target — full rotation completed, no blocking',
-      'Weight 100% on the lead foot, trail foot balanced on the toe only (roll through)',
-      'Right knee has driven toward the left: they nearly touch at a full finish'
-    ],
-    svg:`<svg viewBox="0 0 190 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-${asGround}
-<!-- GUIDES: spine (blue, upright at finish), shoulder line (teal, fully rotated) -->
-<line x1="95" y1="12" x2="95" y2="125" stroke="#3B82F6" stroke-width="1.8" stroke-dasharray="6 4" opacity="0.85"/>
-<!-- Shoulder line: FULLY rotated to face target -->
-<line x1="55" y1="88" x2="140" y2="62" stroke="#14B8A6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>
-<!-- LEGS: weight on lead side, trail foot fully on toe -->
-<line x1="100" y1="125" x2="95" y2="178" stroke="#374151" stroke-width="16" stroke-linecap="round"/>
-<line x1="95" y1="178" x2="90" y2="228" stroke="#374151" stroke-width="14" stroke-linecap="round"/>
-<!-- Trail leg: fully on toe, knee touching lead knee -->
-<line x1="108" y1="125" x2="98" y2="178" stroke="#374151" stroke-width="14" stroke-linecap="round"/>
-<line x1="98" y1="178" x2="98" y2="212" stroke="#374151" stroke-width="10" stroke-linecap="round"/>
-<circle cx="100" cy="212" r="9" fill="#374151"/><!-- toe ball only -->
-<ellipse cx="85" cy="228" rx="20" ry="5" fill="#374151"/>
-<!-- HIPS: fully open, square to target -->
-<ellipse cx="100" cy="123" rx="24" ry="10" fill="#374151" transform="rotate(30 100 123)"/>
-<!-- TORSO: fully rotated, chest facing target -->
-<line x1="100" y1="123" x2="95" y2="66" stroke="#374151" stroke-width="24" stroke-linecap="round"/>
-<!-- BOTH ARMS HIGH: lead arm wraps over shoulder, trail arm up -->
-<!-- lead arm: wraps around to left side, high -->
-<line x1="78" y1="72" x2="52" y2="58" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<line x1="52" y1="58" x2="36" y2="38" stroke="#374151" stroke-width="11" stroke-linecap="round"/>
-<!-- trail arm: high finish on top -->
-<line x1="112" y1="70" x2="72" y2="48" stroke="#374151" stroke-width="12" stroke-linecap="round"/>
-<line x1="72" y1="48" x2="48" y2="30" stroke="#374151" stroke-width="11" stroke-linecap="round"/>
-<!-- GRIP + CLUB: high, wrapped over left shoulder -->
-<circle cx="36" cy="38" r="8" fill="#6B7280"/>
-<line x1="36" y1="38" x2="20" y2="18" stroke="#6B7280" stroke-width="3.5" stroke-linecap="round"/>
-<circle cx="16" cy="12" r="8" fill="#6B7280"/>
-<!-- HEAD: fully released, looking at target -->
-<circle cx="98" cy="28" r="19" fill="#374151"/>
-<circle cx="88" cy="25" r="4" fill="#6B7280" opacity="0.45"/>
-<!-- Guide markers -->
-<circle cx="95" cy="125" r="5" fill="#3B82F6"/>
-<circle cx="55" cy="88" r="4" fill="#14B8A6"/>
-</svg>`
-  }
+// Guide legend
+const AS_GUIDE_LEGEND = [
+  ['#3B82F6','Spine angle'],['#14B8A6','Shoulder line'],
+  ['#10B981','Hip line'],['#EF4444','Lead arm'],['#F97316','Club shaft']
 ];
 
 let _asExpanded = false;
+let _asAnnotations = {}; // positionId -> { lines, note } from /swing/annotate
 
-function adamScottSection(){
-  const g=golf();
-  const lastSwing=(g.swings||[]).sort((a,b)=>(b.at||0)-(a.at||0))[0]||null;
-  const kf = lastSwing ? (lastSwing.keyFrames||[]) : [];
-  // Live session frames still in memory?
-  const liveF = _swing && (_swing.frames||[]).length>=8 ? _swing.frames : null;
+function asLegendBar(colors){
+  return colors.map(c=>`<span style="display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9.5px;color:var(--ink-soft);margin-right:12px">
+    <span style="display:inline-block;width:16px;height:2.5px;background:${c[0]};border-radius:2px"></span>${c[1]}</span>`).join('');
+}
 
-  function userFrameForPos(idx){
-    if(liveF) return liveF[idx===0?0:idx===1?1:idx===2?3:idx===3?4:idx===4?6:8]||null;
-    return kf[idx]||null;
+/* Draw coaching lines on a canvas over the user's frame */
+function asDrawAnnotation(canvas, lines) {
+  if (!canvas || !lines || !lines.length) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  lines.forEach(ln => {
+    const x1 = ln.fromPct[0] / 100 * W, y1 = ln.fromPct[1] / 100 * H;
+    const x2 = ln.toPct[0] / 100 * W, y2 = ln.toPct[1] / 100 * H;
+    ctx.save();
+    ctx.strokeStyle = ln.color || '#3B82F6';
+    ctx.lineWidth = Math.max(2.5, W / 120);
+    ctx.setLineDash(ln.dashed !== false ? [8, 5] : []);
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 3;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    // arrow head
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    const aLen = Math.max(10, W / 60);
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - aLen * Math.cos(ang - 0.4), y2 - aLen * Math.sin(ang - 0.4));
+    ctx.lineTo(x2 - aLen * Math.cos(ang + 0.4), y2 - aLen * Math.sin(ang + 0.4));
+    ctx.closePath(); ctx.fillStyle = ln.color; ctx.fill();
+    // label
+    const lx = x1 + (x2 - x1) * 0.35, ly = y1 + (y2 - y1) * 0.35;
+    ctx.font = `bold ${Math.max(11, W / 28)}px monospace`;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillText(ln.label, lx + 2, ly - 3);
+    ctx.fillStyle = ln.color;
+    ctx.fillText(ln.label, lx, ly - 5);
+    ctx.restore();
+  });
+}
+
+async function annotateAllPositions() {
+  const base = proxyBase(); if (!base) { toast('Connect your proxy first.'); return; }
+  const g = golf();
+  const lastSwing = (g.swings || []).sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null;
+  const frames = (lastSwing && lastSwing.keyFrames && lastSwing.keyFrames.length)
+    ? lastSwing.keyFrames
+    : (_swing && _swing.frames && _swing.frames.length >= 6 ? [_swing.frames[0],_swing.frames[1],_swing.frames[3],_swing.frames[4],_swing.frames[6],_swing.frames[8]] : null);
+  if (!frames) { toast('Upload a swing video first — use Swing Review.'); return; }
+  toast('Coach is drawing your coaching lines… this takes about a minute');
+  let done = 0;
+  for (let i = 0; i < AS_POS.length; i++) {
+    const pos = AS_POS[i];
+    const frame = frames[i];
+    if (!frame) continue;
+    try {
+      const r = await fetch(base + '/swing/annotate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: frame, position: pos.label })
+      });
+      const ann = await r.json();
+      if (ann && ann.visible && ann.lines && ann.lines.length) {
+        _asAnnotations[pos.id] = ann;
+        // Draw on canvas immediately
+        const canvas = document.getElementById('as-canvas-' + pos.id);
+        if (canvas) {
+          const img = new Image();
+          img.onload = () => {
+            canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            asDrawAnnotation(canvas, ann.lines);
+          };
+          img.src = 'data:image/jpeg;base64,' + frame;
+        }
+        done++;
+        // Update the note div if visible
+        const nd = document.getElementById('as-note-' + pos.id);
+        if (nd && ann.note) nd.textContent = ann.note;
+      }
+    } catch (e) { console.log('[ANNOTATE]', pos.id, e.message); }
+  }
+  if (done > 0) toast(`Lines drawn on ${done} of ${AS_POS.length} positions`);
+  else toast('Could not annotate — check that frames are clear and the proxy is connected.');
+}
+
+function adamScottSection() {
+  const g = golf();
+  const lastSwing = (g.swings || []).sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null;
+  const kf = lastSwing ? (lastSwing.keyFrames || []) : [];
+  const liveF = _swing && (_swing.frames || []).length >= 8 ? _swing.frames : null;
+  const hasFrames = kf.length > 0 || !!liveF;
+
+  function frameForPos(i) {
+    if (liveF) return liveF[[0,1,3,4,6,8][i]] || null;
+    return kf[i] || null;
   }
 
-  const cardsHtml = AS_POSITIONS.map((pos,i)=>{
-    const uf = userFrameForPos(i);
-    const userSide = uf
-      ? `<div class="as-user-col">
-          <div class="as-panel-label">Your swing</div>
-          <div style="position:relative;display:inline-block">
-            <img src="data:image/jpeg;base64,${uf}" style="width:100%;max-width:200px;border-radius:9px;border:1px solid var(--line2);display:block">
-            <!-- Overlay reference lines for visual comparison -->
-            <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 200 250" preserveAspectRatio="none">
-              <line x1="100" y1="5" x2="100" y2="245" stroke="#3B82F6" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55"/>
-              <line x1="5" y1="130" x2="195" y2="130" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.5"/>
-              <line x1="5" y1="70" x2="195" y2="70" stroke="#14B8A6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.5"/>
-            </svg>
-          </div>
-          <div style="font-family:var(--serif);font-size:11.5px;color:var(--ink-faint);font-style:italic;margin-top:6px;line-height:1.4">Reference lines overlay. Compare your spine angle against the blue vertical and your hip / shoulder height against the coloured horizontals.</div>
-        </div>`
-      : `<div class="as-user-col">
-          <div class="as-panel-label">Your swing</div>
-          <div style="background:var(--paper2);border:1.5px dashed var(--line);border-radius:9px;padding:18px 12px;text-align:center;min-height:140px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" width="28" height="28"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            <div style="font-family:var(--serif);font-size:12.5px;color:var(--ink-soft);line-height:1.5">Upload a swing video to see your <b>${pos.label.toLowerCase()}</b> frame here, overlaid with reference lines.</div>
-            <button class="btn" style="font-size:12px;padding:7px 12px" onclick="openSwingReview()">Upload video</button>
-          </div>
-        </div>`;
+  const cardsHtml = AS_POS.map((pos, i) => {
+    const frame = frameForPos(i);
+    const ann = _asAnnotations[pos.id];
+    let userSide;
+    if (frame) {
+      userSide = `<div>
+        <div class="as-panel-label">Your swing ${ann ? '· AI lines applied' : '· tap "Analyse my swing" to add lines'}</div>
+        <div style="position:relative">
+          <canvas id="as-canvas-${pos.id}" style="width:100%;max-width:180px;display:block;border-radius:9px;border:1px solid var(--line2)"></canvas>
+          ${!ann ? `<div style="position:absolute;inset:0;display:flex;align-items:flex-end;padding:8px;pointer-events:none">
+            <div style="background:rgba(0,0,0,0.55);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:9px;color:white;line-height:1.4">Tap ↻ to draw coaching lines</div>
+          </div>` : ''}
+        </div>
+        ${ann && ann.note ? `<div id="as-note-${pos.id}" style="font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--terra-deep);margin-top:6px;line-height:1.4">${tkEsc(ann.note)}</div>` : `<div id="as-note-${pos.id}" style="font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--ink-faint);margin-top:6px;line-height:1.4">Coaching note appears after analysis</div>`}
+      </div>`;
+    } else {
+      userSide = `<div>
+        <div class="as-panel-label">Your swing</div>
+        <div style="background:var(--paper2);border:1.5px dashed var(--line);border-radius:9px;padding:14px 10px;text-align:center;min-height:130px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" width="24" height="24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <div style="font-family:var(--serif);font-size:12px;color:var(--ink-soft);line-height:1.45">Upload a swing video to see your <b>${pos.label.toLowerCase()}</b> frame with coaching lines drawn on it.</div>
+        </div>
+      </div>`;
+    }
 
-    return `<div class="card" style="flex:none;width:min(420px,88vw);margin-right:16px;padding:0;overflow:hidden">
-      <div style="padding:14px 16px 10px">
+    return `<div class="card" style="flex:none;width:min(400px,86vw);margin-right:14px;padding:0;overflow:hidden">
+      <div style="padding:13px 15px 8px">
         <div style="font-family:var(--disp);font-weight:700;font-size:15px">${pos.label}</div>
-        <div style="font-family:var(--mono);font-size:9.5px;color:var(--terra);letter-spacing:.5px;margin-top:2px">${pos.guideFocus}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--terra);letter-spacing:.5px;text-transform:uppercase;margin-top:2px">${pos.focus}</div>
       </div>
-      <div style="display:flex;gap:12px;padding:0 14px 14px;align-items:flex-start;flex-wrap:wrap">
-        <div class="as-ref-col">
+      <div style="display:flex;gap:12px;padding:0 14px 12px;align-items:flex-start">
+        <div style="flex:1;min-width:0">
           <div class="as-panel-label">Adam Scott reference</div>
           ${pos.svg}
         </div>
-        ${userSide}
+        <div style="flex:1;min-width:0">${userSide}</div>
       </div>
-      <div style="padding:12px 16px;background:var(--paper2);border-top:1px solid var(--line)">
-        <div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:8px">${pos.note}</div>
-        <div style="margin-bottom:8px">${asLegend(pos.guideIdx)}</div>
-        <ol style="margin:0;padding:0 0 0 16px;font-family:var(--serif);font-size:12.5px;color:var(--ink-soft);line-height:1.65">
-          ${pos.keys.map(k=>`<li style="margin-bottom:3px">${k}</li>`).join('')}
+      <div style="padding:11px 15px;background:var(--paper2);border-top:1px solid var(--line)">
+        <div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:7px">${pos.note}</div>
+        <ol style="margin:0;padding:0 0 0 15px;font-family:var(--serif);font-size:12px;color:var(--ink-soft);line-height:1.6">
+          ${pos.keys.map(k => `<li style="margin-bottom:2px">${k}</li>`).join('')}
         </ol>
       </div>
     </div>`;
@@ -2621,17 +2696,22 @@ function adamScottSection(){
   return `<div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div>
-        <div class="kicker">Swing model · side-by-side comparison</div>
-        <div class="h-sec" style="margin-bottom:0">Adam Scott reference · ${lastSwing||liveF?'with your frames':'upload to compare'}</div>
+        <div class="kicker">Swing model · side-by-side</div>
+        <div class="h-sec" style="margin-bottom:0">Adam Scott reference · AI coaching lines on your swing</div>
       </div>
-      <div style="display:flex;gap:12px;align-items:center">
-        ${lastSwing ? `<span style="font-family:var(--mono);font-size:10px;color:var(--good)">✓ ${lastSwing.keyFrames&&lastSwing.keyFrames.length?'key frames saved':'thumb saved'}</span>` : ''}
-        <a onclick="_asExpanded=!_asExpanded;renderGolf()" style="font-family:var(--mono);font-size:10.5px;color:var(--terra);cursor:pointer">${_asExpanded?'▲ collapse':'▼ expand'}</a>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        ${hasFrames ? `<button class="btn" onclick="annotateAllPositions()" style="font-size:12px;padding:7px 12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Analyse my swing</button>` : ''}
+        <button class="btn" onclick="openSwingReview()" style="font-size:12px;padding:7px 12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>Upload swing</button>
+        <a onclick="_asExpanded=!_asExpanded;renderGolf()" style="font-family:var(--mono);font-size:10.5px;color:var(--terra);cursor:pointer">${_asExpanded ? '▲ collapse' : '▼ expand'}</a>
       </div>
     </div>
-    <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);margin-top:7px;line-height:1.55">Adam Scott is widely regarded as the most technically correct swing on the PGA Tour — wide arc, flat left wrist, maximum hip-shoulder separation, and a perfectly balanced finish. Coloured guide lines mark the same angles on his reference and your uploaded frames.</div>
-    ${_asExpanded ? `<div style="display:flex;overflow-x:auto;padding:18px 0 8px;-webkit-overflow-scrolling:touch">${cardsHtml}</div>
-    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:4px">Scroll right for all 6 positions. Upload a swing video via Swing Review — frames from each key position are saved and appear here automatically.</div>` : ''}
+    <div style="font-family:var(--serif);font-size:13px;color:var(--ink-soft);margin-top:7px;line-height:1.55">Upload a swing video, then tap <b>Analyse my swing</b>. Coach draws your spine angle, shoulder line, hip line, lead arm and club shaft directly onto each frame — the same lines a coach would draw on a lesson video. Side-by-side with Adam Scott's positions at each moment.</div>
+    ${_asExpanded ? `
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      ${asLegendBar(AS_GUIDE_LEGEND)}
+    </div>
+    <div style="display:flex;overflow-x:auto;padding:16px 0 6px;-webkit-overflow-scrolling:touch">${cardsHtml}</div>
+    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:4px">Scroll right for all 6 positions · Adam Scott figures use filled body shapes with coloured coaching guides · your frames get AI-drawn lines directly applied</div>` : ''}
   </div>`;
 }
 
