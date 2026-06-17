@@ -1801,11 +1801,15 @@ function weightSummary(){
   const goal=90;
   return {latest,first,lost,goal,toGo:+(latest.kg-goal).toFixed(1),n:d.length};
 }
-let _wtRange='all'; // '6m'|'1y'|'5y'|'all'
+let _wtRange='1y'; // '6m'|'1y'|'5y'|'all'  — default 1Y so you see a zoomed view
 let _wtOffset=0;    // 0 = most recent window, 1 = one window back, etc.
 
-function wtSetRange(r){ _wtRange=r; _wtOffset=0; renderHealth(); }
-function wtPan(dir){ _wtOffset=Math.max(0,_wtOffset+dir); renderHealth(); }
+function wtSetRange(r){ _wtRange=r; _wtOffset=0; wtRender(); }
+function wtPan(dir){ _wtOffset=Math.max(0,_wtOffset+dir); wtRender(); }
+function wtRender(){
+  const el=document.getElementById('wt-card');
+  if(el){ el.outerHTML=weightSection(); } else { renderHealth(); }
+}
 
 function wtWindowDates(){
   const all=weightCfg();
@@ -1915,7 +1919,7 @@ function weightSection(){
   const navBtn=(dir,icon,enabled)=>enabled
     ?`<button onclick="wtPan(${dir})" style="background:none;border:1px solid var(--line2);border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--ink);font-size:16px;line-height:1">${icon}</button>`
     :`<button disabled style="background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px;color:var(--line2);font-size:16px;line-height:1;cursor:default">${icon}</button>`;
-  return `<div class="card card-pad" style="margin-bottom:22px">
+  return `<div id="wt-card" class="card card-pad" style="margin-bottom:22px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
       <div><div class="kicker">Weight tracking</div><div class="h-sec" style="margin-bottom:0">Body weight · ${s.n} readings</div></div>
       <button class="btn primary" onclick="openWeightEntry()" style="font-size:13px;padding:8px 14px">+ Log weight</button>
@@ -1935,8 +1939,8 @@ function weightSection(){
         <div class="foot">${s.latest.bmi?s.latest.bmi<25?'healthy':s.latest.bmi<30?'overweight':'obese':''}</div></div>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-      <div class="seg" style="margin:0">
-        ${['6m','1y','5y','all'].map(r=>`<button class="seg-btn ${_wtRange===r?'active':''}" onclick="wtSetRange('${r}')">${r==='all'?'All':r==='6m'?'6M':r==='1y'?'1Y':'5Y'}</button>`).join('')}
+      <div style="display:flex;gap:6px">
+        ${['6m','1y','5y','all'].map(r=>`<button onclick="wtSetRange('${r}')" style="font-family:var(--mono);font-size:12px;font-weight:600;padding:6px 13px;border-radius:20px;border:none;cursor:pointer;transition:.15s;background:${_wtRange===r?'var(--terra)':'var(--paper2)'};color:${_wtRange===r?'white':'var(--ink-soft)'}">${r==='all'?'All':r==='6m'?'6M':r==='1y'?'1Y':'5Y'}</button>`).join('')}
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         ${_wtRange!=='all'?`${navBtn(1,'‹',canPrev)}<span style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);min-width:90px;text-align:center">${start?start.slice(0,7)+' → '+end.slice(0,7):periodLabel}</span>${navBtn(-1,'›',canNext)}`
