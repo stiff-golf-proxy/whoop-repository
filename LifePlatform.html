@@ -74,6 +74,7 @@ body{
 .g2{grid-template-columns:repeat(2,1fr)}
 .g3{grid-template-columns:repeat(3,1fr)}
 .g4{grid-template-columns:repeat(4,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
 
 .pane{display:none}
 .pane.active{display:block;animation:fade .35s ease}
@@ -1777,6 +1778,117 @@ function trendArrow(arr){
   const ar=dir==='up'?'↑':'↓';
   return `<span style="color:${col};font-family:var(--mono);font-size:12px">${ar}</span>`;
 }
+function weightCfg(){
+  if(!DB.weight||!Array.isArray(DB.weight)||!DB.weight.length){
+    // seed from historical Garmin scale data
+    DB.weight=[
+      {date:'2025-08-20',kg:112.4,bmi:32.5},
+      {date:'2025-09-13',kg:110.2,bmi:31.9},
+      {date:'2025-10-23',kg:107.7,bmi:31.1},
+      {date:'2025-11-18',kg:105.4,bmi:30.5},
+      {date:'2025-12-12',kg:104.3,bmi:30.1},
+      {date:'2026-01-01',kg:104.3,bmi:30.1},
+      {date:'2026-01-23',kg:102.3,bmi:29.6},
+      {date:'2026-05-08',kg:101.4,bmi:29.3}
+    ];
+  }
+  return DB.weight.sort((a,b)=>a.date.localeCompare(b.date));
+}
+function weightSummary(){
+  const d=weightCfg(); if(!d.length)return null;
+  const latest=d[d.length-1], first=d[0];
+  const lost=+(first.kg-latest.kg).toFixed(1);
+  const goal=90;
+  return {latest,first,lost,goal,toGo:+(latest.kg-goal).toFixed(1),n:d.length};
+}
+function weightChart(){
+  const d=weightCfg(); if(d.length<2)return '';
+  const w=360,h=160,padL=46,padR=14,padT=18,padB=36;
+  const kgs=d.map(p=>p.kg);
+  const minK=Math.floor(Math.min(...kgs)-1), maxK=Math.ceil(Math.max(...kgs)+1);
+  const cx=i=>padL+(i/(d.length-1))*(w-padL-padR);
+  const cy=v=>padT+(1-(v-minK)/(maxK-minK))*(h-padT-padB);
+  // shaded area fill
+  let area=`M${cx(0)},${cy(d[0].kg)} `;
+  d.forEach((_,i)=>{ area+=`L${cx(i).toFixed(1)},${cy(d[i].kg).toFixed(1)} `; });
+  area+=`L${cx(d.length-1).toFixed(1)},${h-padB} L${cx(0).toFixed(1)},${h-padB} Z`;
+  // line
+  let line=`M${cx(0).toFixed(1)},${cy(d[0].kg).toFixed(1)} `;
+  d.forEach((_,i)=>{ if(i)line+=`L${cx(i).toFixed(1)},${cy(d[i].kg).toFixed(1)} `; });
+  // y-axis labels
+  const yTicks=[]; const step=Math.ceil((maxK-minK)/4);
+  for(let v=minK;v<=maxK;v+=step) yTicks.push(v);
+  const yLabels=yTicks.map(v=>`<text x="${padL-6}" y="${cy(v).toFixed(1)}" text-anchor="end" alignment-baseline="middle" font-size="10" fill="var(--ink-faint)" font-family="var(--mono)">${v}</text>`).join('');
+  const yLines=yTicks.map(v=>`<line x1="${padL}" y1="${cy(v).toFixed(1)}" x2="${w-padR}" y2="${cy(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`).join('');
+  // x-axis labels (every other point to avoid crowding)
+  const xLabels=d.map((p,i)=>i%2===0||i===d.length-1?`<text x="${cx(i).toFixed(1)}" y="${h-padB+14}" text-anchor="middle" font-size="9" fill="var(--ink-faint)" font-family="var(--mono)">${p.date.slice(5).replace('-','/')}</text>`:'').join('');
+  // dots
+  const dots=d.map((p,i)=>`<circle cx="${cx(i).toFixed(1)}" cy="${cy(p.kg).toFixed(1)}" r="3.5" fill="var(--terra)" stroke="var(--paper)" stroke-width="1.5"/>
+    <title>${p.kg}kg · ${p.date}</title>`).join('');
+  // goal line at 90kg
+  const goalY=cy(90).toFixed(1);
+  const goalLine=90>=minK&&90<=maxK?`<line x1="${padL}" y1="${goalY}" x2="${w-padR}" y2="${goalY}" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.7"/>
+    <text x="${w-padR-2}" y="${+goalY-4}" text-anchor="end" font-size="9" fill="var(--good)" font-family="var(--mono)">goal 90</text>`:'';
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="width:100%;max-width:${w}px">
+    ${yLines}${goalLine}
+    <path d="${area}" fill="var(--terra)" opacity="0.10"/>
+    <path d="${line}" fill="none" stroke="var(--terra)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${dots}${yLabels}${xLabels}
+  </svg>`;
+}
+function openWeightEntry(){
+  showModal(`<div class="modal-head"><div><h2>Log weight</h2><div class="ms">Adds a new reading to your weight history</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Date</label><input type="date" id="w_date" value="${todayISO()}"></div>
+      <div class="field"><label>Weight (kg)</label><input type="number" id="w_kg" step="0.1" min="40" max="250" placeholder="e.g. 101.4" style="width:130px"></div>
+      <div class="field"><label>BMI <span style="color:var(--ink-faint);font-weight:400">(optional)</span></label><input type="number" id="w_bmi" step="0.1" min="10" max="60" placeholder="e.g. 29.3" style="width:100px"></div>
+      <button class="btn primary" onclick="saveWeightEntry()">Save</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('w_kg').focus(),80);
+}
+function saveWeightEntry(){
+  const date=document.getElementById('w_date').value;
+  const kg=parseFloat(document.getElementById('w_kg').value);
+  const bmi=parseFloat(document.getElementById('w_bmi').value)||null;
+  if(!date){toast('Please pick a date.');return;}
+  if(!kg||kg<40||kg>250){toast('Enter a valid weight in kg.');return;}
+  const list=weightCfg();
+  const existing=list.findIndex(e=>e.date===date);
+  if(existing>=0) list[existing]={date,kg,bmi:bmi||list[existing].bmi||null};
+  else list.push({date,kg,bmi});
+  list.sort((a,b)=>a.date.localeCompare(b.date));
+  DB.weight=list; save(); closeModal(); renderHealth();
+  toast('Weight logged — '+kg+' kg on '+date);
+}
+function weightSection(){
+  const s=weightSummary(); const d=weightCfg();
+  if(!s)return '';
+  const lostCol=s.lost>0?'var(--good)':'var(--ink)';
+  const bmiCol=s.latest.bmi<25?'var(--good)':s.latest.bmi<30?'var(--gold)':'var(--bad)';
+  return `<div class="card card-pad" style="margin-bottom:22px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div><div class="kicker">Weight tracking</div><div class="h-sec" style="margin-bottom:0">Body weight · ${s.n} readings</div></div>
+      <button class="btn primary" onclick="openWeightEntry()" style="font-size:13px;padding:8px 14px">+ Log weight</button>
+    </div>
+    <div class="grid g4" style="margin-bottom:18px">
+      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:var(--terra)"></div>
+        <div class="lbl">Current</div><div class="num" style="font-size:28px">${s.latest.kg}<small>kg</small></div>
+        <div class="foot">${fmtDate(s.latest.date)}</div></div>
+      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:${lostCol}"></div>
+        <div class="lbl">Lost</div><div class="num" style="font-size:28px;color:${lostCol}">${s.lost}<small>kg</small></div>
+        <div class="foot">since ${fmtDate(s.first.date)}</div></div>
+      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:var(--sky)"></div>
+        <div class="lbl">To goal (90kg)</div><div class="num" style="font-size:28px;color:var(--sky)">${s.toGo}<small>kg</small></div>
+        <div class="foot">target 90 kg</div></div>
+      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:${bmiCol}"></div>
+        <div class="lbl">BMI</div><div class="num" style="font-size:28px;color:${bmiCol}">${s.latest.bmi||'—'}</div>
+        <div class="foot">${s.latest.bmi?s.latest.bmi<25?'healthy':s.latest.bmi<30?'overweight':'obese':''}</div></div>
+    </div>
+    <div style="margin-bottom:4px">${weightChart()}</div>
+    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;margin-top:6px">Down ${s.lost}kg since ${fmtDate(s.first.date)} · ${s.toGo}kg to go to 90kg goal · tap + Log weight to add a new reading</div>
+  </div>`;
+}
+
 function renderHealth(){
   const markers=bloodMarkers();
   let names=Object.keys(markers);
@@ -1809,6 +1921,7 @@ function renderHealth(){
     </div>`;
   }).join('');
   P.innerHTML=`
+   ${weightSection()}
    <div class="coach"><div class="q">What the bloodwork knows</div>
      <p>${healthCoach(markers,flagged)}</p></div>
    <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center">
