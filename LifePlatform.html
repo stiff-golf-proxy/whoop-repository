@@ -2685,10 +2685,21 @@ let _swing = null; // { frames:[base64], messages:[{role,content}], view, handed
 
 function golfSwings(){ const g=golf(); if(!Array.isArray(g.swings)) g.swings=[]; return g.swings; }
 
+/* ── SWING REVIEW: multi-step manual position marking ─────────────────── */
+const MARK_POS = [
+  { id:'address',       label:'Address',         desc:'Golfer fully still at setup, just before the swing begins.' },
+  { id:'halfway',       label:'Halfway Back',     desc:'Club at hip height on the backswing — lead arm roughly parallel to the ground.' },
+  { id:'top',           label:'Top of Backswing', desc:'Club at its highest point — fully loaded, maximum shoulder turn.' },
+  { id:'impact',        label:'Impact',           desc:'The exact moment the club strikes the ball.' },
+  { id:'followthrough', label:'Follow-Through',   desc:'Club at hip height on the target side after impact.' },
+  { id:'finish',        label:'Finish',           desc:'Fully balanced finish position — weight on lead foot, hands high.' }
+];
+let _markState = null; // { file, angle, handed, club, videoEl, marked:{}, currentIdx }
+
 function openSwingReview(){
   const saved=golfSwings().slice().sort((a,b)=>(b.at||0)-(a.at||0));
   const savedHtml = saved.length
-    ? `<div style="margin-bottom:14px"><div class="kicker" style="margin-bottom:8px">Past reviews</div>
+    ? `<div style="margin-bottom:16px"><div class="kicker" style="margin-bottom:8px">Past reviews</div>
         ${saved.slice(0,6).map(s=>`<div class="sw-saved">
           <div style="min-width:0"><div style="font-family:var(--disp);font-weight:600;font-size:13.5px">${tkEsc(s.title||'Swing review')}</div>
             <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)">${fmtDate(new Date(s.at).toISOString())}${s.view?' · '+s.view:''}</div></div>
@@ -2696,30 +2707,234 @@ function openSwingReview(){
             <button class="cf-x" title="Delete" onclick="delSavedSwing('${s.id}')">×</button></div>
         </div>`).join('')}</div>`
     : '';
+
   showModal(`<div class="modal-head">
-    <div><h2>Swing review</h2><div class="ms">Upload a swing video — Coach reviews it frame by frame, then you can ask follow-ups</div></div>
+    <div><h2>Swing review</h2><div class="ms">Step 1 — choose angle and club, then upload your video</div></div>
     <button class="x" onclick="closeModal()">${xSvg()}</button></div>
   <div class="modal-body">
     ${savedHtml}
-    <div class="row3" style="margin-bottom:14px">
-      <div class="field"><label>Camera angle</label><select id="sw_view">
-        <option value="">Auto-detect</option><option value="face-on">Face-on</option><option value="down-the-line">Down-the-line</option></select></div>
-      <div class="field"><label>Handed</label><select id="sw_hand"><option value="right">Right</option><option value="left">Left</option></select></div>
-      <div class="field"><label>Club (optional)</label><input id="sw_club" placeholder="e.g. 7-iron, Driver"></div>
+    <div class="grid g3" style="margin-bottom:18px;gap:10px">
+      <div class="field"><label>Camera angle <span style="color:var(--bad)">*</span></label>
+        <select id="sw_view" style="font-weight:600">
+          <option value="">Choose…</option>
+          <option value="face-on">Face-on</option>
+          <option value="down-the-line">Down-the-line</option>
+        </select></div>
+      <div class="field"><label>Handed</label>
+        <select id="sw_hand"><option value="right">Right</option><option value="left">Left</option></select></div>
+      <div class="field"><label>Club</label>
+        <input id="sw_club" placeholder="e.g. 7-iron, Driver"></div>
     </div>
-    <div class="dz" id="swdz" onclick="document.getElementById('swVid').click()">
-      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-      <div class="dz-t">Drop a swing video or tap to browse</div>
-      <div class="dz-s">MP4 / MOV / WEBM · a single swing, a few seconds, works best · processed on your device</div>
+    <div class="dz" id="swdz" onclick="swStartUpload()">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      <div class="dz-t">Tap to choose your swing video</div>
+      <div class="dz-s">MP4 · MOV · WEBM &nbsp;·&nbsp; a single swing, a few seconds</div>
     </div>
-    <input type="file" id="swVid" accept="video/*" style="display:none" onchange="handleSwingVideo(this.files[0])">
-    <div id="swArea"></div>
+    <input type="file" id="swVid" accept="video/*" style="display:none" onchange="swVideoChosen(this.files[0])">
   </div>`);
-  const dz=document.getElementById('swdz');
-  ['dragover','dragenter'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--terra)';}));
-  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--line2)';}));
-  dz.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0]) handleSwingVideo(ev.dataTransfer.files[0]); });
+  document.getElementById('swdz').addEventListener('dragover', e=>{e.preventDefault();});
+  document.getElementById('swdz').addEventListener('drop', e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)swVideoChosen(f);});
 }
+
+function swStartUpload(){
+  const view = document.getElementById('sw_view').value;
+  if(!view){ toast('Please choose a camera angle first (Face-on or Down-the-line).'); return; }
+  document.getElementById('swVid').click();
+}
+
+function swVideoChosen(file){
+  if(!file) return;
+  const view = document.getElementById('sw_view').value;
+  if(!view){ toast('Please choose a camera angle first.'); return; }
+  const handed = document.getElementById('sw_hand').value;
+  const club = (document.getElementById('sw_club').value||'').trim();
+
+  // Load video into a hidden element, then start the marking flow
+  const videoEl = document.createElement('video');
+  videoEl.src = URL.createObjectURL(file);
+  videoEl.muted = true; videoEl.playsInline = true;
+  videoEl.setAttribute('playsinline',''); videoEl.setAttribute('muted','');
+  videoEl.preload = 'auto';
+
+  _markState = { file, angle:view, handed, club, videoEl, marked:{}, currentIdx:0 };
+
+  videoEl.onloadedmetadata = () => {
+    swShowMarkStep(0);
+  };
+  videoEl.onerror = () => toast('Could not load video — try MP4 or MOV (H.264).');
+  videoEl.load();
+}
+
+function swShowMarkStep(idx){
+  const st = _markState; if(!st) return;
+  const pos = MARK_POS[idx];
+  const total = MARK_POS.length;
+  const dur = st.videoEl.duration || 0;
+  const markedCount = Object.keys(st.marked).length;
+
+  // Progress dots
+  const dots = MARK_POS.map((p,i)=>{
+    const done = !!st.marked[p.id];
+    const cur  = i === idx;
+    return `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 3px;
+      background:${done?'var(--good)':cur?'var(--terra)':'var(--line2)'}"></span>`;
+  }).join('');
+
+  showModal(`<div class="modal-head">
+    <div><h2>${pos.label}</h2><div class="ms">Step ${idx+2} of ${total+1} · ${st.angle === 'face-on' ? 'Face-on' : 'DTL'} · ${st.club||'swing'}</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+  <div class="modal-body" style="padding-bottom:10px">
+    <div style="text-align:center;margin-bottom:12px">${dots}</div>
+    <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:14px;padding:10px 12px;background:var(--paper2);border-radius:9px;border-left:3px solid var(--terra)">
+      <b>${pos.label}:</b> ${pos.desc}</div>
+    <canvas id="sw-mark-canvas" style="width:100%;display:block;border-radius:9px;border:1px solid var(--line2);background:#111;max-height:320px;object-fit:contain"></canvas>
+    <div style="margin:12px 0 8px">
+      <input type="range" id="sw-scrub" min="0" max="${dur.toFixed(3)}" step="0.001" value="0"
+        style="width:100%;accent-color:var(--terra)" oninput="swSeek(this.value)">
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--ink-faint)">
+        <span id="sw-time">0.000s</span><span>${dur.toFixed(2)}s</span></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn" onclick="swStep(-10)" title="-10 frames">«</button>
+      <button class="btn" onclick="swStep(-1)" title="-1 frame">‹</button>
+      <button class="btn" onclick="swStep(1)"  title="+1 frame">›</button>
+      <button class="btn" onclick="swStep(10)" title="+10 frames">»</button>
+    </div>
+    <button class="btn primary" onclick="swMarkFrame(${idx})" style="width:100%;margin-bottom:10px;font-size:15px;padding:13px">
+      ✓ Mark as "${pos.label}"
+    </button>
+    <div style="display:flex;gap:10px">
+      ${idx > 0 ? `<button class="btn" onclick="swShowMarkStep(${idx-1})" style="flex:1">← Back</button>` : ''}
+      <button class="btn" onclick="swSkipPosition(${idx})" style="flex:1;color:var(--ink-faint)">Skip this position</button>
+      ${markedCount >= 3 && idx === total-1 ? `<button class="btn primary" onclick="swFinishMarking()" style="flex:1">Finish →</button>` : ''}
+    </div>
+  </div>`);
+
+  // Wire up the video element to seek and draw to canvas
+  setTimeout(()=>{
+    const canvas = document.getElementById('sw-mark-canvas');
+    const scrub  = document.getElementById('sw-scrub');
+    if(!canvas || !scrub) return;
+    // Set canvas size from video metadata
+    const vw = st.videoEl.videoWidth || 480;
+    const vh = st.videoEl.videoHeight || 640;
+    canvas.width  = vw;
+    canvas.height = vh;
+    // Draw current frame
+    swDrawFrame();
+    // If we already have a marked time for this position, seek there
+    if(st.marked[pos.id] != null){
+      st.videoEl.currentTime = st.marked[pos.id].time;
+      scrub.value = st.marked[pos.id].time;
+    }
+    st.videoEl.onseeked = () => { swDrawFrame(); };
+  }, 80);
+}
+
+function swDrawFrame(){
+  const canvas = document.getElementById('sw-mark-canvas');
+  const timeEl = document.getElementById('sw-time');
+  const scrub  = document.getElementById('sw-scrub');
+  if(!canvas || !_markState) return;
+  const v = _markState.videoEl;
+  const ctx = canvas.getContext('2d');
+  try { ctx.drawImage(v, 0, 0, canvas.width, canvas.height); } catch(e){}
+  if(timeEl) timeEl.textContent = v.currentTime.toFixed(3) + 's';
+  if(scrub) scrub.value = v.currentTime;
+}
+
+function swSeek(t){
+  if(!_markState) return;
+  _markState.videoEl.currentTime = parseFloat(t);
+}
+
+function swStep(frames){
+  if(!_markState) return;
+  const fps = 60;
+  const v = _markState.videoEl;
+  v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + frames/fps));
+}
+
+function swMarkFrame(idx){
+  const st = _markState; if(!st) return;
+  const canvas = document.getElementById('sw-mark-canvas');
+  if(!canvas){ toast('Video not ready — wait a moment and try again.'); return; }
+  const v = st.videoEl;
+  // Capture the current canvas contents as JPEG
+  const frame = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+  const pos = MARK_POS[idx];
+  st.marked[pos.id] = { time: v.currentTime, frame };
+  toast(`✓ ${pos.label} marked at ${v.currentTime.toFixed(2)}s`);
+
+  // Advance to next position, or finish if last
+  const next = idx + 1;
+  if(next < MARK_POS.length){
+    swShowMarkStep(next);
+  } else {
+    swFinishMarking();
+  }
+}
+
+function swSkipPosition(idx){
+  const next = idx + 1;
+  if(next < MARK_POS.length) swShowMarkStep(next);
+  else swFinishMarking();
+}
+
+function swFinishMarking(){
+  const st = _markState; if(!st) return;
+  const markedPos = MARK_POS.filter(p => st.marked[p.id]);
+  if(markedPos.length < 2){ toast('Mark at least 2 positions to save a review.'); return; }
+
+  // Build keyFrames array in the fixed order
+  const keyFrames = MARK_POS.map(p => st.marked[p.id] ? st.marked[p.id].frame : null);
+
+  // Set up _swing with the manually-marked frames
+  _swing = {
+    frames: Object.values(st.marked).map(m=>m.frame),
+    keyFrames,
+    messages: [],
+    view: st.angle,
+    handed: st.handed,
+    club: st.club,
+    thumb: st.marked.impact ? st.marked.impact.frame : (markedPos[0] && st.marked[markedPos[0].id].frame),
+    title: (st.club ? st.club + ' swing' : 'Swing review')
+  };
+  if(st.club) _swing.messages.push({role:'user', content:'This is my '+st.club+'.'});
+  saveSwing();
+  URL.revokeObjectURL(st.videoEl.src);
+
+  // Show review summary + Coach chat
+  const frameGrid = MARK_POS.map(p=>{
+    const m = st.marked[p.id];
+    return `<div style="text-align:center">
+      ${m ? `<img src="data:image/jpeg;base64,${m.frame}" style="height:72px;border-radius:7px;border:2px solid var(--good)">
+        <div style="font-family:var(--mono);font-size:8px;color:var(--good);margin-top:3px">${p.label}</div>`
+        : `<div style="height:72px;border-radius:7px;border:2px dashed var(--line2);display:flex;align-items:center;justify-content:center">
+          <span style="font-family:var(--mono);font-size:8px;color:var(--line2)">skipped</span></div>
+          <div style="font-family:var(--mono);font-size:8px;color:var(--line2);margin-top:3px">${p.label}</div>`}
+    </div>`;
+  }).join('');
+
+  showModal(`<div class="modal-head">
+    <div><h2>Positions marked</h2><div class="ms">${markedPos.length} of ${MARK_POS.length} captured · Coach reviewing…</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+  <div class="modal-body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${frameGrid}</div>
+    <div id="swChat" class="sw-chat" style="max-height:38vh;overflow-y:auto"></div>
+    <div id="swStatus" style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin:8px 0">Coach is reviewing your marked positions…</div>
+    <div style="display:flex;gap:9px;margin-top:10px">
+      <input id="swMsg" placeholder="Ask a follow-up…" style="flex:1;background:var(--paper);border:1px solid var(--line2);border-radius:11px;padding:11px 13px;font-family:var(--serif);font-size:14px;color:var(--ink)" onkeydown="if(event.key==='Enter')sendSwingMsg()" disabled>
+      <button class="btn primary" id="swSendBtn" onclick="sendSwingMsg()" disabled>Send</button>
+    </div>
+  </div>`);
+
+  // Trigger Coach review
+  runSwingReview(true);
+  // Re-render golf to update the comparison cards
+  if(document.getElementById('pane-golf').classList.contains('active')||true) renderGolf();
+}
+
 
 // Extract N evenly-spaced frames from a video file, resized, as base64 jpegs
 async function extractSwingFrames(file, count, maxPx){
