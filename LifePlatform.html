@@ -408,7 +408,6 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   <nav class="nav">
     <button class="active" data-pane="home"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-8 9 8M5 9v11h14V9"/></svg>Today</button>
     <button data-pane="whoop"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>Body</button>
-    <button data-pane="run"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 4a1.5 1.5 0 100 0M7 21l3-6 3 2 1 4M10 9l3-2 3 3 3 1M5 13l3-1"/></svg>Running</button>
     <button data-pane="golf"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 18V4l7 3-7 3"/><circle cx="12" cy="20" r="1.5"/></svg>Golf</button>
     <button data-pane="health"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg>Health</button>
     <button data-pane="goals"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4h12l-2.5 4L17 12H5"/></svg>Goals</button>
@@ -2405,8 +2404,6 @@ function renderGolf(){
      <p>You're playing to a scoring average of <b>${avg?avg.toFixed(1):'—'}</b> across ${rounds.length} rounds, with a best of <b>${best||'—'}</b>. You've got <b>${withData.length}</b> of your <b>${bag.length}</b> bag clubs with range data so far. The fastest path to lower scores usually isn't more distance — it's tighter dispersion and reliable wedge numbers. Keep feeding sessions in and the gaps between clubs will tell their own story.</p></div>
    <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center">
      <button class="btn primary" onclick="openGolfImport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import range session</button>
-     <button class="btn" onclick="openSwingReview()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Swing review</button>
-     <button class="btn" onclick="go('run')">Running log</button>
      <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${g.shots.length} shots · ${withData.length}/${bag.length} clubs · ${rounds.length} rounds</span>
    </div>
    <div class="grid g4" style="margin-bottom:24px">
@@ -2440,14 +2437,6 @@ function renderGolf(){
        return `<tr><td class="mono">${(r.date||'').slice(0,10)}</td><td>${r.course}${r.layout?' · '+r.layout:''}</td><td class="r mono">${f}</td><td class="r mono">${b}</td><td class="r mono"><b>${r.total}</b> <span style="color:${ov>0?'var(--bad)':'var(--good)'}">(${ov>0?'+':''}${ov})</span></td></tr>`;}).join('')}
      </tbody></table></div>
    </div>`;
-  // After render, populate existing swing frames and saved annotations onto canvases
-  // Populate canvases with frames + any saved annotations
-  requestAnimationFrame(()=>{
-    SWING_POSITIONS.forEach((pos,i)=>{
-      const frame=asGetFrame(i); if(!frame)return;
-      asPopulateCanvas(pos.id, frame, _asAnnotations[pos.id]||null);
-    });
-  });
 }
 
 /* ============================================================
@@ -2604,16 +2593,9 @@ function swingAnalysisSection() {
 
     let userSide;
     if (frame) {
-      const annotated = ann && ann.visible !== false && ann.lines && ann.lines.length;
       userSide = `<div style="flex:1;min-width:0">
-        <div class="as-panel-label" style="color:${annotated?'var(--good)':'var(--ink-faint)'}">Your swing${annotated?' · lines drawn':''}</div>
-        <div style="position:relative">
-          <canvas id="asc-${pos.id}" style="width:100%;display:block;border-radius:9px;border:1px solid ${annotated?'var(--terra)':'var(--line2)'}"></canvas>
-          ${!annotated ? `<div style="position:absolute;bottom:6px;left:0;right:0;text-align:center">
-            <span style="background:rgba(0,0,0,0.62);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:9px;color:white">tap Analyse to add lines</span>
-          </div>` : ''}
-        </div>
-        <div id="asnote-${pos.id}" style="font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--terra-deep);line-height:1.45;margin-top:7px;padding:7px 9px;background:rgba(14,124,134,.07);border-radius:7px;border-left:2px solid var(--terra);${ann&&ann.note?'':'display:none'}">${ann&&ann.note?tkEsc(ann.note):''}</div>
+        <div class="as-panel-label">Your swing</div>
+        <img src="data:image/jpeg;base64,${frame}" style="width:100%;display:block;border-radius:9px;border:1px solid var(--line2)">
       </div>`;
     } else {
       userSide = `<div style="flex:1;min-width:0">
@@ -2647,28 +2629,19 @@ function swingAnalysisSection() {
   </div>` : '';
 
   return `<div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
       <div>
-        <div class="kicker">Your swing</div>
-        <div class="h-sec" style="margin-bottom:0">Swing analysis · AI coaching lines</div>
+        <div class="kicker">Swing comparison</div>
+        <div class="h-sec" style="margin-bottom:0">Reference · Your swing · 6 positions</div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        ${hasFrames ? `<button class="btn primary" id="as-analyse-btn" onclick="annotateAllPositions()" style="font-size:12px;padding:7px 12px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          ${hasAnn ? 'Re-analyse' : 'Analyse swing'}</button>` : ''}
-        <button class="btn" onclick="openSwingReview()" style="font-size:12px;padding:7px 12px">
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn primary" onclick="openSwingReview()" style="font-size:12px;padding:8px 14px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          Upload swing</button>
+          ${hasFrames ? 'New swing' : 'Upload swing video'}</button>
         <a onclick="_asExpanded=!_asExpanded;renderGolf()" style="font-family:var(--mono);font-size:10.5px;color:var(--terra);cursor:pointer">${_asExpanded?'▲ collapse':'▼ expand'}</a>
       </div>
     </div>
-    <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);margin-top:7px;line-height:1.55">${hasFrames
-      ? (hasAnn
-          ? 'Coaching lines drawn on your swing. Each line is colour-coded — the note beneath each frame is Coach\'s observation. Scroll right for all six positions.'
-          : 'Your swing frames are loaded. Tap <b>Analyse swing</b> and Coach will draw the key coaching lines (spine angle, shoulder line, hip rotation, lead arm, shaft angle) directly on each frame, with a specific observation per position.')
-      : 'Upload a video of your swing. Coach will identify the six key positions automatically, then draw coaching lines directly on each frame showing what to fix.'}</div>
-    ${legendHtml}
-    ${_asExpanded ? `<div style="display:flex;overflow-x:auto;padding:16px 0 6px;-webkit-overflow-scrolling:touch">${cardsHtml}</div>` : ''}
+    ${_asExpanded ? `<div style="display:flex;overflow-x:auto;padding:4px 0 6px;-webkit-overflow-scrolling:touch">${cardsHtml}</div>` : ''}
   </div>`;
 }
 
