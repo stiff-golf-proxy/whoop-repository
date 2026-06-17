@@ -1801,42 +1801,153 @@ function weightSummary(){
   const goal=90;
   return {latest,first,lost,goal,toGo:+(latest.kg-goal).toFixed(1),n:d.length};
 }
+let _wtRange='all'; // '6m'|'1y'|'5y'|'all'
+let _wtOffset=0;    // 0 = most recent window, 1 = one window back, etc.
+
+function wtSetRange(r){ _wtRange=r; _wtOffset=0; renderHealth(); }
+function wtPan(dir){ _wtOffset=Math.max(0,_wtOffset+dir); renderHealth(); }
+
+function wtWindowDates(){
+  const all=weightCfg();
+  if(!all.length)return{start:null,end:null,data:[]};
+  if(_wtRange==='all')return{start:all[0].date,end:all[all.length-1].date,data:all};
+  // compute window end = today shifted back by offset windows
+  const months={'6m':6,'1y':12,'5y':60}[_wtRange]||12;
+  const endMs=Date.now()-_wtOffset*months*30.44*24*3600*1000;
+  const startMs=endMs-months*30.44*24*3600*1000;
+  const endDate=new Date(endMs).toISOString().slice(0,10);
+  const startDate=new Date(startMs).toISOString().slice(0,10);
+  const data=all.filter(p=>p.date>=startDate&&p.date<=endDate);
+  return{start:startDate,end:endDate,data};
+}
+
 function weightChart(){
-  const d=weightCfg(); if(d.length<2)return '';
-  const w=360,h=160,padL=46,padR=14,padT=18,padB=36;
-  const kgs=d.map(p=>p.kg);
-  const minK=Math.floor(Math.min(...kgs)-1), maxK=Math.ceil(Math.max(...kgs)+1);
-  const cx=i=>padL+(i/(d.length-1))*(w-padL-padR);
+  const {data:d,start,end}=wtWindowDates();
+  const all=weightCfg();
+  const w=360,h=180,padL=46,padR=14,padT=20,padB=38;
+  // If no data in window, show a message overlay with the axes still drawn
+  const drawSet=d.length>=2?d:d.length===1?[d[0],d[0]]:(all.length>=2?[]:null);
+  if(!drawSet){return `<div style="height:60px;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-style:italic;color:var(--ink-faint)">No readings in this period</div>`;}
+  const kgs=all.map(p=>p.kg); // use full range for y-scale so it doesn't jump
+  const minK=Math.floor(Math.min(...kgs)-2), maxK=Math.ceil(Math.max(...kgs)+2);
+  // map date string to x position within the window
+  const rangeStart=_wtRange==='all'?all[0].date:start;
+  const rangeEnd=_wtRange==='all'?all[all.length-1].date:end;
+  const dateToX=dateStr=>{
+    const t=new Date(dateStr).getTime();
+    const t0=new Date(rangeStart).getTime(), t1=new Date(rangeEnd).getTime();
+    if(t1===t0)return padL+(w-padL-padR)/2;
+    return padL+((t-t0)/(t1-t0))*(w-padL-padR);
+  };
   const cy=v=>padT+(1-(v-minK)/(maxK-minK))*(h-padT-padB);
-  // shaded area fill
-  let area=`M${cx(0)},${cy(d[0].kg)} `;
-  d.forEach((_,i)=>{ area+=`L${cx(i).toFixed(1)},${cy(d[i].kg).toFixed(1)} `; });
-  area+=`L${cx(d.length-1).toFixed(1)},${h-padB} L${cx(0).toFixed(1)},${h-padB} Z`;
-  // line
-  let line=`M${cx(0).toFixed(1)},${cy(d[0].kg).toFixed(1)} `;
-  d.forEach((_,i)=>{ if(i)line+=`L${cx(i).toFixed(1)},${cy(d[i].kg).toFixed(1)} `; });
-  // y-axis labels
-  const yTicks=[]; const step=Math.ceil((maxK-minK)/4);
-  for(let v=minK;v<=maxK;v+=step) yTicks.push(v);
-  const yLabels=yTicks.map(v=>`<text x="${padL-6}" y="${cy(v).toFixed(1)}" text-anchor="end" alignment-baseline="middle" font-size="10" fill="var(--ink-faint)" font-family="var(--mono)">${v}</text>`).join('');
+  // y axis
+  const step=Math.ceil((maxK-minK)/4)||1;
+  const yTicks=[]; for(let v=minK;v<=maxK;v+=step)yTicks.push(v);
   const yLines=yTicks.map(v=>`<line x1="${padL}" y1="${cy(v).toFixed(1)}" x2="${w-padR}" y2="${cy(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`).join('');
-  // x-axis labels (every other point to avoid crowding)
-  const xLabels=d.map((p,i)=>i%2===0||i===d.length-1?`<text x="${cx(i).toFixed(1)}" y="${h-padB+14}" text-anchor="middle" font-size="9" fill="var(--ink-faint)" font-family="var(--mono)">${p.date.slice(5).replace('-','/')}</text>`:'').join('');
-  // dots
-  const dots=d.map((p,i)=>`<circle cx="${cx(i).toFixed(1)}" cy="${cy(p.kg).toFixed(1)}" r="3.5" fill="var(--terra)" stroke="var(--paper)" stroke-width="1.5"/>
-    <title>${p.kg}kg · ${p.date}</title>`).join('');
-  // goal line at 90kg
+  const yLabels=yTicks.map(v=>`<text x="${padL-6}" y="${cy(v).toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="10" fill="var(--ink-faint)" font-family="var(--mono)">${v}</text>`).join('');
+  // goal line
   const goalY=cy(90).toFixed(1);
-  const goalLine=90>=minK&&90<=maxK?`<line x1="${padL}" y1="${goalY}" x2="${w-padR}" y2="${goalY}" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.7"/>
-    <text x="${w-padR-2}" y="${+goalY-4}" text-anchor="end" font-size="9" fill="var(--good)" font-family="var(--mono)">goal 90</text>`:'';
+  const goalLine=90>=minK&&90<=maxK?`<line x1="${padL}" y1="${goalY}" x2="${w-padR}" y2="${goalY}" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.75"/>
+    <text x="${w-padR-2}" y="${+goalY-5}" text-anchor="end" font-size="9" fill="var(--good)" font-family="var(--mono)">goal 90</text>`:'';
+  // x-axis date labels — compute sensible ticks for the visible range
+  const totalDays=(new Date(rangeEnd)-new Date(rangeStart))/(86400000)||1;
+  const xTickDates=[];
+  if(_wtRange==='6m'||totalDays<=200){
+    // month ticks
+    let d2=new Date(rangeStart); d2.setDate(1);
+    while(d2.toISOString().slice(0,10)<=rangeEnd){xTickDates.push(d2.toISOString().slice(0,7)+'-01');d2.setMonth(d2.getMonth()+1);}
+  } else if(_wtRange==='1y'||totalDays<=400){
+    let d2=new Date(rangeStart); d2.setDate(1); d2.setMonth(0);
+    while(d2.toISOString().slice(0,10)<=rangeEnd){xTickDates.push(d2.toISOString().slice(0,4)+'-01-01');d2.setFullYear(d2.getFullYear()+1);}
+    // also quarterly
+    let d3=new Date(rangeStart); d3.setDate(1);
+    while(d3.toISOString().slice(0,10)<=rangeEnd){xTickDates.push(d3.toISOString().slice(0,7)+'-01');d3.setMonth(d3.getMonth()+3);}
+  } else {
+    let d2=new Date(rangeStart); d2.setMonth(0); d2.setDate(1);
+    while(d2.toISOString().slice(0,10)<=rangeEnd){xTickDates.push(d2.toISOString().slice(0,4)+'-01-01');d2.setFullYear(d2.getFullYear()+1);}
+  }
+  const xTicksUniq=[...new Set(xTickDates)].filter(t=>t>=rangeStart&&t<=rangeEnd).sort();
+  const xLabels=xTicksUniq.map(t=>{
+    const x=dateToX(t).toFixed(1);
+    const lbl=totalDays>400?t.slice(0,4):t.slice(0,7).replace('-','/');
+    return `<line x1="${x}" y1="${padT}" x2="${x}" y2="${h-padB}" stroke="var(--line)" stroke-width="1" opacity="0.5"/>
+      <text x="${x}" y="${h-padB+14}" text-anchor="middle" font-size="9" fill="var(--ink-faint)" font-family="var(--mono)">${lbl}</text>`;
+  }).join('');
+  if(!d.length){
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="width:100%">
+      ${yLines}${yLabels}${xLabels}${goalLine}
+      <text x="${(padL+w-padR)/2}" y="${(padT+h-padB)/2}" text-anchor="middle" font-size="12" fill="var(--ink-faint)" font-family="var(--serif)" font-style="italic">No readings in this period</text>
+    </svg>`;
+  }
+  // area + line using all readings in this window
+  let area=`M${dateToX(d[0].date).toFixed(1)},${cy(d[0].kg).toFixed(1)} `;
+  d.forEach(p=>{area+=`L${dateToX(p.date).toFixed(1)},${cy(p.kg).toFixed(1)} `;});
+  area+=`L${dateToX(d[d.length-1].date).toFixed(1)},${h-padB} L${dateToX(d[0].date).toFixed(1)},${h-padB} Z`;
+  let line=`M${dateToX(d[0].date).toFixed(1)},${cy(d[0].kg).toFixed(1)} `;
+  d.forEach((p,i)=>{if(i)line+=`L${dateToX(p.date).toFixed(1)},${cy(p.kg).toFixed(1)} `;});
+  const dots=d.map(p=>`<circle cx="${dateToX(p.date).toFixed(1)}" cy="${cy(p.kg).toFixed(1)}" r="4" fill="var(--terra)" stroke="var(--paper)" stroke-width="1.5"><title>${p.kg} kg · ${p.date}</title></circle>`).join('');
+  // change label on most recent dot
+  const last=d[d.length-1];
+  const lastLabel=`<text x="${(dateToX(last.date)-6).toFixed(1)}" y="${(cy(last.kg)-9).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--terra)" font-family="var(--mono)" font-weight="bold">${last.kg}kg</text>`;
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="width:100%;max-width:${w}px">
-    ${yLines}${goalLine}
+    ${yLines}${xLabels}${goalLine}
     <path d="${area}" fill="var(--terra)" opacity="0.10"/>
     <path d="${line}" fill="none" stroke="var(--terra)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    ${dots}${yLabels}${xLabels}
+    ${dots}${lastLabel}${yLabels}
   </svg>`;
 }
-function openWeightEntry(){
+
+function weightSection(){
+  const s=weightSummary(); if(!s)return '';
+  const all=weightCfg();
+  const{data:wd,start,end}=wtWindowDates();
+  // period label
+  const periodMap={'6m':'6 months','1y':'1 year','5y':'5 years','all':'All time'};
+  const periodLabel=periodMap[_wtRange]||'All time';
+  // period-specific stats
+  const periodLost=wd.length>=2?+(wd[0].kg-wd[wd.length-1].kg).toFixed(1):null;
+  const lostCol=s.lost>0?'var(--good)':'var(--ink)';
+  const bmiCol=!s.latest.bmi?'var(--ink)':s.latest.bmi<25?'var(--good)':s.latest.bmi<30?'var(--gold)':'var(--bad)';
+  // can we pan back further?
+  const months={'6m':6,'1y':12,'5y':60}[_wtRange];
+  const canPrev=_wtRange!=='all'&&all.length&&all[0].date<(start||'');
+  const canNext=_wtOffset>0;
+  const navBtn=(dir,icon,enabled)=>enabled
+    ?`<button onclick="wtPan(${dir})" style="background:none;border:1px solid var(--line2);border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--ink);font-size:16px;line-height:1">${icon}</button>`
+    :`<button disabled style="background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px;color:var(--line2);font-size:16px;line-height:1;cursor:default">${icon}</button>`;
+  return `<div class="card card-pad" style="margin-bottom:22px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div><div class="kicker">Weight tracking</div><div class="h-sec" style="margin-bottom:0">Body weight · ${s.n} readings</div></div>
+      <button class="btn primary" onclick="openWeightEntry()" style="font-size:13px;padding:8px 14px">+ Log weight</button>
+    </div>
+    <div class="grid g4" style="margin-bottom:18px">
+      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:var(--terra)"></div>
+        <div class="lbl">Current</div><div class="num" style="font-size:28px">${s.latest.kg}<small>kg</small></div>
+        <div class="foot">${fmtDate(s.latest.date)}</div></div>
+      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:${lostCol}"></div>
+        <div class="lbl">Total lost</div><div class="num" style="font-size:28px;color:${lostCol}">${s.lost}<small>kg</small></div>
+        <div class="foot">since ${fmtDate(s.first.date)}</div></div>
+      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:var(--sky)"></div>
+        <div class="lbl">To goal (90kg)</div><div class="num" style="font-size:28px;color:var(--sky)">${s.toGo}<small>kg</small></div>
+        <div class="foot">target 90 kg</div></div>
+      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:${bmiCol}"></div>
+        <div class="lbl">BMI</div><div class="num" style="font-size:28px;color:${bmiCol}">${s.latest.bmi||'—'}</div>
+        <div class="foot">${s.latest.bmi?s.latest.bmi<25?'healthy':s.latest.bmi<30?'overweight':'obese':''}</div></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div class="seg" style="margin:0">
+        ${['6m','1y','5y','all'].map(r=>`<button class="seg-btn ${_wtRange===r?'active':''}" onclick="wtSetRange('${r}')">${r==='all'?'All':r==='6m'?'6M':r==='1y'?'1Y':'5Y'}</button>`).join('')}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${_wtRange!=='all'?`${navBtn(1,'‹',canPrev)}<span style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);min-width:90px;text-align:center">${start?start.slice(0,7)+' → '+end.slice(0,7):periodLabel}</span>${navBtn(-1,'›',canNext)}`
+        :`<span style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)">${fmtDate(s.first.date)} → today</span>`}
+      </div>
+    </div>
+    <div>${weightChart()}</div>
+    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;margin-top:8px">
+      ${periodLost!==null&&_wtRange!=='all'?`<span style="color:${periodLost>0?'var(--good)':'var(--bad)'}">−${Math.abs(periodLost)}kg</span> in this ${periodLabel.toLowerCase()} · `:'' }Down ${s.lost}kg total · ${s.toGo}kg to 90kg goal</div>
+  </div>`;
+}
   showModal(`<div class="modal-head"><div><h2>Log weight</h2><div class="ms">Adds a new reading to your weight history</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
     <div class="modal-body">
       <div class="field"><label>Date</label><input type="date" id="w_date" value="${todayISO()}"></div>
