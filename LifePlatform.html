@@ -1948,6 +1948,7 @@ function weightSection(){
       ${periodLost!==null&&_wtRange!=='all'?`<span style="color:${periodLost>0?'var(--good)':'var(--bad)'}">−${Math.abs(periodLost)}kg</span> in this ${periodLabel.toLowerCase()} · `:'' }Down ${s.lost}kg total · ${s.toGo}kg to 90kg goal</div>
   </div>`;
 }
+function openWeightEntry(){
   showModal(`<div class="modal-head"><div><h2>Log weight</h2><div class="ms">Adds a new reading to your weight history</div></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
     <div class="modal-body">
       <div class="field"><label>Date</label><input type="date" id="w_date" value="${todayISO()}"></div>
