@@ -2588,6 +2588,7 @@ function swingAnalysisSection() {
     const frame = asGetFrame(i);
     const ann = _asAnnotations[pos.id];
     // Pick reference based on user swing camera angle
+    const lastSwing = (golf().swings||[]).sort((a,b)=>(b.at||0)-(a.at||0))[0]||null;
     const userView = (_swing && _swing.view) || (lastSwing && lastSwing.view) || '';
     const isFaceOn = userView === 'face-on' || userView === 'Face-on';
     const refImg = isFaceOn ? (FON_FRAMES[posKeys[i]] || REF_FRAMES[posKeys[i]] || null)
