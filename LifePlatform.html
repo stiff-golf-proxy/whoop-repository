@@ -1983,35 +1983,6 @@ function saveWeightEntry(){
   DB.weight=list; save(); closeModal(); renderHealth();
   toast('Weight logged — '+kg+' kg on '+date);
 }
-function weightSection(){
-  const s=weightSummary(); const d=weightCfg();
-  if(!s)return '';
-  const lostCol=s.lost>0?'var(--good)':'var(--ink)';
-  const bmiCol=s.latest.bmi<25?'var(--good)':s.latest.bmi<30?'var(--gold)':'var(--bad)';
-  return `<div class="card card-pad" style="margin-bottom:22px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <div><div class="kicker">Weight tracking</div><div class="h-sec" style="margin-bottom:0">Body weight · ${s.n} readings</div></div>
-      <button class="btn primary" onclick="openWeightEntry()" style="font-size:13px;padding:8px 14px">+ Log weight</button>
-    </div>
-    <div class="grid g4" style="margin-bottom:18px">
-      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:var(--terra)"></div>
-        <div class="lbl">Current</div><div class="num" style="font-size:28px">${s.latest.kg}<small>kg</small></div>
-        <div class="foot">${fmtDate(s.latest.date)}</div></div>
-      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:${lostCol}"></div>
-        <div class="lbl">Lost</div><div class="num" style="font-size:28px;color:${lostCol}">${s.lost}<small>kg</small></div>
-        <div class="foot">since ${fmtDate(s.first.date)}</div></div>
-      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:var(--sky)"></div>
-        <div class="lbl">To goal (90kg)</div><div class="num" style="font-size:28px;color:var(--sky)">${s.toGo}<small>kg</small></div>
-        <div class="foot">target 90 kg</div></div>
-      <div class="card tile" style="margin:0"><div class="accent-bar" style="background:${bmiCol}"></div>
-        <div class="lbl">BMI</div><div class="num" style="font-size:28px;color:${bmiCol}">${s.latest.bmi||'—'}</div>
-        <div class="foot">${s.latest.bmi?s.latest.bmi<25?'healthy':s.latest.bmi<30?'overweight':'obese':''}</div></div>
-    </div>
-    <div style="margin-bottom:4px">${weightChart()}</div>
-    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;margin-top:6px">Down ${s.lost}kg since ${fmtDate(s.first.date)} · ${s.toGo}kg to go to 90kg goal · tap + Log weight to add a new reading</div>
-  </div>`;
-}
-
 function renderHealth(){
   const markers=bloodMarkers();
   let names=Object.keys(markers);
