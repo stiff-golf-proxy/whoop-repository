@@ -2580,9 +2580,14 @@ function swingAnalysisSection() {
     const lastSwing = (golf().swings||[]).sort((a,b)=>(b.at||0)-(a.at||0))[0]||null;
     const userView = (_swing && _swing.view) || (lastSwing && lastSwing.view) || '';
     const isFaceOn = userView === 'face-on' || userView === 'Face-on';
-    const refImg = isFaceOn ? (FON_FRAMES[posKeys[i]] || REF_FRAMES[posKeys[i]] || null)
-                             : (REF_FRAMES[posKeys[i]] || FON_FRAMES[posKeys[i]] || null);
-    const refLabel = isFaceOn ? 'Reference · Face-on' : 'Reference · DTL';
+    const angleKey = isFaceOn ? 'face-on' : 'down-the-line';
+    const customRef = customRefFrame(angleKey, i);
+    const builtinRef = isFaceOn ? (FON_FRAMES[posKeys[i]] || REF_FRAMES[posKeys[i]] || null)
+                                : (REF_FRAMES[posKeys[i]] || FON_FRAMES[posKeys[i]] || null);
+    const refImg = customRef || builtinRef;
+    const refLabel = customRef
+      ? (isFaceOn ? 'Reference · Face-on (yours)' : 'Reference · DTL (yours)')
+      : (isFaceOn ? 'Reference · Face-on' : 'Reference · DTL');
 
     const refSide = refImg
       ? `<div style="flex:1;min-width:0">
@@ -2635,6 +2640,7 @@ function swingAnalysisSection() {
         <div class="h-sec" style="margin-bottom:0">Reference · Your swing · 6 positions</div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn" onclick="openRefSetup()" style="font-size:12px;padding:8px 14px" title="Mark a model swing's positions to use as the reference">⚑ Reference swing</button>
         <button class="btn primary" onclick="openSwingReview()" style="font-size:12px;padding:8px 14px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           ${hasFrames ? 'New swing' : 'Upload swing video'}</button>
@@ -2668,7 +2674,124 @@ const MARK_POS = [
   { id:'followthrough', label:'Follow-Through',   desc:'Club at hip height on the target side after impact.' },
   { id:'finish',        label:'Finish',           desc:'Fully balanced finish position — weight on lead foot, hands high.' }
 ];
-let _markState = null; // { file, angle, handed, club, videoEl, marked:{}, currentIdx }
+let _markState = null; // { file, angle, handed, club, videoEl, marked:{}, currentIdx, refMode }
+
+/* Custom reference swing: user marks a model swing's 6 positions once, per
+   camera angle. Stored in DB.golf.refSwings[angle] = [f0..f5] and used in place
+   of the hardcoded REF_FRAMES/FON_FRAMES so the reference positions are exactly
+   the ones you chose — no auto-derived position confusion. */
+function refSwings(){ const g=golf(); if(!g.refSwings) g.refSwings={}; return g.refSwings; }
+function customRefFrame(angle, idx){
+  const set = refSwings()[angle];
+  return (set && set[idx]) || null;
+}
+
+function openRefSetup(){
+  const rs = refSwings();
+  const have = ['face-on','down-the-line'].filter(a => (rs[a]||[]).some(f=>f));
+  const haveHtml = have.length
+    ? `<div style="margin-bottom:16px;padding:10px 12px;background:var(--paper2);border-radius:9px;border-left:3px solid var(--good)">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--good);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Reference swings set</div>
+        <div style="font-family:var(--serif);font-size:13px;color:var(--ink-soft)">${have.map(a=>a==='face-on'?'Face-on':'Down-the-line').join(' · ')}</div>
+      </div>`
+    : '';
+
+  showModal(`<div class="modal-head">
+    <div><h2>Reference swing</h2><div class="ms">Mark a model swing's positions once — used as the comparison reference</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+  <div class="modal-body">
+    ${haveHtml}
+    <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:16px">
+      Upload a clean model swing and mark the same six positions you mark for your own swing. Those exact frames become the reference shown beside each of your positions. Set one up per camera angle.</div>
+    <div class="grid g3" style="margin-bottom:18px;gap:10px">
+      <div class="field"><label>Camera angle <span style="color:var(--bad)">*</span></label>
+        <select id="rf_view" style="font-weight:600">
+          <option value="">Choose…</option>
+          <option value="face-on">Face-on</option>
+          <option value="down-the-line">Down-the-line</option>
+        </select></div>
+      <div class="field"><label>Handed</label>
+        <select id="rf_hand"><option value="right">Right</option><option value="left">Left</option></select></div>
+      <div class="field"><label>Club</label>
+        <input id="rf_club" placeholder="e.g. 7-iron, Driver"></div>
+    </div>
+    <div class="dz" id="rfdz" onclick="rfStartUpload()">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      <div class="dz-t">Tap to choose the model swing video</div>
+      <div class="dz-s">MP4 · MOV · WEBM &nbsp;·&nbsp; a single clean swing</div>
+    </div>
+    <input type="file" id="rfVid" accept="video/*" style="display:none" onchange="rfVideoChosen(this.files[0])">
+  </div>`);
+  document.getElementById('rfdz').addEventListener('dragover', e=>{e.preventDefault();});
+  document.getElementById('rfdz').addEventListener('drop', e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)rfVideoChosen(f);});
+}
+
+function rfStartUpload(){
+  const view = document.getElementById('rf_view').value;
+  if(!view){ toast('Please choose a camera angle first (Face-on or Down-the-line).'); return; }
+  document.getElementById('rfVid').click();
+}
+
+function rfVideoChosen(file){
+  if(!file) return;
+  const view = document.getElementById('rf_view').value;
+  if(!view){ toast('Please choose a camera angle first.'); return; }
+  const handed = document.getElementById('rf_hand').value;
+  const club = (document.getElementById('rf_club').value||'').trim();
+
+  const videoEl = document.createElement('video');
+  videoEl.src = URL.createObjectURL(file);
+  videoEl.muted = true; videoEl.playsInline = true;
+  videoEl.setAttribute('playsinline',''); videoEl.setAttribute('muted','');
+  videoEl.preload = 'auto';
+
+  _markState = { file, angle:view, handed, club, videoEl, marked:{}, currentIdx:0, refMode:true };
+
+  videoEl.onloadedmetadata = () => { swShowMarkStep(0); };
+  videoEl.onerror = () => toast('Could not load video — try MP4 or MOV (H.264).');
+  videoEl.load();
+}
+
+function rfFinishMarking(){
+  const st = _markState; if(!st) return;
+  const markedPos = MARK_POS.filter(p => st.marked[p.id]);
+  if(markedPos.length < 2){ toast('Mark at least 2 positions to save a reference.'); return; }
+
+  // Build the reference frame array in fixed position order
+  const frames = MARK_POS.map(p => st.marked[p.id] ? st.marked[p.id].frame : null);
+  refSwings()[st.angle] = frames;
+  save();
+  URL.revokeObjectURL(st.videoEl.src);
+
+  const grid = MARK_POS.map(p=>{
+    const m = st.marked[p.id];
+    return `<div style="text-align:center">
+      ${m ? `<img src="data:image/jpeg;base64,${m.frame}" style="height:72px;border-radius:7px;border:2px solid var(--good)">
+        <div style="font-family:var(--mono);font-size:8px;color:var(--good);margin-top:3px">${p.label}</div>`
+        : `<div style="height:72px;border-radius:7px;border:2px dashed var(--line2);display:flex;align-items:center;justify-content:center">
+          <span style="font-family:var(--mono);font-size:8px;color:var(--line2)">—</span></div>
+          <div style="font-family:var(--mono);font-size:8px;color:var(--line2);margin-top:3px">${p.label}</div>`}
+    </div>`;
+  }).join('');
+
+  showModal(`<div class="modal-head">
+    <div><h2>Reference saved</h2><div class="ms">${markedPos.length} of ${MARK_POS.length} positions · ${st.angle==='face-on'?'Face-on':'Down-the-line'}</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+  <div class="modal-body">
+    <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);margin-bottom:14px">These frames now appear as the reference beside each of your ${st.angle==='face-on'?'face-on':'down-the-line'} swing positions.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">${grid}</div>
+    <button class="btn primary" onclick="closeModal();renderGolf()" style="width:100%">Done</button>
+  </div>`);
+  _markState = null;
+}
+
+function clearRef(angle){
+  if(!confirm('Remove the '+(angle==='face-on'?'face-on':'down-the-line')+' reference swing? The built-in reference will be used instead.')) return;
+  delete refSwings()[angle];
+  save();
+  renderGolf();
+  toast('Reference removed.');
+}
 
 function openSwingReview(){
   const saved=golfSwings().slice().sort((a,b)=>(b.at||0)-(a.at||0));
@@ -2755,7 +2878,7 @@ function swShowMarkStep(idx){
   }).join('');
 
   showModal(`<div class="modal-head">
-    <div><h2>${pos.label}</h2><div class="ms">Step ${idx+2} of ${total+1} · ${st.angle === 'face-on' ? 'Face-on' : 'DTL'} · ${st.club||'swing'}</div></div>
+    <div><h2>${pos.label}</h2><div class="ms">Step ${idx+2} of ${total+1} · ${st.refMode?'Reference · ':''}${st.angle === 'face-on' ? 'Face-on' : 'DTL'} · ${st.club||'swing'}</div></div>
     <button class="x" onclick="closeModal()">${xSvg()}</button></div>
   <div class="modal-body" style="padding-bottom:10px">
     <div style="text-align:center;margin-bottom:12px">${dots}</div>
@@ -2857,6 +2980,7 @@ function swSkipPosition(idx){
 
 function swFinishMarking(){
   const st = _markState; if(!st) return;
+  if(st.refMode){ rfFinishMarking(); return; }
   const markedPos = MARK_POS.filter(p => st.marked[p.id]);
   if(markedPos.length < 2){ toast('Mark at least 2 positions to save a review.'); return; }
 
