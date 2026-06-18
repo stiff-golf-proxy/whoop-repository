@@ -1800,7 +1800,7 @@ function weightSummary(){
   const goal=90;
   return {latest,first,lost,goal,toGo:+(latest.kg-goal).toFixed(1),n:d.length};
 }
-let _wtRange='1y'; // '1w'|'1m'|'6m'|'1y'|'5y'|'all'  — default 1Y so you see a zoomed view
+let _wtRange='all'; // '1w'|'1m'|'6m'|'1y'|'5y'|'all'  — default All so every reading + its date is visible
 let _wtOffset=0;    // 0 = most recent window, 1 = one window back, etc.
 
 function wtSetRange(r){ _wtRange=r; _wtOffset=0; wtRender(); }
@@ -1867,7 +1867,11 @@ function weightChart(){
     // month ticks
     let d2=new Date(rangeStart); d2.setDate(1);
     while(d2.toISOString().slice(0,10)<=rangeEnd){xTickDates.push(d2.toISOString().slice(0,7)+'-01');d2.setMonth(d2.getMonth()+1);}
-  } else if(_wtRange==='1y'||totalDays<=400){
+  } else if(totalDays<=430){
+    // up to ~14 months: monthly ticks so every month is labelled
+    let d2=new Date(rangeStart); d2.setDate(1);
+    while(d2.toISOString().slice(0,10)<=rangeEnd){xTickDates.push(d2.toISOString().slice(0,7)+'-01');d2.setMonth(d2.getMonth()+1);}
+  } else if(_wtRange==='1y'){
     let d2=new Date(rangeStart); d2.setDate(1); d2.setMonth(0);
     while(d2.toISOString().slice(0,10)<=rangeEnd){xTickDates.push(d2.toISOString().slice(0,4)+'-01-01');d2.setFullYear(d2.getFullYear()+1);}
     // also quarterly
