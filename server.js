@@ -34,6 +34,7 @@
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
+import crypto from 'crypto';
 import 'dotenv/config';
 
 const {
@@ -64,6 +65,107 @@ const TOKEN_FILE = process.env.TOKEN_FILE || (DATA_DIR + '/tokens.json');
 const app = express();
 app.use(cors({ origin: ALLOW_ORIGIN }));
 app.use(express.json({ limit: '25mb' })); // userdata blob + vision images are far larger than the 100kb default
+app.use(express.urlencoded({ extended: false })); // login form posts
+
+/* ===================================================================
+   LOGIN GATE
+   A single shared password protects the app, family dashboard and the
+   userdata blob. On success we set a signed, HttpOnly session cookie
+   (HMAC over an expiry timestamp) so no server-side session store is
+   needed and it survives restarts. The password is read from the
+   APP_PASSWORD env var; the signing key from SESSION_SECRET (falls back
+   to a derived key so a missing secret never locks Stuart out, though
+   setting SESSION_SECRET is strongly recommended).
+   =================================================================== */
+const APP_PASSWORD   = process.env.APP_PASSWORD || 'stiff-golf-2026';
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.createHash('sha256').update('lp::' + APP_PASSWORD).digest('hex');
+const SESSION_DAYS   = 30;
+const COOKIE_NAME    = 'lp_session';
+
+const signSession = (expMs) => {
+  const payload = String(expMs);
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
+  return payload + '.' + sig;
+};
+const verifySession = (val) => {
+  if (!val || typeof val !== 'string' || !val.includes('.')) return false;
+  const [payload, sig] = val.split('.');
+  const expect = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
+  if (sig.length !== expect.length) return false;
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return false;
+  return Number(payload) > Date.now();
+};
+const parseCookies = (req) => {
+  const out = {};
+  (req.headers.cookie || '').split(';').forEach(p => {
+    const i = p.indexOf('=');
+    if (i > -1) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
+  });
+  return out;
+};
+const isAuthed = (req) => verifySession(parseCookies(req)[COOKIE_NAME]);
+
+const loginPage = (err) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sign in · Life</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Libre Franklin',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:#eef4f3;color:#15302f;
+  background-image:radial-gradient(1200px 600px at 100% 0%,rgba(10,138,150,.17),transparent 55%),radial-gradient(900px 700px at 0% 100%,rgba(31,155,88,.15),transparent 52%);}
+.box{background:#fbfdfd;border:1px solid #d2e2e0;border-radius:18px;padding:40px 36px;width:100%;max-width:380px;
+  box-shadow:0 4px 12px rgba(12,60,58,.08),0 20px 50px rgba(14,90,95,.16)}
+.lbl{font-family:'Spline Sans Mono',monospace;font-size:11px;letter-spacing:.5px;color:#6f8a88;text-transform:uppercase;margin-bottom:6px}
+h1{font-size:24px;font-weight:700;letter-spacing:-.3px;margin-bottom:24px}
+input{width:100%;font-family:inherit;font-size:16px;padding:12px 14px;border:1px solid #b6cecb;border-radius:11px;background:#eef4f3;color:#15302f;margin-bottom:14px}
+input:focus{outline:none;border-color:#0a8a96}
+button{width:100%;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;padding:12px;border:none;border-radius:11px;background:#0a8a96;color:#fff;transition:.18s}
+button:hover{background:#055058}
+.err{color:#cb463c;font-size:13px;margin-bottom:14px}
+</style></head><body>
+<form class="box" method="POST" action="/login">
+  <div class="lbl">Stuart Harris</div>
+  <h1>Life Platform</h1>
+  ${err ? '<div class="err">Incorrect password. Try again.</div>' : ''}
+  <input type="password" name="password" placeholder="Password" autofocus autocomplete="current-password">
+  <input type="hidden" name="next" value="${err && err.next ? err.next : '/'}">
+  <button type="submit">Sign in</button>
+</form></body></html>`;
+
+app.get('/login', (req, res) => {
+  if (isAuthed(req)) return res.redirect('/');
+  res.set('Content-Type', 'text/html').send(loginPage(false));
+});
+
+app.post('/login', (req, res) => {
+  const pw = (req.body && req.body.password) || '';
+  const next = (req.body && typeof req.body.next === 'string' && req.body.next.startsWith('/')) ? req.body.next : '/';
+  const ok = pw.length === APP_PASSWORD.length &&
+    crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(APP_PASSWORD));
+  if (!ok) return res.status(401).set('Content-Type', 'text/html').send(loginPage({ next }));
+  const exp = Date.now() + SESSION_DAYS * 864e5;
+  const secure = (req.headers['x-forwarded-proto'] || '').includes('https') ? '; Secure' : '';
+  res.set('Set-Cookie', `${COOKIE_NAME}=${signSession(exp)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_DAYS * 86400}${secure}`);
+  res.redirect(next);
+});
+
+app.get('/logout', (req, res) => {
+  res.set('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
+  res.redirect('/login');
+});
+
+// Gate protected routes. WHOOP OAuth callback + the login routes stay open so the
+// auth handshake and sign-in page work; everything else requires a valid session.
+const OPEN_PREFIXES = ['/login', '/logout', '/auth/', '/status'];
+app.use((req, res, next) => {
+  if (OPEN_PREFIXES.some(p => req.path === p || req.path.startsWith(p))) return next();
+  if (isAuthed(req)) return next();
+  // Browsers navigating to a page get the login screen; API/XHR callers get 401.
+  const wantsHtml = (req.headers.accept || '').includes('text/html');
+  if (wantsHtml) return res.status(401).set('Content-Type', 'text/html').send(loginPage({ next: req.originalUrl }));
+  return res.status(401).json({ error: 'unauthorized' });
+});
 
 // Token persistence. Tokens are read from (and rotated tokens written back to)
 // TOKEN_FILE — point this at a persistent volume on a host (see above). The static
