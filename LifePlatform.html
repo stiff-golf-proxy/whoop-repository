@@ -2740,6 +2740,18 @@ function rfFinishMarking(){
   const markedPos = MARK_POS.filter(p => st.marked[p.id]);
   if(markedPos.length < 2){ toast('Mark at least 2 positions to save a reference.'); return; }
 
+  // Guard: reject if two positions captured the identical frame (same image
+  // marked twice — e.g. Impact left on the Top frame). Compare by frame string.
+  for(let a=0; a<markedPos.length; a++){
+    for(let b=a+1; b<markedPos.length; b++){
+      const fa = st.marked[markedPos[a].id], fb = st.marked[markedPos[b].id];
+      if(fa && fb && fa.frame === fb.frame){
+        toast(`${markedPos[a].label} and ${markedPos[b].label} are the same frame — scrub to the correct point for each before saving.`);
+        return;
+      }
+    }
+  }
+
   // Build the reference frame array in fixed position order
   const frames = MARK_POS.map(p => st.marked[p.id] ? st.marked[p.id].frame : null);
   refSwings()[st.angle] = frames;
