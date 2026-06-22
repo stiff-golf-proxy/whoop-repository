@@ -64,7 +64,7 @@ const TOKEN_FILE = process.env.TOKEN_FILE || (DATA_DIR + '/tokens.json');
 
 const app = express();
 app.use(cors({ origin: ALLOW_ORIGIN }));
-app.use(express.json({ limit: '25mb' })); // userdata blob + vision images are far larger than the 100kb default
+app.use(express.json({ limit: '60mb' })); // userdata blob + vision images + reference-swing frames are far larger than the 100kb default
 app.use(express.urlencoded({ extended: false })); // login form posts
 
 /* ===================================================================
@@ -1223,6 +1223,33 @@ app.post('/userdata', (req, res) => {
     fs.writeFileSync(USER_FILE, payload);
     res.json({ ok: true, bytes: payload.length, savedAt: new Date().toISOString() });
   } catch (e) { console.log('[USERDATA] write error', e.message); res.status(500).json({ error: e.message }); }
+});
+
+/* ============================================================
+   REFERENCE SWINGS — heavy base64 video frames, kept OUT of the
+   synced userdata blob so that blob stays small (browsers cap
+   localStorage at ~5MB and oversized POSTs 500). Stored on the
+   volume in their own file, fetched on demand.
+   GET  /refswings  → saved { angle: [f0..f5] } object (or {})
+   POST /refswings  → full replace
+   ============================================================ */
+const REFSWINGS_FILE = DATA_DIR + '/refswings.json';
+app.get('/refswings', (req, res) => {
+  try {
+    if (fs.existsSync(REFSWINGS_FILE)) {
+      return res.type('json').send(fs.readFileSync(REFSWINGS_FILE, 'utf8'));
+    }
+  } catch (e) { console.log('[REFSWINGS] read error', e.message); }
+  res.json({});
+});
+app.post('/refswings', (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== 'object') return res.status(400).json({ error: 'body must be JSON object' });
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    const payload = JSON.stringify(req.body);
+    fs.writeFileSync(REFSWINGS_FILE, payload);
+    res.json({ ok: true, bytes: payload.length, savedAt: new Date().toISOString() });
+  } catch (e) { console.log('[REFSWINGS] write error', e.message); res.status(500).json({ error: e.message }); }
 });
 // redeploy Mon Jun 15 16:12:01 UTC 2026
 // redeploy pairs-live Mon Jun 15 16:28:54 UTC 2026

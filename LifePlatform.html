@@ -527,7 +527,7 @@ async function pullFromServer(){
     const legacyAdopt = !sAt && !lAt && (((server.golf||{}).rounds||[]).length > ((DB.golf||{}).rounds||[]).length);
     if(localIsDefault || sAt>lAt || legacyAdopt){
       const localCopy=DB; DB=server; _mergeLost(DB, localCopy);
-      try{ localStorage.setItem(KEY,JSON.stringify(DB)); }catch(e){}
+      try{ localStorage.setItem(KEY,JSON.stringify(slimDB())); }catch(e){}
       console.log('[SYNC] adopted server copy ('+(server._savedAt||'unstamped')+')');
       if(typeof renderAll==='function') renderAll();
     } else if(lAt>sAt){
@@ -549,17 +549,55 @@ setInterval(()=>{ if(document.visibilityState==='visible') pullFromServer(); }, 
   const sig=s=>[s.club,s.date,s.carry,s.ballSpeed].join('|');
   const have=new Set((DB.golf.shots||[]).map(sig));
   (SEED.golf&&SEED.golf.shots||[]).forEach(s=>{ if(!have.has(sig(s))){ DB.golf.shots.push(s); changed=true; } });
-  if(changed){ try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){} }
+  if(changed){ try{localStorage.setItem(KEY,JSON.stringify(slimDB()));}catch(e){} }
 })();
 function save(){
   DB._savedAt=new Date().toISOString();
-  try{ localStorage.setItem(KEY,JSON.stringify(DB)); }catch(e){ toast('Storage unavailable'); }
+  // Keep heavy reference-swing frames OUT of the synced/local blob: they're
+  // full-res base64 and blow the ~5MB localStorage cap (→ "Storage unavailable")
+  // and the server POST limit (→ 500). They persist via /refswings instead.
+  const _slim=slimDB();
+  try{ localStorage.setItem(KEY,JSON.stringify(_slim)); }catch(e){ toast('Storage unavailable'); }
   // Push to server (non-blocking) so data survives across devices
   const base=proxyBase();
-  if(base){ fetch(base+'/userdata',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB)})
+  if(base){ fetch(base+'/userdata',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_slim)})
     .then(r=>{ if(!r.ok) console.log('[SYNC] push failed HTTP '+r.status); })
     .catch(e=>console.log('[SYNC] push failed', e.message)); }
+  saveRefSwings();
 }
+/* Return a shallow copy of DB with the heavy reference-swing frames removed,
+   so neither localStorage nor /userdata ever carries the big base64 payload. */
+function slimDB(){
+  const g=DB.golf||{};
+  const slimGolf=Object.assign({},g); delete slimGolf.refSwings;
+  return Object.assign({},DB,{golf:slimGolf});
+}
+/* Reference swings live in their own server file + their own localStorage key. */
+const REFK='sh_life_refswings_v1';
+function saveRefSwings(){
+  const rs=(DB.golf&&DB.golf.refSwings)||{};
+  try{ localStorage.setItem(REFK,JSON.stringify(rs)); }catch(e){}
+  const base=proxyBase();
+  if(base){ fetch(base+'/refswings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rs)})
+    .then(r=>{ if(!r.ok) console.log('[REFSWINGS] push failed HTTP '+r.status); })
+    .catch(e=>console.log('[REFSWINGS] push failed', e.message)); }
+}
+async function loadRefSwings(){
+  DB.golf=DB.golf||{shots:[],rounds:[]};
+  // local first so the UI has something immediately
+  try{ const r=localStorage.getItem(REFK); if(r){ const o=JSON.parse(r); if(o&&typeof o==='object') DB.golf.refSwings=o; } }catch(e){}
+  const base=proxyBase(); if(!base) return;
+  try{
+    const r=await fetch(base+'/refswings'); if(!r.ok) return;
+    const server=await r.json();
+    if(server&&typeof server==='object'&&Object.keys(server).length){
+      DB.golf.refSwings=server;
+      try{ localStorage.setItem(REFK,JSON.stringify(server)); }catch(e){}
+      if(typeof renderAll==='function') renderAll();
+    }
+  }catch(e){ console.log('[REFSWINGS] pull failed', e.message); }
+}
+loadRefSwings();
 
 /* Durable connection store — kept SEPARATE from the main data so a data
    reset/restore never loses your proxy URL. This is what makes the WHOOP +
