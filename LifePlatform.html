@@ -4003,6 +4003,52 @@ function recent(arr,n){ return (arr||[]).slice(-n); }
 function avgKey(arr,k){ const v=(arr||[]).map(r=>r[k]).filter(x=>x!=null); return v.length?v.reduce((s,x)=>s+x,0)/v.length:null; }
 
 /* ---- render ---- */
+/* ============================================================
+   DNA — 3X4 Genetics Blueprint (v4.0.2). Pathway impacts grouped by
+   category, with an expert read that ties the genetics back to Stuart's
+   own blood markers and exercise data. Used in the Body pane and fed to
+   the coach so advice is grounded in his actual genotype.
+   ============================================================ */
+const DNA = {
+  source:'3X4 Genetics Blueprint v4.0.2',
+  groups:[
+    {cat:'Cellular', items:[['Detoxification','MEDIUM'],['Inflammation','MEDIUM'],['Methylation','MEDIUM'],['Oxidative stress','LOW']]},
+    {cat:'Systems', items:[['Hormone balance','HIGH'],['Collagen & joints','HIGH'],['Glucose & insulin','MEDIUM'],['Memory & brain','MEDIUM'],['Bone health','MEDIUM'],['Histamine','MEDIUM'],['Mood & behaviour','LOW']]},
+    {cat:'Cardiovascular', items:[['Blood pressure','HIGH'],['Vascular health','MEDIUM'],['Cholesterol','MEDIUM'],['Blood clotting','LOW']]},
+    {cat:'Energy', items:[['Exercise response','VERY HIGH'],['Adipogenesis','VERY HIGH'],['Energy expenditure','VERY HIGH'],['Appetite / satiety','HIGH'],['Pro-inflammatory fat','HIGH'],['Weight-loss resistance','HIGH']]},
+    {cat:'Activity', items:[['Injury','HIGH'],['Training response','HIGH'],['Endurance','MEDIUM'],['Power','MEDIUM'],['Recovery','MEDIUM']]},
+    {cat:'Nutrients', items:[['Gluten','HIGH'],['Salt','HIGH'],['Folate','HIGH'],['Choline','HIGH'],['Vitamin C','MEDIUM'],['Vitamin D','MEDIUM'],['Fatty acids','MEDIUM'],['Iron overload','LOW'],['Caffeine','LOW'],['Vitamin B12','LOW']]}
+  ],
+  // Expert read — genetics cross-referenced to Stuart's bloods & training.
+  read:[
+    {h:'Cardiometabolic — the headline', p:"The dominant signal is energy and cardiovascular. <b>Exercise response, adipogenesis and energy expenditure all read VERY HIGH</b>: the fat cells store readily and release fuel inefficiently, and resting metabolism runs slow. The practical reading is that <b>weight is won in the kitchen and in sleep, not on the road</b> — running protects the heart and head but won't out-run diet. This lines up with the bloods: LDL has sat at 4.4–5.3 mmol/L (target <3.0), total cholesterol 6.2–7.6, and the Chol:HDL ratio 5.2–6.3 against a 4.1 ceiling. Genetics load the gun here; diet and body-fat pull the trigger."},
+    {h:'Blood pressure & salt', p:"<b>Blood pressure reads HIGH and salt-sensitivity HIGH</b> (AGT GG, ACE I/D). Sodium has a real lever on his pressure, so cutting processed/pre-prepared food and flavouring with herbs/spices is genuinely high-yield rather than generic advice."},
+    {h:'Vitamin D & folate', p:"<b>Vitamin D reads MEDIUM</b> (VDR variants) — and the bloods proved it: D fell to 22 ng/mL before correcting to 75 on supplementation. This is a marker to hold in range, not assume. <b>Folate/methylation reads HIGH</b> (MTHFR 677 CT) — homocysteine was 10.8 then 7.6, so keep folate, B12 and choline intake up to keep it trending down."},
+    {h:'Injury, joints & longevity', p:"<b>Injury risk HIGH and collagen/joints HIGH</b> — directly relevant to running into his 60s and to golf load. The genetic steer is range-of-motion, balance and progressive loading over heroics, plus protein and vitamin C for connective-tissue repair. <b>Training response is HIGH though</b> (good VO2 adaptation), so the upside from consistent, well-managed training is real."},
+    {h:'Worth flagging', p:"<b>Gluten reads HIGH</b> (HLA DQ2.5/DQ2.2 — elevated coeliac-risk haplotype). Not a diagnosis, but if any gut or autoimmune symptoms appear it's worth formal testing. <b>Caffeine: fast metaboliser</b> — he clears it quickly, so the ergogenic kick is usable pre-exercise without a long sleep penalty. <b>Iron overload LOW</b> — ferritin (173–223) is comfortably mid-range, no haemochromatosis concern."}
+  ]
+};
+function dnaImpactColor(v){
+  return v==='VERY HIGH'?'var(--terra-deep)': v==='HIGH'?'var(--terra)': v==='MEDIUM'?'var(--sage)':'var(--gold)';
+}
+function dnaSection(){
+  const grid=DNA.groups.map(g=>{
+    const rows=g.items.map(it=>`<div class="dlin"><span class="dot" style="background:${dnaImpactColor(it[1])}"></span>${it[0]}<span class="v" style="font-family:var(--mono);font-size:10.5px;color:${dnaImpactColor(it[1])}">${it[1]}</span></div>`).join('');
+    return `<div class="card card-pad"><div class="kicker">${g.cat}</div>${rows}</div>`;
+  }).join('');
+  const read=DNA.read.map(r=>`<div style="margin-bottom:14px"><div style="font-family:var(--disp);font-weight:600;font-size:13.5px;color:var(--ink);margin-bottom:4px">${r.h}</div><p style="font-family:var(--serif);font-size:14px;line-height:1.55;color:var(--ink-soft);margin:0">${r.p}</p></div>`).join('');
+  return `
+   <div class="coach" style="border-left-color:var(--sage)"><div class="q">Your genetic blueprint</div>
+     <p>Your 3X4 Genetics report maps 36 pathways across 6 categories. Below is the impact map — darker means a gene set with more influence on your body — followed by an expert read that ties it back to your actual blood work and training. Your coach can see this too, so ask it anything.</p></div>
+   <div class="card card-pad" style="margin-bottom:22px">
+     <div class="kicker">3X4 Genetics · v4.0.2</div><div class="h-sec">Expert summary</div>
+     ${read}
+     <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:6px">Educational interpretation of genetic predisposition — not a diagnosis. Confirm anything clinical with your practitioner.</div>
+   </div>
+   <div class="kicker" style="margin-bottom:10px">Pathway impact map</div>
+   <div class="grid g3" style="margin-bottom:24px">${grid}</div>`;
+}
+
 function renderWhoop(){
   const w=whoopDB();
   const P=document.getElementById('pane-whoop');
@@ -4020,6 +4066,7 @@ function renderWhoop(){
       return;
     }
     P.innerHTML=`
+     ${dnaSection()}
      <div class="coach"><div class="q">Closing the loop on recovery</div>
        <p>Your running log tells you what you <b>did</b>; WHOOP tells you what it <b>cost</b> and whether you've recovered enough to do it again. Connect it and this section will track recovery, sleep, and strain alongside everything else. Because this platform is a single file, live sync runs through a small backend you host — I've generated that for you. Until it's live, you can paste WHOOP JSON straight in.</p></div>
      <div class="card card-pad" style="text-align:center;padding:48px 28px">
@@ -4083,6 +4130,7 @@ function renderWhoop(){
       <td class="r mono">${fmtDur(r.durationMs)}</td></tr>`).join('');
 
   P.innerHTML=`
+   ${dnaSection()}
    <div class="coach"><div class="q">Reading your recovery</div>
      <p>${whoopCoach(rec,slp,strainSeries)}</p></div>
    <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center">
@@ -4390,6 +4438,14 @@ function buildCoachContext(){
   if(m.about && m.about.trim()){
     parts.push('=== ABOUT STUART ===\n'+m.about.trim());
   }
+
+  // DNA / genetics (3X4 Blueprint) — fixed reference so the coach can give
+  // genetically-grounded feedback alongside the live bloods and training.
+  try{
+    const impacts=DNA.groups.map(g=>g.cat+': '+g.items.map(i=>i[0]+' '+i[1]).join(', ')).join('\n');
+    const read=DNA.read.map(r=>r.h+' — '+r.p.replace(/<[^>]+>/g,'')).join('\n\n');
+    parts.push('=== DNA / GENETICS (3X4 Blueprint v4.0.2) ===\n'+impacts+'\n\nEXPERT READ:\n'+read);
+  }catch(e){}
 
   // Recent session log (last 8 entries, most recent first)
   const recentLog=(m.log||[]).slice(-8).reverse();
