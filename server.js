@@ -36,6 +36,7 @@ import cors from 'cors';
 import fs from 'fs';
 import crypto from 'crypto';
 import 'dotenv/config';
+import { mountMail } from './mail.js';
 
 const {
   WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET,
@@ -166,6 +167,8 @@ app.use((req, res, next) => {
   if (wantsHtml) return res.status(401).set('Content-Type', 'text/html').send(loginPage({ next: req.originalUrl }));
   return res.status(401).json({ error: 'unauthorized' });
 });
+
+mountMail(app, { DATA_DIR });
 
 // Token persistence. Tokens are read from (and rotated tokens written back to)
 // TOKEN_FILE — point this at a persistent volume on a host (see above). The static
