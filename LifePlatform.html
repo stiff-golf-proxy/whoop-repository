@@ -1409,18 +1409,36 @@ async function fetchMail(force){
 }
 function mailItem(it){
   const link=(it.link||'#').replace(/"/g,'&quot;');
+  const id=(it.id||'').replace(/"/g,'&quot;');
   const who=tkEsc((it.from&&(it.from.name||it.from.email))||'Unknown');
   const acct=tkEsc(it.account||'');
   const reason=tkEsc(it.reason||'');
   const subj=tkEsc(it.subject||'(no subject)');
-  return `<a href="${link}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;padding:10px 0;border-bottom:1px solid var(--line)" onmouseover="this.style.background='var(--paper2)'" onmouseout="this.style.background=''">
+  const btn='font-family:var(--mono);font-size:10px;cursor:pointer;padding:4px 9px;border-radius:7px;border:1px solid var(--line2);background:var(--paper2)';
+  return `<div class="lp-mailcard" style="padding:10px 0;border-bottom:1px solid var(--line)">
     <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline"><div style="font-family:var(--disp);font-weight:700;font-size:14px">${it.unread?'● ':''}${who}</div><span style="font-family:var(--mono);font-size:9px;color:var(--ink-faint);white-space:nowrap">${acct}</span></div>
-    <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink);margin-top:2px">${subj}</div>
+    <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink);margin-top:2px"><a href="${link}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${subj}</a></div>
     ${reason?`<div style="font-family:var(--mono);font-size:10px;color:var(--terra)">${reason}</div>`:''}
-  </a>`;
+    <div style="display:flex;gap:8px;margin-top:7px">
+      <button data-id="${id}" onclick="mailAct(this,'task')" style="${btn};color:var(--terra-deep)">→ Task</button>
+      <button data-id="${id}" onclick="mailAct(this,'unimportant')" style="${btn};color:var(--ink-faint)">not important</button>
+      <button data-id="${id}" onclick="mailAct(this,'spam')" style="${btn};color:var(--terra)">spam</button>
+    </div>
+  </div>`;
+}
+function mailAct(el,verdict){
+  const id=el.getAttribute('data-id'); const it=(window._mailById||{})[id]; if(!it)return;
+  if(verdict==='task'){
+    tasksCfg().tasks.push({id:'t'+Date.now(),text:((it.subject||'Email')+' — '+((it.from&&(it.from.name||it.from.email))||'')).slice(0,180),done:false,projectId:null,priority:2,due:null,createdAt:Date.now(),source:'mail',link:it.link||''});
+    toast('Task added to your Inbox');
+  } else { toast(verdict==='spam'?'Marked spam — learning':'Hidden — learning'); }
+  const base=proxyBase(); if(base){ fetch(base+'/mail/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,sender:it.from&&it.from.email,verdict})}).catch(()=>{}); }
+  if(DB._mail&&DB._mail.items){ DB._mail.items=DB._mail.items.filter(x=>x.id!==id); DB._mail.count=Math.max(0,(DB._mail.count||1)-1); }
+  save(); renderHomeIfActive();
 }
 function cardMail(){
   const d=DB._mail||{}; const items=d.items||[]; const top=items.slice(0,5);
+  window._mailById={}; items.forEach(it=>{ window._mailById[it.id]=it; });
   const body = top.length
     ? top.map(mailItem).join('')
     : `<div class="empty" style="padding:16px 0" id="mailEmpty">${proxyBase()?'Loading important mail…':'Connect your proxy to pull mail.'}</div>`;
@@ -5285,6 +5303,11 @@ document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',(
   if(b.dataset.pane==='scenario' && !_scenKicked[_scenCtx]){ _scenKicked[_scenCtx]=true; loadScenario(_scenCtx); }
   window.scrollTo({top:0,behavior:'smooth'});
 }));
+// Mail tab (iframe) asks the parent app to turn an email into a task
+window.addEventListener('message',function(e){
+  const d=e.data; if(!d||d.type!=='lp-add-task')return;
+  try{ tasksCfg().tasks.push({id:'t'+Date.now(),text:((d.subject||'Email')+' — '+(d.sender||'')).slice(0,180),done:false,projectId:null,priority:2,due:null,createdAt:Date.now(),source:'mail',link:d.link||''}); save(); toast('Task added from mail'); renderHomeIfActive(); }catch(err){}
+});
 renderAll();
 </script>
 </body>
