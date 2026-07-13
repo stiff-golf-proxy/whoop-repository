@@ -1216,11 +1216,52 @@ app.get('/userdata', (req, res) => {
   } catch (e) { console.log('[USERDATA] read error', e.message); }
   res.json(null);
 });
+/* Server-side UNION merge. Both the browser save() and this endpoint used to do
+   a blind full-replace of userdata.json, so whichever device pushed last won and
+   the other device's just-added golf shots/rounds (a range session uploaded from
+   the phone, say), tasks, projects or manual calendar entries were silently lost.
+   Here the INCOMING push wins for scalar fields (newest edit), but historical
+   collections are union-merged with what's already on disk so nothing is dropped
+   regardless of push order or clock skew. Mirrors the client's _mergeLost().
+   Note: like the client, these collections are treated as append-mostly — a
+   delete on one device can be resurrected by a stale push from another. Golf
+   history is rarely deleted, so this is the right trade for preventing data loss. */
+function mergeUserdata(incoming, existing) {
+  if (!existing || typeof existing !== 'object') return incoming;
+  const into = incoming; // newest scalar fields win
+  // golf: rounds by id, shots by signature
+  into.golf = into.golf || { shots: [], rounds: [] };
+  const eg = existing.golf || {};
+  into.golf.rounds = into.golf.rounds || [];
+  const haveR = new Set(into.golf.rounds.map(r => r && r.id));
+  (eg.rounds || []).forEach(r => { if (r && r.id && !haveR.has(r.id)) into.golf.rounds.push(r); });
+  into.golf.shots = into.golf.shots || [];
+  const sig = s => [s.club, s.date, s.carry, s.ballSpeed].join('|');
+  const haveS = new Set(into.golf.shots.map(sig));
+  (eg.shots || []).forEach(s => { if (s && !haveS.has(sig(s))) into.golf.shots.push(s); });
+  // morning: tasks + projects by id, manual calendar entries by time+title
+  into.morning = into.morning || {};
+  const em = existing.morning || {};
+  into.morning.tasks = into.morning.tasks || [];
+  const haveT = new Set(into.morning.tasks.map(t => t && t.id));
+  (em.tasks || []).forEach(t => { if (t && t.id && !haveT.has(t.id)) into.morning.tasks.push(t); });
+  into.morning.projects = into.morning.projects || [];
+  const haveP = new Set(into.morning.projects.map(p => p && p.id));
+  (em.projects || []).forEach(p => { if (p && p.id && !haveP.has(p.id)) into.morning.projects.push(p); });
+  into.morning.calendar = into.morning.calendar || [];
+  const haveC = new Set(into.morning.calendar.map(e => e && ((e.time || '') + '|' + (e.title || ''))));
+  (em.calendar || []).forEach(e => { if (e && e._manual && !haveC.has((e.time || '') + '|' + (e.title || ''))) into.morning.calendar.push(e); });
+  return into;
+}
 app.post('/userdata', (req, res) => {
   try {
     if (!req.body || typeof req.body !== 'object') return res.status(400).json({ error: 'body must be JSON object' });
     if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
-    const payload = JSON.stringify(req.body);
+    let existing = null;
+    try { if (fs.existsSync(USER_FILE)) existing = JSON.parse(fs.readFileSync(USER_FILE, 'utf8')); }
+    catch (e) { console.log('[USERDATA] existing parse skipped', e.message); }
+    const merged = mergeUserdata(req.body, existing);
+    const payload = JSON.stringify(merged);
     // Safety: don't save obviously corrupt payloads (< 100 bytes)
     if (payload.length < 100) return res.status(400).json({ error: 'payload too small — likely corrupt' });
     fs.writeFileSync(USER_FILE, payload);
