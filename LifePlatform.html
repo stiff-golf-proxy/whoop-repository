@@ -290,6 +290,25 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .ladder i.fill{background:var(--terra-soft)}
 .ladder i.mark{background:var(--terra)}
 
+/* Ladder GAUGE — the ladder as a labelled axis with a pin at the real value, so a
+   session's standing is legible without reading any number. Softest rung left,
+   strongest right; the ramp means "further right is better" on sight alone. */
+.gauge{position:relative;padding-top:17px;margin-top:9px}
+.gauge-track{position:relative;display:flex;height:10px;border-radius:5px;overflow:hidden}
+.gauge-track i{flex:1;border-right:1px solid var(--card)}
+.gauge-track i:last-child{border-right:none}
+.gauge-track i.on{box-shadow:inset 0 0 0 2px var(--ink)}
+.gauge-pin{position:absolute;top:-4px;bottom:-4px;width:3px;border-radius:2px;background:var(--ink);
+  box-shadow:0 0 0 2px var(--card);transform:translateX(-50%)}
+.gauge-val{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;
+  font-family:var(--mono);font-size:10px;font-weight:600;color:var(--ink)}
+.gauge-ticks{display:flex;margin-top:5px}
+.gauge-ticks span{flex:1;text-align:center;font-family:var(--mono);font-size:8px;letter-spacing:.2px;color:var(--ink-faint)}
+.gauge-ticks span.on{color:var(--terra-deep);font-weight:700}
+.gauge.compact{padding-top:0;margin-top:0}
+.gauge.compact .gauge-track{height:7px;border-radius:4px}
+.gauge.compact .gauge-pin{top:-3px;bottom:-3px;width:2.5px}
+
 /* Inline score bar used in the bag table, so a number reads as a quantity. */
 .sbar{display:inline-flex;align-items:center;gap:7px;justify-content:flex-end}
 .sbar u{display:block;width:42px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;text-decoration:none}
@@ -2411,6 +2430,70 @@ function tierForDisp(club,sd){
   for(const t of BENCH_TIERS){ if(sd <= TOUR[club].disp*t.disp) return t; }
   return null;
 }
+function tierForChs(club,chs){
+  if(chs==null||!TOUR[club]) return null;
+  for(const t of BENCH_TIERS){ if(chs >= TOUR[club].chs*t.chs) return t; }
+  return null;
+}
+/* Clubhead speed against the tier, on the same 0-100 scale as distance/accuracy. */
+function speedScore(club,chs,tierId){
+  const ref=benchFor(club,tierId); if(!ref||chs==null) return null;
+  return Math.round(Math.max(0,Math.min(200,(chs/ref.chs)*100)));
+}
+
+/* Where a raw value sits along the ladder, 0 (softest rung) → 1 (tour), as a
+   fraction usable directly as a CSS left%. The ladder is drawn as eight equal
+   bands, so band i spans [i/8, (i+1)/8) and the pin interpolates INSIDE its band
+   — that way two sessions on the same rung still show which was the better one.
+   kind: 'carry' and 'chs' are higher-is-better, 'disp' is lower-is-better. */
+function ladderPos(club,kind,val){
+  const base=TOUR[club];
+  if(!base||val==null) return null;
+  const N=BENCH_TIERS.length;
+  // thresholds ordered softest → strongest
+  const th=BENCH_TIERS.slice().reverse().map(t=>
+    kind==='disp' ? base.disp*t.disp : (kind==='chs' ? base.chs*t.chs : base.carry*t.dist));
+  const better=(a,b)=> kind==='disp' ? a<=b : a>=b;   // is a at-or-past b?
+  if(!better(val,th[0])) return {pos:0, below:true};   // short of the bottom rung
+  for(let i=0;i<N-1;i++){
+    if(!better(val,th[i+1])){                          // sits inside band i
+      const span=th[i+1]-th[i];
+      const frac=span===0?0.5:Math.max(0,Math.min(1,(val-th[i])/span));
+      return {pos:(i+frac)/N, below:false};
+    }
+  }
+  // at or past the top rung — ease across the final band, full width at +15%
+  const over=kind==='disp' ? (th[N-1]/Math.max(val,0.01)-1) : (val/th[N-1]-1);
+  return {pos:((N-1)+Math.max(0,Math.min(1,over/0.15)))/N, below:false};
+}
+
+/* The gauge itself. Pass a raw value to pin it precisely, or just a tier to sit the
+   pin in the middle of that band (used where the figure is a median, not a
+   measurement). `label` is what prints above the pin. */
+function benchGaugeHtml(club,kind,val,label,opts){
+  opts=opts||{};
+  // club may be null where the figure is not per-club (e.g. the median rung across
+  // the bag) — then there is nothing to interpolate and the pin sits in its band.
+  const lp=club?ladderPos(club,kind,val):null;
+  const tier = !club ? null
+    : kind==='disp' ? tierForDisp(club,val) : kind==='chs' ? tierForChs(club,val) : tierForCarry(club,val);
+  const t = tier || opts.tier || null;
+  const idx = t ? (BENCH_TIERS.length-1-BENCH_TIERS.indexOf(t)) : -1;   // band index, soft→strong
+  const pos = lp ? lp.pos : (idx>=0 ? (idx+0.5)/BENCH_TIERS.length : null);
+  const pct = pos==null ? null : Math.max(1.5,Math.min(98.5,pos*100));
+  // Keep the value label inside the track: centre it normally, but anchor it to the
+  // pin's inner side near either end so it cannot clip off the edge.
+  const lblTf = pct==null?'' : pct>85?'translateX(-100%)' : pct<15?'translateX(0)' : 'translateX(-50%)';
+  const soft=BENCH_TIERS.slice().reverse();
+  return `<div class="gauge${opts.compact?' compact':''}">
+    ${pct!=null&&label&&!opts.compact?`<span class="gauge-val" style="left:${pct}%;transform:${lblTf}">${tkEsc(label)}</span>`:''}
+    <div class="gauge-track">
+      ${soft.map((tt,i)=>`<i class="${i===idx?'on':''}" style="background:rgba(10,138,150,${(0.10+i*0.095).toFixed(3)})" title="${tkEsc(tt.label)}"></i>`).join('')}
+      ${pct!=null?`<div class="gauge-pin" style="left:${pct}%"></div>`:''}
+    </div>
+    ${opts.compact?'':`<div class="gauge-ticks">${soft.map((tt,i)=>`<span class="${i===idx?'on':''}">${tt.short}</span>`).join('')}</div>`}
+  </div>`;
+}
 /* Overall standard across every club with data — the median rung, so one wild
    club neither flatters nor sinks the read. */
 function playerLevel(kind){
@@ -2470,7 +2553,7 @@ function levelCardHtml(){
         <span style="font-family:var(--disp);font-weight:700;font-size:27px;line-height:1;color:var(--terra-deep)">${t?t.label:'—'}</span>
         ${t?`<span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">plays to ${t.hcp==='0'?'scratch':t.hcp}</span>`:''}
       </div>
-      ${tierLadderHtml(t)}
+      ${benchGaugeHtml(null,null,null,'',{tier:t})}
       <div style="font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--ink-faint);margin-top:6px">${note}</div>
     </div>`;
   };
@@ -2481,6 +2564,45 @@ function levelCardHtml(){
       ${block('Distance',d,d&&d.tier?'Based on carry per club against the ladder.':'Not enough carry data yet.')}
       ${block('Accuracy',a,a&&a.tier?'Based on lateral dispersion per club — usually the tier that decides your score.':'Not enough dispersion data yet.')}
     </div>
+  </div>`;
+}
+
+/* Rank ONE practice session against the selected tier. Same three questions as the
+   club header — how far, how tight, how fast — but scoped to a single session, so
+   expanding a session says where that session stood rather than only listing its
+   raw numbers. Club speed comes from robustClubSpeed() rather than a plain mean,
+   because launch monitors emit junk CHS readings and a single bad row would
+   otherwise drag the whole session's speed rung down. */
+function sessionRankHtml(club,s,shots){
+  const ref=benchFor(club); if(!ref||!s) return '';
+  const t=benchTier();
+  const chs=robustClubSpeed(shots||[]);
+  const rows=[
+    { label:'Distance',   kind:'carry', val:s.avgCarry, tier:tierForCarry(club,s.avgCarry),
+      pin: s.avgCarry!=null?s.avgCarry.toFixed(0)+' m':'',
+      detail:`${s.avgCarry!=null?s.avgCarry.toFixed(0):'—'} m carry · ${t.short} carries ${ref.carry} m` },
+    { label:'Accuracy',   kind:'disp',  val:s.latSd,    tier:tierForDisp(club,s.latSd),
+      pin: s.latSd!=null?'±'+s.latSd.toFixed(1)+' m':'',
+      detail:`±${s.latSd!=null?s.latSd.toFixed(1):'—'} m spread · ${t.short} holds ±${ref.disp} m` },
+    { label:'Club speed', kind:'chs',   val:chs,        tier:tierForChs(club,chs),
+      pin: chs!=null?Math.round(chs)+' mph':'',
+      detail: chs!=null?`${Math.round(chs)} mph · ${t.short} swings ${ref.chs} mph`:'no clean speed reading this session' }
+  ];
+  const overall=(()=>{ const a=rows[0].tier,b=rows[1].tier;
+    return (a&&b)?(BENCH_TIERS.indexOf(a)>=BENCH_TIERS.indexOf(b)?a:b):(a||b||null); })();
+  return `<div style="border:1px solid var(--line);border-radius:13px;background:var(--card);padding:15px 18px 16px;margin-bottom:15px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+      <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink-faint)">This session ranked</div>
+      ${overall?`<div style="font-family:var(--serif);font-size:12.5px;color:var(--ink-soft)">Overall this session played to <b style="font-family:var(--disp);color:var(--terra-deep)">${tkEsc(overall.label)}</b><span style="color:var(--ink-faint)"> · ${overall.hcp==='0'?'scratch':overall.hcp}</span></div>`:''}
+    </div>
+    ${rows.map(r=>`<div style="padding:11px 0 3px;border-top:1px solid var(--line)">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+        <span style="font-family:var(--disp);font-weight:600;font-size:13.5px">${r.label}</span>
+        <span style="font-family:var(--mono);font-size:10.5px;color:${r.tier?'var(--terra-deep)':'var(--ink-faint)'}">${r.tier?tkEsc(r.tier.label):(r.val==null?'—':'below the ladder')}</span>
+      </div>
+      ${benchGaugeHtml(club,r.kind,r.val,r.pin)}
+      <div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:6px">${r.detail}</div>
+    </div>`).join('')}
   </div>`;
 }
 
@@ -3912,6 +4034,12 @@ function openClubDetail(club){
   // session cards — each opens independently (accordion: opening one closes the others)
   const sessHtml=sessions.map((se,si)=>{
     const s=statBlock(se.shots);
+    /* Badge on the collapsed row so sessions can be scanned without opening each
+       one. A session is only as good as its weaker half — bombing it 20 m past the
+       tier while spraying it is not that tier's standard — so take the LOWER of the
+       distance and accuracy rungs (higher index = softer tier). */
+    const sdT=tierForCarry(club,s.avgCarry), saT=tierForDisp(club,s.latSd);
+    const sessRung=(sdT&&saT)?(BENCH_TIERS.indexOf(sdT)>=BENCH_TIERS.indexOf(saT)?sdT:saT):(sdT||saT||null);
     const rows=se.shots.map((sh,i)=>{const dev=sh.carryDev;const side=dev==null?'':dev>0?' R':dev<0?' L':'';
       const dc=dev==null?'var(--ink-faint)':Math.abs(dev)<=4?'var(--good)':Math.abs(dev)<=8?'var(--warn)':'var(--bad)';
       return `<tr><td class="mono">${i+1}</td><td class="r mono">${fx(sh.total,1)}</td><td class="r mono">${fx(sh.carry,1)}</td>
@@ -3919,13 +4047,18 @@ function openClubDetail(club){
         <td class="r mono">${fx(sh.ballSpeed,1)}</td><td class="r mono">${fx(sh.smash,2)}</td>
         <td class="r mono">${fx(sh.launchAngle,1)}</td><td class="r mono">${sh.spinRate==null?'—':Math.round(sh.spinRate)}</td></tr>`;}).join('');
     return `<details class="club-session card" style="margin-bottom:12px;border-radius:12px" ${si===0?'open':''} ontoggle="if(this.open){document.querySelectorAll('.club-session').forEach(d=>{if(d!==this)d.open=false;})}">
-      <summary style="cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:14px;list-style:none">
+      <summary style="cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;list-style:none">
         <span style="font-family:var(--disp);font-weight:700;font-size:16px">${fmtDate(se.date)}</span>
         <span style="font-family:var(--mono);font-size:12px;color:var(--ink-faint)">${s.n} shots</span>
+        ${sessRung?`<span style="flex:1 1 110px;display:flex;align-items:center;gap:8px;min-width:96px" title="Overall standard for this session — the weaker of its distance and accuracy rungs">
+          <span style="flex:1;min-width:56px">${benchGaugeHtml(club,'carry',s.avgCarry,'',{compact:true,tier:sessRung})}</span>
+          <span style="font-family:var(--mono);font-size:9.5px;letter-spacing:.5px;color:var(--terra-deep);border:1px solid var(--terra-soft);border-radius:20px;padding:3px 9px">${tkEsc(sessRung.short)}</span>
+        </span>`:''}
         <span style="margin-left:auto;font-family:var(--disp);font-weight:700;font-size:20px;color:var(--terra-deep)">${fx(s.avgTotal,1)}<span style="font-size:12px;color:var(--ink-faint);font-weight:500"> m total</span></span>
         <span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">±${fx(s.latSd,1)} m</span>
       </summary>
       <div style="padding:0 18px 16px">
+        ${sessionRankHtml(club,s,se.shots)}
         <div style="display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:12px">
           <span>Avg total ${fx(s.avgTotal,1)} m</span><span>Avg carry ${fx(s.avgCarry,1)} m</span><span>Best total ${fx(s.bestTotal,1)} m</span><span>Ball ${fx(s.avgBall,1)}</span>
           <span>Smash ${fx(s.avgSmash,2)}</span><span>Launch ${fx(s.avgLaunch,1)}°</span><span>Spin ${s.avgSpin==null?'—':Math.round(s.avgSpin)}</span>
@@ -3948,15 +4081,15 @@ function openClubDetail(club){
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Distance vs ${tierNow.label} · last session</div>
           <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px"><span style="font-family:var(--disp);font-weight:700;font-size:38px;line-height:1;color:${scoreColor(A.distScore)}">${A.distScore!=null?A.distScore:'—'}</span><span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">/100 · ${scoreLabel(A.distScore)}</span></div>
           <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:5px">${A.avgCarry?A.avgCarry.toFixed(0):'—'} m carry vs ${tierNow.label} ${ref.carry} m</div>
-          ${tierNow.id!==DEFAULT_TIER||distTier?`<div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:7px">You carry it like <b style="color:var(--terra-deep)">${distTier?distTier.label:'below the ladder'}</b></div>`:''}
-          ${tierLadderHtml(distTier)}
+          <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:9px">All-time you carry it like <b style="color:var(--terra-deep)">${distTier?distTier.label:'below the ladder'}</b></div>
+          ${benchGaugeHtml(club,'carry',A.avgCarry,A.avgCarry!=null?A.avgCarry.toFixed(0)+' m':'')}
         </div>
         <div style="padding:16px 18px;border-radius:14px;background:var(--card);border:1px solid var(--line);border-left:4px solid ${scoreColor(A.accScore)}">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)">Accuracy vs ${tierNow.label} · last session</div>
           <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px"><span style="font-family:var(--disp);font-weight:700;font-size:38px;line-height:1;color:${scoreColor(A.accScore)}">${A.accScore!=null?A.accScore:'—'}</span><span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint)">/100 · ${scoreLabel(A.accScore)}</span></div>
           <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:5px">±${A.sd!=null?A.sd.toFixed(1):'—'} m vs ${tierNow.label} ±${ref.disp} m</div>
-          ${accTier||A.sd!=null?`<div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:7px">You hold it like <b style="color:var(--terra-deep)">${accTier?accTier.label:'below the ladder'}</b></div>`:''}
-          ${tierLadderHtml(accTier)}
+          <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:9px">All-time you hold it like <b style="color:var(--terra-deep)">${accTier?accTier.label:'below the ladder'}</b></div>
+          ${benchGaugeHtml(club,'disp',A.sd,A.sd!=null?'±'+A.sd.toFixed(1)+' m':'')}
         </div>
       </div>
       <div style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-bottom:18px;text-align:center">all-time average: ${fx(A.allTime.avgTotal,0,' m')} total · ±${fx(A.allTime.sd,1)} m dispersion across ${A.n} shots</div>`:''}
