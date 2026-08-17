@@ -1667,20 +1667,35 @@ const SW_JS = `
 self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
+/* iOS shows NOTHING if this handler throws before showNotification — and a
+   handler that fails to display is exactly as invisible as a push that never
+   arrived, which makes the two impossible to tell apart from the outside.
+   So: read the payload defensively, and show something no matter what. */
 self.addEventListener('push', event => {
-  let d = {};
-  try { d = event.data ? event.data.json() : {}; } catch (e) { d = { body: event.data && event.data.text() }; }
-  const title = d.title || 'Life';
-  const opts = {
-    body: d.body || '',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    tag: d.tag || undefined,
-    renotify: !!d.tag,
-    data: { url: d.url || '/app', id: d.id || null },
-    actions: d.actions || []
-  };
-  event.waitUntil(self.registration.showNotification(title, opts));
+  event.waitUntil((async () => {
+    let d = {};
+    try {
+      if (event.data) {
+        try { d = event.data.json(); }
+        catch (e) { d = { body: event.data.text() }; }   // unreadable JSON, still has text
+      }
+    } catch (e) { d = { title: 'Life', body: 'You have a new notification.' }; }  // undecryptable
+    if (!d || typeof d !== 'object') d = {};
+    const opts = {
+      body: d.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: d.url || '/app', id: d.id || null }
+    };
+    if (d.tag) { opts.tag = d.tag; opts.renotify = true; }
+    if (d.actions && d.actions.length) opts.actions = d.actions;
+    try {
+      await self.registration.showNotification(d.title || 'Life', opts);
+    } catch (e) {
+      // Last resort: a bare notification beats a silent drop.
+      await self.registration.showNotification('Life', { body: d.body || 'You have a new notification.' });
+    }
+  })());
 });
 
 self.addEventListener('notificationclick', event => {
@@ -1761,7 +1776,7 @@ let LAST_PUSH = null;
    retired (404/410) are pruned; a 403 means the JWT didn't match the key the
    subscription was made with, so that device is marked stale rather than
    pruned — the app can then re-register it silently. */
-async function sendPush(payload) {
+async function sendPush(payload, only) {
   const stamp = new Date().toISOString();
   const record = extra => {
     LAST_PUSH = Object.assign({ at: stamp, title: payload && payload.title, sent: 0, failed: 0,
@@ -1770,8 +1785,14 @@ async function sendPush(payload) {
   };
   if (!VAPID) { console.log('[PUSH] no VAPID configured — skipping'); return record({ errors: ['push not configured on the server'] }); }
   const subs = readSubs();
-  const targets = liveSubs(subs);
-  const staleCount = subs.length - targets.length;
+  // `only` narrows delivery to one endpoint, so a test from the phone proves
+  // THAT phone received it rather than "one of the registered devices did".
+  const targets = liveSubs(subs).filter(s => !only || s.sub.endpoint === only);
+  if (only && !targets.length) {
+    return record({ errors: [liveSubs(subs).length ? 'this device is not registered (or its registration is stale)'
+                                                   : 'no live device is registered'] });
+  }
+  const staleCount = subs.length - liveSubs(subs).length;
   if (!targets.length) {
     console.log('[PUSH] nothing sent — 0 live devices (' + staleCount + ' stale/dead of ' + subs.length + ')');
     return record({ stale: staleCount,
@@ -1813,6 +1834,16 @@ app.get('/push/status', (req, res) => {
     devices: live.length,              // live devices — what the UI should trust
     registered: subs.length,           // everything on file, stale included
     stale: subs.length - live.length,
+    // Which devices, in enough detail to tell an iPhone from a laptop without
+    // exposing a whole push endpoint. "2 devices" hid the possibility that
+    // neither of them was the phone.
+    deviceList: subs.map(s => ({
+      label: s.label || 'device',
+      addedAt: s.addedAt,
+      host: (() => { try { return new URL(s.sub.endpoint).host; } catch (e) { return 'unknown'; } })(),
+      tail: String(s.sub.endpoint).slice(-8),
+      stale: subIsStale(s)
+    })),
     keySource: VAPID_SOURCE,
     keyPersistent: DATA_PERSISTENT || VAPID_SOURCE === 'env',
     lastPush: LAST_PUSH
@@ -1846,8 +1877,11 @@ app.post('/push/unsubscribe', (req, res) => {
   res.json({ ok: true, devices: liveSubs(subs).length });
 });
 app.post('/push/test', async (req, res) => {
-  const r = await sendPush({ title: 'Life', body: 'Notifications are working.', tag: 'test', url: '/app' });
-  res.json(r);
+  // With an endpoint, this tests THIS device only — the answer is then about
+  // the phone in your hand, not about whichever device happens to be listed.
+  const { endpoint } = req.body || {};
+  const r = await sendPush({ title: 'Life', body: 'Notifications are working.', tag: 'test', url: '/app' }, endpoint);
+  res.json(Object.assign({ targeted: !!endpoint }, r));
 });
 
 /* ============================================================
