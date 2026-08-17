@@ -1316,6 +1316,188 @@ setInterval(async () => {
   } catch (e) { console.log('[RESEARCH/AUTO] failed', e.message); }
 }, 10 * 60 * 1000);
 
+/* ============================================================
+   MAGAZINE — a reading shelf, not a news ticker.
+   Each topic is a standing brief Stuart writes; the server turns it
+   into a small issue of articles once a day using Claude's web
+   search, and keeps the last issue on the volume so opening the app
+   is instant and offline-tolerant. Topics are added and edited from
+   inside the app — nothing here is hard-coded except the two he
+   started with.
+   ============================================================ */
+const MAG_FILE = DATA_DIR + '/magazine.json';
+const MAG_DEFAULT_TOPICS = [
+  { id: 'ai-claude', label: 'AI & Claude', accent: 'sky',
+    brief: 'Advances in AI, weighted toward Anthropic and Claude: model releases and capabilities, agents and tool use, developer tooling, safety and interpretability research, and credible analysis of where the field is heading. Prefer primary sources — Anthropic\'s own announcements, research and engineering writing, and first-hand technical accounts — over aggregator commentary and hot takes.' },
+  { id: 'golf-mind', label: 'Golf · mindset', accent: 'sage',
+    brief: 'The mental side of golf: focus and attention, playing under pressure, pre-shot routine, course management, confidence and self-talk, practice psychology, and how the best players think. Coaching and sports-psychology writing, and tour players talking about the mental game. Not equipment reviews, not tournament results, not swing mechanics.' }
+];
+const MAG_ARTICLES = 6;
+
+function readMag() {
+  try {
+    if (fs.existsSync(MAG_FILE)) {
+      const m = JSON.parse(fs.readFileSync(MAG_FILE, 'utf8'));
+      if (m && Array.isArray(m.topics)) return { topics: m.topics, issues: m.issues || {} };
+    }
+  } catch (e) { console.log('[MAG] read failed', e.message); }
+  return { topics: MAG_DEFAULT_TOPICS.map(t => ({ ...t })), issues: {} };
+}
+function writeMag(m) {
+  try {
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(MAG_FILE, JSON.stringify(m));
+  } catch (e) { console.log('[MAG] save failed', e.message); }
+}
+const magSlug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || ('topic' + Date.now().toString(36));
+
+/* One issue for one topic. `seen` carries the titles already published to this
+   shelf so a daily refresh brings new reading rather than yesterday's list in a
+   different order. */
+let MAG_RUNNING = false;
+async function fetchTopicIssue(topic, prevIssue) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw Object.assign(new Error('ANTHROPIC_API_KEY not set on the proxy'), { status: 501 });
+  const seen = Array.isArray(prevIssue && prevIssue.seen) ? prevIssue.seen : [];
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const seenSet = new Set(seen.map(norm));
+  const dateStr = new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const prompt = 'You are the editor of a personal magazine for Stuart — a 54-year-old South African business owner, golfer and runner '
+    + 'who reads to think better, not to keep up with a feed. Today is ' + dateStr + '.'
+    + '\n\nTHIS SECTION: ' + topic.label
+    + '\n\nWHAT HE WANTS FROM IT:\n' + topic.brief
+    + '\n\nEDITORIAL STANDARDS:'
+    + '\n- ' + MAG_ARTICLES + ' pieces, each genuinely worth 5-10 minutes of a busy person\'s attention.'
+    + '\n- Substance over recency, but nothing stale: prefer the last 30 days, and never anything that has simply been rewritten from a press release.'
+    + '\n- Real, reachable articles from named publications with working URLs. Never invent a title, an author, a date or a link. If you cannot verify a piece exists, leave it out and return fewer.'
+    + '\n- Mix registers: something substantial and analytical, something practical he can apply this week, something that challenges a comfortable assumption.'
+    + '\n- No listicles, no SEO filler, no sponsored content, no "top 10" round-ups.'
+    + (seen.length ? ('\n\nALREADY ON HIS SHELF — do not repeat these or close variants:\n- ' + seen.slice(-40).join('\n- ')) : '')
+    + '\n\nFor each piece write, in your own words and in plain English:'
+    + '\n- "summary": 2-3 sentences on what it actually says. Not a teaser — he should get the substance even if he never opens it.'
+    + '\n- "takeaway": one sentence on what it means for him specifically, given who he is.'
+    + '\n\nRespond with ONLY a raw JSON array, no markdown fences and no commentary, each item being: '
+    + '{"title":"<the real headline>","source":"<publication>","author":"<author or empty>","date":"<YYYY-MM-DD published>",'
+    + '"url":"<direct link to the article>","readMinutes":<integer estimate>,"summary":"<2-3 sentences>","takeaway":"<one sentence>"}';
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      // Editorial judgement is the whole job here — what is worth his time, and
+      // what is filler dressed up as news — so this one gets the better model.
+      model: process.env.MAG_MODEL || 'claude-opus-5',
+      max_tokens: 4000,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  const text = await r.text();
+  if (!r.ok) { console.log('[MAG] API error', r.status, text.slice(0, 300)); throw Object.assign(new Error('Claude API ' + r.status), { status: 502 }); }
+  const j = JSON.parse(text);
+  const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+  const m = reply.match(/\[[\s\S]*\]/);
+  if (!m) { console.log('[MAG] no JSON in reply:', reply.slice(0, 200)); throw new Error('That topic returned nothing usable — try again.'); }
+  let items = JSON.parse(m[0])
+    .map(x => ({
+      title: String(x.title || '').slice(0, 300),
+      source: String(x.source || '').slice(0, 120),
+      author: String(x.author || '').slice(0, 120),
+      date: String(x.date || '').slice(0, 10),
+      url: String(x.url || x.link || '').slice(0, 600),
+      readMinutes: Number(x.readMinutes) || null,
+      summary: String(x.summary || '').slice(0, 1200),
+      takeaway: String(x.takeaway || '').slice(0, 400)
+    }))
+    .filter(x => x.title && /^https?:\/\//.test(x.url));
+  items = items.filter(x => !seenSet.has(norm(x.title)));
+  if (!items.length) throw new Error('Nothing new for that topic right now — the shelf is already current.');
+  return {
+    items,
+    updatedAt: new Date().toISOString(),
+    seen: Array.from(new Set([...seen, ...items.map(i => i.title)])).slice(-60)
+  };
+}
+
+async function refreshTopic(id, reason) {
+  if (MAG_RUNNING) throw Object.assign(new Error('Another topic is refreshing — give it a minute.'), { status: 409 });
+  const mag = readMag();
+  const topic = mag.topics.find(t => t.id === id);
+  if (!topic) throw Object.assign(new Error('No such topic'), { status: 404 });
+  MAG_RUNNING = true;
+  console.log('[MAG] refreshing "' + topic.label + '" (' + reason + ')');
+  try {
+    const issue = await fetchTopicIssue(topic, mag.issues[id]);
+    const latest = readMag();                       // re-read: edits may have landed meanwhile
+    latest.issues[id] = issue;
+    writeMag(latest);
+    console.log('[MAG] "' + topic.label + '" → ' + issue.items.length + ' pieces');
+    return issue;
+  } finally { MAG_RUNNING = false; }
+}
+
+app.get('/magazine', (req, res) => res.json(readMag()));
+app.post('/magazine/topics', (req, res) => {
+  const { label, brief, accent } = req.body || {};
+  if (!label || !String(label).trim()) return res.status(400).json({ error: 'label required' });
+  if (!brief || !String(brief).trim()) return res.status(400).json({ error: 'brief required — say what you want to read about' });
+  const mag = readMag();
+  if (mag.topics.length >= 12) return res.status(400).json({ error: 'twelve topics is already more than anyone reads' });
+  let id = magSlug(label);
+  while (mag.topics.some(t => t.id === id)) id += '-2';
+  const topic = { id, label: String(label).trim().slice(0, 60), brief: String(brief).trim().slice(0, 2000),
+    accent: accent || 'terra', addedAt: new Date().toISOString() };
+  mag.topics.push(topic);
+  writeMag(mag);
+  res.json(topic);
+});
+app.patch('/magazine/topics/:id', (req, res) => {
+  const mag = readMag();
+  const t = mag.topics.find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: 'not found' });
+  const { label, brief, accent } = req.body || {};
+  if (label) t.label = String(label).trim().slice(0, 60);
+  if (brief) t.brief = String(brief).trim().slice(0, 2000);
+  if (accent) t.accent = accent;
+  writeMag(mag);
+  res.json(t);
+});
+app.delete('/magazine/topics/:id', (req, res) => {
+  const mag = readMag();
+  const i = mag.topics.findIndex(x => x.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: 'not found' });
+  const [gone] = mag.topics.splice(i, 1);
+  delete mag.issues[gone.id];
+  writeMag(mag);
+  res.json({ ok: true, removed: gone.label });
+});
+app.post('/magazine/refresh', async (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'id required' });
+    res.json(await refreshTopic(id, 'on-demand'));
+  } catch (e) { console.log('[MAG] refresh failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+});
+
+/* Daily refresh, one topic at a time so a shelf of six doesn't fire six
+   searches at once. Anything older than 20 hours is fair game; the first
+   eligible topic per tick keeps it gentle. Fires from 05:00 SAST. */
+setInterval(async () => {
+  try {
+    if (MAG_RUNNING) return;
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: APP_TZ }));
+    if (now.getHours() < 5) return;
+    const mag = readMag();
+    const stale = mag.topics.find(t => {
+      const iss = mag.issues[t.id];
+      return !iss || (Date.now() - new Date(iss.updatedAt).getTime()) > 20 * 3600 * 1000;
+    });
+    if (!stale) return;
+    await refreshTopic(stale.id, 'daily-auto');
+  } catch (e) { console.log('[MAG/AUTO] failed', e.message); }
+}, 15 * 60 * 1000);
+
 // Serve the LifePlatform dashboard itself at / and /app (same origin as the proxy,
 // so the platform auto-detects this URL and CORS is a non-issue).
 import path from 'path';

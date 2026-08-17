@@ -58,6 +58,23 @@ same thing, and also keeps reminders, WHOOP tokens and the userdata blob.
 `GET /push/status` reports live vs stale devices, where the keypair came from,
 whether it is persistent, and the outcome of the last send.
 
+## The magazine (Read tab)
+Each topic is a standing brief — a written instruction to an editor, not a
+keyword. Once a day the proxy turns each brief into a small issue using Claude's
+web search, and keeps the last issue in `magazine.json` on the volume so opening
+the tab is instant.
+
+- Topics are added, edited and removed from inside the app; nothing is
+  hard-coded except the two it ships with (AI & Claude, Golf · mindset).
+- `POST /magazine/refresh {id}` fetches a new issue on demand. One at a time.
+- Auto-refresh runs from 05:00 local, one topic per 15-minute tick, for anything
+  older than 20 hours.
+- Titles already published to a shelf are remembered (last 60) so a refresh
+  brings new reading rather than yesterday's list reordered.
+- `MAG_MODEL` overrides the model used for editorial judgement.
+
+Briefs work best when they say what to leave out as well as what to look for.
+
 ## Notes
 - Free tier may cold-start after idle; first request waits a few seconds.
 - Never commit `.env` or `tokens.json` (the .gitignore handles this).
