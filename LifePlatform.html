@@ -5924,11 +5924,24 @@ async function healPush(){
     if(chk&&(chk.stale||!chk.known)){ await registerPush(publicKey); await refreshPushState(); }
   }catch(e){ console.log('[PUSH] heal failed',e.message); }
 }
-async function sendTestPush(){
+/* Test THIS device. Sending to "all registered devices" and being told it
+   worked tells you nothing when the phone in your hand might not be one of
+   them — so we hand the server this device's own endpoint. */
+async function sendTestPush(allDevices){
   const base=proxyBase(); if(!base) return;
-  const r=await fetch(base+'/push/test',{method:'POST'}).then(x=>x.json()).catch(()=>({sent:0,errors:['could not reach the proxy']}));
+  let endpoint=null;
+  if(!allDevices){
+    try{
+      const reg=await ensureSW();
+      const sub=reg&&await reg.pushManager.getSubscription();
+      endpoint=sub?sub.endpoint:null;
+    }catch(e){}
+    if(!endpoint){ toast('This device has no subscription — tap Re-register first'); renderCoach(); return; }
+  }
+  const r=await fetch(base+'/push/test',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(endpoint?{endpoint}:{})}).then(x=>x.json()).catch(()=>({sent:0,errors:['could not reach the proxy']}));
   await refreshPushState();
-  if(r.sent) toast('Sent to '+r.sent+' device'+(r.sent===1?'':'s'));
+  if(r.sent) toast(endpoint?'Accepted for this device — watch for it now':('Sent to '+r.sent+' device'+(r.sent===1?'':'s')));
   else toast((r.errors&&r.errors[0])||'Nothing was delivered');
   renderCoach();
 }
@@ -6167,6 +6180,12 @@ function renderCoach(){
   const staleLine=_pushState.stale
     ? `<div class="c-note" style="margin-top:6px">${_pushState.stale} stale registration${_pushState.stale===1?'':'s'} on file — from before the proxy's push key last changed.</div>`
     : '';
+  /* Name the registered devices. A bare count can't tell you that both of them
+     are your laptop and none is the phone you're staring at. */
+  const devList=(_pushState.deviceList&&_pushState.deviceList.length)
+    ? `<div class="c-note" style="margin-top:8px">Registered: ${_pushState.deviceList.map(d=>
+        `${cEsc(d.label)}${d.stale?' <span style="color:var(--bad)">(stale)</span>':''} <span style="opacity:.6">· ${cEsc(d.host)} · …${cEsc(d.tail)}</span>`).join('<br>')}</div>`
+    : '';
 
   const notifBlock = needsInstall
     ? `<div class="c-card warn">
@@ -6184,18 +6203,21 @@ function renderCoach(){
            <div class="c-note">The server has no VAPID keypair, so nothing can be delivered. Check the proxy's deploy log.</div></div>`
       : perm==='granted'&&_pushState.devices
         ? `<div class="c-card ${lp&&!lp.sent?'warn':'ok'}"><div class="c-h">Notifications on · ${_pushState.devices} live device${_pushState.devices===1?'':'s'}</div>
-           <div class="c-note">${lastLine}</div>${staleLine}${keyWarn}
-           <div style="display:flex;gap:9px;margin-top:10px">
-             <button class="btn" onclick="sendTestPush()">Send a test</button>
-             <button class="btn" onclick="enableNotifications()">Re-register this device</button></div></div>`
+           <div class="c-note">${lastLine}</div>${staleLine}${devList}${keyWarn}
+           <div style="display:flex;gap:9px;margin-top:10px;flex-wrap:wrap">
+             <button class="btn" onclick="sendTestPush()">Test this device</button>
+             <button class="btn" onclick="sendTestPush(true)">Test all devices</button>
+             <button class="btn" onclick="enableNotifications()">Re-register this device</button></div>
+           <div class="c-note" style="margin-top:8px;opacity:.75">If a test is accepted but nothing appears, the push reached Apple and iOS
+             withheld it — check Settings → Notifications → Life, and any Focus or Scheduled Summary.</div></div>`
         : perm==='granted'&&!_pushState.devices
           ? `<div class="c-card warn"><div class="c-h">Nothing can be delivered to this phone</div>
              <div class="c-note">You've allowed notifications, but the proxy has no live registration for this device —
              ${_pushState.stale?'the ones on file were made under an older push key':'nothing is registered'}.
              Tap below to register it again; reminders set in the meantime will still be waiting.</div>${keyWarn}
-             <div style="display:flex;gap:9px;margin-top:10px">
+             <div style="display:flex;gap:9px;margin-top:10px;flex-wrap:wrap">
                <button class="btn primary" onclick="enableNotifications()">Re-register this device</button>
-               <button class="btn" onclick="sendTestPush()">Send a test</button></div></div>`
+               <button class="btn" onclick="sendTestPush()">Test this device</button></div>${devList}</div>`
         : perm==='denied'
           ? `<div class="c-card warn"><div class="c-h">Notifications are blocked</div>
              <div class="c-note">Allow them for this site in your browser settings, then reload.</div></div>`
