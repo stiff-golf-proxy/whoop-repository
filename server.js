@@ -483,6 +483,73 @@ How you coach:
 - If he seems stressed or down, be supportive and human first, tactical second.
 Keep replies focused — a few sentences to a short paragraph unless he asks for depth.`;
 
+/* The coach can actually act, not just advise. Asking it in chat to "remind me
+   at 5pm to practice golf" is the most natural way to set one, so it gets real
+   tools rather than having to apologise that it can't. */
+const COACH_TOOLS = [
+  {
+    name: 'set_reminder',
+    description: 'Schedule a push notification to Stuart\'s phone. Use whenever he asks to be reminded, ' +
+                 'nudged, or told about something at a time. Confirm what you set afterwards, in your own words.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        text:   { type: 'string', description: 'What to remind him, in second person, e.g. "Practice golf"' },
+        at:     { type: 'string', description: 'Local wall-clock time as YYYY-MM-DDTHH:MM. Resolve relative times against the current time given in your context.' },
+        repeat: { type: 'string', enum: ['none', 'daily', 'weekdays', 'weekly', 'monthly'], description: 'Defaults to none' }
+      },
+      required: ['text', 'at']
+    }
+  },
+  {
+    name: 'list_reminders',
+    description: 'List Stuart\'s upcoming reminders. Use when he asks what is scheduled, or before changing something.',
+    input_schema: { type: 'object', properties: {}, required: [] }
+  },
+  {
+    name: 'cancel_reminder',
+    description: 'Cancel a scheduled reminder by its id. Call list_reminders first to find the id.',
+    input_schema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'The reminder id from list_reminders' } },
+      required: ['id']
+    }
+  }
+];
+
+function runCoachTool(name, input) {
+  try {
+    if (name === 'set_reminder') {
+      const at = localToInstant(input.at);
+      if (!at) return { ok: false, error: 'Could not read that time. Use YYYY-MM-DDTHH:MM.' };
+      const rems = readRems();
+      const rem = { id: 'rem' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        text: String(input.text || '').slice(0, 400), at, repeat: input.repeat || 'none',
+        source: 'coach', done: false, firedAt: null, createdAt: new Date().toISOString() };
+      rems.push(rem); writeRems(rems);
+      const devices = readSubs().length;
+      return { ok: true, id: rem.id, firesAtLocal: input.at, repeat: rem.repeat,
+        // tell the model the truth about delivery so it doesn't over-promise
+        note: devices ? 'Will push to ' + devices + ' registered device(s).'
+                      : 'Saved, but NO device is registered for notifications yet — tell him to open Coach and tap Enable notifications, or it will only show in the app.' };
+    }
+    if (name === 'list_reminders') {
+      return { reminders: readRems().filter(r => !r.done)
+        .sort((a, b) => new Date(a.at) - new Date(b.at))
+        .slice(0, 25)
+        .map(r => ({ id: r.id, text: r.text, at: r.at, repeat: r.repeat })) };
+    }
+    if (name === 'cancel_reminder') {
+      const rems = readRems();
+      const i = rems.findIndex(r => r.id === input.id);
+      if (i < 0) return { ok: false, error: 'No reminder with that id' };
+      const [gone] = rems.splice(i, 1); writeRems(rems);
+      return { ok: true, cancelled: gone.text };
+    }
+    return { ok: false, error: 'unknown tool' };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
 app.post('/coach', async (req, res) => {
   try {
     const key = process.env.ANTHROPIC_API_KEY;
@@ -493,17 +560,39 @@ app.post('/coach', async (req, res) => {
       .slice(-16)
       .map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content.slice(0, 4000) : m.content }));
     if (!clean.length) return res.status(400).json({ error: 'no messages' });
-    const system = COACH_SYSTEM + (context ? `\n\n${String(context).slice(0, 5000)}` : '');
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: COACH_MODEL, max_tokens: 1500, system, messages: clean })
-    });
-    const text = await r.text();
-    if (!r.ok) { console.log('[COACH] API error', r.status, text); return res.status(502).json({ error: `Claude API ${r.status}` }); }
-    const j = JSON.parse(text);
-    const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
-    res.json({ reply: reply || '(no reply)' });
+    // The model needs the wall clock to turn "5pm" into a real instant.
+    const nowLocal = new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'long' }).format(new Date());
+    const system = COACH_SYSTEM
+      + `\n\nIt is currently ${nowLocal} (${APP_TZ}). You can set, list and cancel reminders yourself using your tools — `
+      + `never tell him to use his phone's clock or calendar app instead, and never say you are unable to send alerts. `
+      + `Reminders you set are delivered as push notifications to his phone by this dashboard.`
+      + (context ? `\n\n${String(context).slice(0, 5000)}` : '');
+
+    const convo = clean.slice();
+    let reply = '', used = [];
+    // Tool loop, bounded: set -> confirm is 2 hops; the cap stops runaways.
+    for (let hop = 0; hop < 4; hop++) {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: COACH_MODEL, max_tokens: 1500, system, tools: COACH_TOOLS, messages: convo })
+      });
+      const text = await r.text();
+      if (!r.ok) { console.log('[COACH] API error', r.status, text.slice(0, 300)); return res.status(502).json({ error: `Claude API ${r.status}` }); }
+      const j = JSON.parse(text);
+      reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+      if (j.stop_reason !== 'tool_use') break;
+      const calls = (j.content || []).filter(b => b.type === 'tool_use');
+      convo.push({ role: 'assistant', content: j.content });
+      convo.push({ role: 'user', content: calls.map(c => {
+        const out = runCoachTool(c.name, c.input || {});
+        used.push(c.name);
+        console.log('[COACH] tool', c.name, JSON.stringify(out).slice(0, 160));
+        return { type: 'tool_result', tool_use_id: c.id, content: JSON.stringify(out) };
+      }) });
+    }
+    res.json({ reply: reply || '(no reply)', toolsUsed: used });
   } catch (e) { console.log('[COACH] failed', e.message); res.status(500).json({ error: e.message }); }
 });
 
