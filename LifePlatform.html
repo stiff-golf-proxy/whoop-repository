@@ -6601,11 +6601,16 @@ function magSectionHtml(t){
   const iss=_mag.issues[t.id];
   const busy=_magBusy===t.label;
   const items=(iss&&iss.items)||[];
+  const errLine=(iss&&iss.lastError)
+    ? `<div class="c-note" style="color:var(--bad);border-left:2px solid var(--bad);padding-left:11px;margin-bottom:16px">
+         Last attempt failed — ${cEsc(iss.lastError)}
+         <span style="opacity:.7">(${magWhen(iss.lastErrorAt)})</span></div>`
+    : '';
   const body=busy
     ? `<div class="empty">Reading the week for you — this takes a minute.</div>`
     : items.length
-      ? `${magArticleHtml(items[0],true)}<div class="mag-grid">${items.slice(1).map(a=>magArticleHtml(a)).join('')}</div>`
-      : `<div class="empty">No issue yet. Tap <b>New issue</b> and the editor will go and read for you.</div>`;
+      ? `${errLine}${magArticleHtml(items[0],true)}<div class="mag-grid">${items.slice(1).map(a=>magArticleHtml(a)).join('')}</div>`
+      : `${errLine}<div class="empty">No issue yet. Tap <b>New issue</b> and the editor will go and read for you.</div>`;
   return `<div class="mag-sec">
     <div class="mag-sec-head">
       <div><div class="name">${cEsc(t.label)}</div>

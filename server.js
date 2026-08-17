@@ -1381,25 +1381,46 @@ async function fetchTopicIssue(topic, prevIssue) {
     + '{"title":"<the real headline>","source":"<publication>","author":"<author or empty>","date":"<YYYY-MM-DD published>",'
     + '"url":"<direct link to the article>","readMinutes":<integer estimate>,"summary":"<2-3 sentences>","takeaway":"<one sentence>"}';
 
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      // Editorial judgement is the whole job here — what is worth his time, and
-      // what is filler dressed up as news — so this one gets the better model.
-      model: process.env.MAG_MODEL || 'claude-opus-5',
-      max_tokens: 4000,
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-  const text = await r.text();
-  if (!r.ok) { console.log('[MAG] API error', r.status, text.slice(0, 300)); throw Object.assign(new Error('Claude API ' + r.status), { status: 502 }); }
-  const j = JSON.parse(text);
+  /* The model searches, reads and then writes the issue, so the turn can pause
+     for more tool rounds (stop_reason "pause_turn") — resuming is not an error
+     path, it's the normal shape of a long server-tool turn. max_tokens has to
+     cover thinking AND the written issue: thinking is on by default on Opus 5,
+     and a budget sized for the text alone truncates the JSON mid-array. */
+  const model = process.env.MAG_MODEL || 'claude-opus-5';
+  const convo = [{ role: 'user', content: prompt }];
+  let j = null;
+  for (let hop = 0; hop < 4; hop++) {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        // Editorial judgement is the whole job here — what is worth his time, and
+        // what is filler dressed up as news — so this one gets the better model.
+        model,
+        max_tokens: 16000,
+        output_config: { effort: 'medium' },
+        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 8 }],
+        messages: convo
+      })
+    });
+    const text = await r.text();
+    if (!r.ok) { console.log('[MAG] API error', r.status, text.slice(0, 400)); throw Object.assign(new Error('Claude API ' + r.status + ' — ' + text.slice(0, 160)), { status: 502 }); }
+    j = JSON.parse(text);
+    console.log('[MAG] "' + topic.label + '" hop ' + hop + ' stop=' + j.stop_reason +
+      ' in=' + (j.usage && j.usage.input_tokens) + ' out=' + (j.usage && j.usage.output_tokens));
+    if (j.stop_reason !== 'pause_turn') break;
+    // Server-side tool loop hit its iteration cap — hand the turn back to resume.
+    convo.push({ role: 'assistant', content: j.content });
+  }
+  if (j.stop_reason === 'refusal') throw new Error('The editor declined that brief. Reword the topic and try again.');
+  if (j.stop_reason === 'max_tokens') throw new Error('The issue was cut off before it finished — the brief may be too broad. Narrow it and try again.');
   const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
   const m = reply.match(/\[[\s\S]*\]/);
-  if (!m) { console.log('[MAG] no JSON in reply:', reply.slice(0, 200)); throw new Error('That topic returned nothing usable — try again.'); }
-  let items = JSON.parse(m[0])
+  if (!m) { console.log('[MAG] no JSON in reply (stop=' + j.stop_reason + '):', reply.slice(0, 300)); throw new Error('That topic returned nothing usable (stopped: ' + j.stop_reason + ').'); }
+  let parsed;
+  try { parsed = JSON.parse(m[0]); }
+  catch (e) { console.log('[MAG] JSON parse failed:', m[0].slice(-200)); throw new Error('The issue came back malformed — try again.'); }
+  let items = parsed
     .map(x => ({
       title: String(x.title || '').slice(0, 300),
       source: String(x.source || '').slice(0, 120),
@@ -1434,6 +1455,15 @@ async function refreshTopic(id, reason) {
     writeMag(latest);
     console.log('[MAG] "' + topic.label + '" → ' + issue.items.length + ' pieces');
     return issue;
+  } catch (e) {
+    // Keep the failure with the topic. A toast that has already faded is not a
+    // diagnosis, and the daily auto-run fails with nobody watching at all.
+    const latest = readMag();
+    const prev = latest.issues[id] || {};
+    latest.issues[id] = Object.assign({}, prev, { lastError: e.message, lastErrorAt: new Date().toISOString() });
+    writeMag(latest);
+    console.log('[MAG] "' + topic.label + '" FAILED — ' + e.message);
+    throw e;
   } finally { MAG_RUNNING = false; }
 }
 
