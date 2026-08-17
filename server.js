@@ -1198,7 +1198,15 @@ app.get('/status', (req, res) => {
     calendar: (() => { try { if (fs.existsSync(CAL_FILE)) { const j = JSON.parse(fs.readFileSync(CAL_FILE)); const fresh = j.updatedAt && (Date.now() - Date.parse(j.updatedAt)) < CAL_MAX_AGE_MS; return `push (${(j.events||[]).length} events, ${fresh ? 'fresh' : 'stale — run sync'})`; } } catch (e) {} return process.env.ICAL_URL ? 'configured (ICAL_URL)' : 'waiting for first push (run sync-calendar.sh)'; })(),
     traffic: process.env.GOOGLE_MAPS_KEY ? 'configured (GOOGLE_MAPS_KEY)' : 'OFF — set GOOGLE_MAPS_KEY',
     coach: process.env.ANTHROPIC_API_KEY ? ('configured (' + COACH_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
-    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing','/pairs','/pairs/refresh','/scenario','/scenario/run','/scenario/status','/scenario/profiles'],
+    // Voice needs a SECOND provider: Claude cannot transcribe audio, so the
+    // recording goes to Whisper first and only the transcript reaches Claude.
+    voice: process.env.OPENAI_API_KEY ? ('configured (' + (process.env.WHISPER_MODEL || 'whisper-1') + ')') : 'OFF — set OPENAI_API_KEY',
+    push: VAPID ? 'configured' : 'OFF — no VAPID keypair',
+    // deliberately no device/reminder counts here: /status is unauthenticated
+    expenses: process.env.ANTHROPIC_API_KEY ? ('configured (' + EXP_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
+    routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing','/pairs','/pairs/refresh','/scenario','/scenario/run','/scenario/status','/scenario/profiles',
+      '/expenses/slips','/expenses/extract-slip','/expenses/statement',
+      '/voice','/reminders','/push/key','/push/subscribe','/manifest.webmanifest','/sw.js'],
     connect: '/auth/login'
   });
 });
