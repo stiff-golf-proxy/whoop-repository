@@ -95,6 +95,10 @@ body{
 .tile .num{font-family:var(--disp);font-weight:700;font-size:33px;letter-spacing:-.6px;margin-top:9px;line-height:1}
 .tile .num small{font-size:16px;color:var(--ink-faint);font-weight:500}
 .tile .foot{font-family:var(--serif);font-size:13px;color:var(--ink-soft);margin-top:8px;font-style:italic}
+/* A tile that is standing ready for data it doesn't have yet — present, but
+   not competing for attention with the numbers that are real. */
+.tile-quiet{opacity:.62}
+.tile-quiet .num{color:var(--ink-faint)}
 .accent-bar{height:3px;border-radius:3px;margin-bottom:16px;width:38px}
 
 .coach{background:linear-gradient(135deg,var(--card),var(--card));border-left:3px solid var(--terra);
@@ -2851,27 +2855,41 @@ function clubAgg(club){
 function renderGolf(){
   const g=golf(); const bag=clubsInBag();
   const withData=clubsInBag().filter(c=>clubAgg(c).n>0);
-  const rounds=[...g.rounds].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const allRounds=[...g.rounds].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  // Two separate books. Legacy rounds carry no mode and are all on-course.
+  const rounds=allRounds.filter(r=>roundMode(r)==='course');
+  const online=allRounds.filter(r=>roundMode(r)==='online');
   const scores=rounds.map(r=>r.total); const best=scores.length?Math.min(...scores):null; const avg=scores.length?mean(scores):null;
+  const oScores=online.map(r=>r.total); const oBest=oScores.length?Math.min(...oScores):null; const oAvg=oScores.length?mean(oScores):null;
+  const oPar=online.length?mean(online.map(r=>r.par||72)):72;
+  const oPlatforms=[...new Set(online.map(r=>r.platform).filter(Boolean))];
   const P=document.getElementById('pane-golf');
   const trend=lineChart([{name:'Score',color:'var(--terra)',points:rounds.slice().reverse().map((r,i)=>({x:i,y:r.total}))}],
     {h:200,dots:true,padY:.15,xLabels:rounds.slice().reverse().map(r=>(r.date||'').slice(5)),xFmt:v=>v,yFmt:v=>Math.round(v),maxXLabels:8});
+  const oTrend=online.length?lineChart([{name:'Score',color:'var(--sky)',points:online.slice().reverse().map((r,i)=>({x:i,y:r.total}))}],
+    {h:200,dots:true,padY:.15,xLabels:online.slice().reverse().map(r=>(r.date||'').slice(5)),xFmt:v=>v,yFmt:v=>Math.round(v),maxXLabels:8}):'';
   const barClubs=withData.length?withData:bag;
   P.innerHTML=`
    <div class="coach"><div class="q">On the course</div>
-     <p>You're playing to a scoring average of <b>${avg?avg.toFixed(1):'—'}</b> across ${rounds.length} rounds, with a best of <b>${best||'—'}</b>. You've got <b>${withData.length}</b> of your <b>${bag.length}</b> bag clubs with range data so far. The fastest path to lower scores usually isn't more distance — it's tighter dispersion and reliable wedge numbers. Keep feeding sessions in and the gaps between clubs will tell their own story.</p></div>
+     <p>You're playing to a scoring average of <b>${avg?avg.toFixed(1):'—'}</b> across ${rounds.length} rounds on course, with a best of <b>${best||'—'}</b>. You've got <b>${withData.length}</b> of your <b>${bag.length}</b> bag clubs with range data so far.${online.length?` Your <b>${online.length}</b> online round${online.length===1?'':'s'} ${online.length===1?'sits':'sit'} in their own book below, averaging <b>${oAvg.toFixed(1)}</b> — useful for tracking form between real rounds, but they don't move these numbers.`:''} The fastest path to lower scores usually isn't more distance — it's tighter dispersion and reliable wedge numbers. Keep feeding sessions in and the gaps between clubs will tell their own story.</p></div>
    <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;align-items:center">
      <button class="btn primary" onclick="openGolfImport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Import range session</button>
-     <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${g.shots.length} shots · ${withData.length}/${bag.length} clubs · ${rounds.length} rounds</span>
+     <span style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:13px;margin-left:auto">${g.shots.length} shots · ${withData.length}/${bag.length} clubs · ${rounds.length} rounds${online.length?' · '+online.length+' online':''}</span>
    </div>
-   <div class="grid g4" style="margin-bottom:24px">
-     <div class="card tile"><div class="accent-bar" style="background:var(--terra)"></div><div class="lbl">Best Round</div><div class="num">${best||'—'}</div><div class="foot">${rounds.length} logged</div></div>
-     <div class="card tile"><div class="accent-bar" style="background:var(--gold)"></div><div class="lbl">Scoring Avg</div><div class="num">${avg?avg.toFixed(1):'—'}</div><div class="foot">all rounds</div></div>
+   <div class="grid g4" style="margin-bottom:12px">
+     <div class="card tile"><div class="accent-bar" style="background:var(--terra)"></div><div class="lbl">Best Round</div><div class="num">${best||'—'}</div><div class="foot">${rounds.length} on course</div></div>
+     <div class="card tile"><div class="accent-bar" style="background:var(--gold)"></div><div class="lbl">Scoring Avg</div><div class="num">${avg?avg.toFixed(1):'—'}</div><div class="foot">course rounds only</div></div>
      <div class="card tile"><div class="accent-bar" style="background:var(--sage)"></div><div class="lbl">Clubs With Data</div><div class="num">${withData.length}<small>/${bag.length}</small></div><div class="foot">${g.shots.length} shots</div></div>
      <div class="card tile"><div class="accent-bar" style="background:var(--sky)"></div><div class="lbl">Last Round</div><div class="num">${rounds[0]?rounds[0].total:'—'}</div><div class="foot">${rounds[0]?shortCourse(rounds[0].course):''}</div></div>
    </div>
+   <div class="grid g4" style="margin-bottom:24px">
+     <div class="card tile ${online.length?'':'tile-quiet'}"><div class="accent-bar" style="background:var(--sky)"></div><div class="lbl">Best Online</div><div class="num">${oBest||'—'}</div><div class="foot">${online.length?online.length+' online':'none logged'}</div></div>
+     <div class="card tile ${online.length?'':'tile-quiet'}"><div class="accent-bar" style="background:var(--sky)"></div><div class="lbl">Online Avg</div><div class="num">${oAvg?oAvg.toFixed(1):'—'}</div><div class="foot">${online.length?(oAvg-oPar>0?'+':'')+(oAvg-oPar).toFixed(1)+' to par':'online rounds only'}</div></div>
+     <div class="card tile ${online.length?'':'tile-quiet'}"><div class="accent-bar" style="background:var(--sky)"></div><div class="lbl">Online Rounds</div><div class="num">${online.length||'—'}</div><div class="foot">${oPlatforms.length?oPlatforms.slice(0,2).join(' · '):(online.length?'no platform set':'simulator &amp; virtual')}</div></div>
+     <div class="card tile ${online.length?'':'tile-quiet'}"><div class="accent-bar" style="background:var(--sky)"></div><div class="lbl">Last Online</div><div class="num">${online[0]?online[0].total:'—'}</div><div class="foot">${online[0]?(online[0].platform?cEsc(online[0].platform):shortCourse(online[0].course)):'nothing logged yet'}</div></div>
+   </div>
    <div class="grid g2" style="margin-bottom:22px">
-     <div class="card card-pad"><div class="kicker">Scoring</div><div class="h-sec">Round history</div>${trend}</div>
+     <div class="card card-pad"><div class="kicker">Scoring · on course</div><div class="h-sec">Round history</div>${trend}</div>
      <div class="card card-pad"><div class="kicker">The bag</div><div class="h-sec">Avg carry by club</div>
        ${withData.length?barChart(withData.map(c=>({label:CLUB_ABBR[c]||c.slice(0,3),value:clubAgg(c).avgCarry||0,color:'var(--terra)'})),{h:200,yFmt:v=>Math.round(v),showVal:true,valFmt:v=>Math.round(v)}):'<div class="empty">No range data yet — import a session to see your distances</div>'}</div>
    </div>
@@ -2890,11 +2908,50 @@ function renderGolf(){
        return `<tr ${click}><td><b>${CLUB_ABBR[c]||''}</b> &nbsp;${c}</td><td class="r mono" style="color:var(--ink-faint);font-size:12px">${a.n>0?datelbl:'—'}</td><td class="r mono"><b>${a.avgTotal?a.avgTotal.toFixed(1)+' m':'—'}</b>${arrow(a.dCarry)}</td><td class="r mono">${a.sd!=null?a.sd.toFixed(1)+' m':'—'}${arrow(a.dSd)}</td><td class="r mono" style="color:${dispPctColor}">${dispPct!=null?dispPct.toFixed(1)+'%':'—'}</td><td class="r mono">${a.avgSmash!=null?a.avgSmash.toFixed(2):'—'}${arrow(a.dSmash)}</td><td class="r mono">${cell(a.distScore,dc)}</td><td class="r mono">${cell(a.accScore,ac)}</td><td class="r">${a.n>0?'<span style="color:var(--ink-faint)">›</span>':''}</td></tr>`;}).join('')}
      </tbody></table></div>
      <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:12px">Numbers shown are your <b>most recent session</b> per club — current form, not a career average. Arrows compare to the session before (<span style="color:var(--good)">↑</span> better, <span style="color:var(--bad)">↓</span> worse, → unchanged). <b>Distance/Accuracy</b> are scored out of 100 against <b>${benchTier().label}</b> — 100 means level with that standard, and the bar fills to your score. Change the standard with the ladder above. <b>Disp %</b> = dispersion ÷ carry distance — compare consistency across clubs on the same scale (≤ 3% excellent, 3–5% acceptable, &gt;5% focus area). Tap a club for session history.</div></div>
-   <div class="card card-pad"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:2px"><div><div class="kicker">Scorecards</div><div class="h-sec" style="margin-bottom:0">Rounds</div></div>
+   <div class="card card-pad" style="margin-bottom:18px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:2px"><div><div class="kicker">Scorecards · on course</div><div class="h-sec" style="margin-bottom:0">Rounds</div></div>
        <button class="btn primary" onclick="openRoundEntry()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M12 5v14M5 12h14"/></svg>Log a round</button></div>
      <div class="scroll-x" style="margin-top:14px"><table class="clean"><thead><tr><th>Date</th><th>Course</th><th class="r">Out</th><th class="r">In</th><th class="r">Score</th></tr></thead><tbody>
      ${rounds.map(r=>{const f=r.holes&&r.holes.length>=18?r.holes.slice(0,9).reduce((a,b)=>a+b,0):'—';const b=r.holes&&r.holes.length>=18?r.holes.slice(9).reduce((a,b)=>a+b,0):'—';const ov=r.total-(r.par||72);
        return `<tr><td class="mono">${(r.date||'').slice(0,10)}</td><td>${r.course}${r.layout?' · '+r.layout:''}</td><td class="r mono">${f}</td><td class="r mono">${b}</td><td class="r mono"><b>${r.total}</b> <span style="color:${ov>0?'var(--bad)':'var(--good)'}">(${ov>0?'+':''}${ov})</span></td></tr>`;}).join('')}
+     </tbody></table></div>
+     ${rounds.length?'':'<div class="empty">No on-course rounds logged yet.</div>'}
+   </div>
+   ${onlineRoundsSection(online,oTrend,oAvg,oBest,oPlatforms)}`;
+}
+
+/* ONLINE ROUNDS — their own presentation, deliberately not folded into the
+   on-course numbers. Kept visible even when empty so the section is a standing
+   home for them rather than something that appears out of nowhere. */
+function onlineRoundsSection(online,oTrend,oAvg,oBest,oPlatforms){
+  if(!online.length) return `
+   <div class="card card-pad">
+     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+       <div><div class="kicker">Scorecards · online</div><div class="h-sec" style="margin-bottom:0">Online rounds</div></div>
+       <button class="btn primary" onclick="openRoundEntry()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M12 5v14M5 12h14"/></svg>Log a round</button></div>
+     <div class="empty" style="margin-top:14px">Nothing here yet. Tap <b>Log a round</b>, switch it to <b>Online</b>, and simulator rounds
+       will collect here — scored, charted and averaged on their own, clear of your course scoring.</div>
+   </div>`;
+  const byPlatform={};
+  online.forEach(r=>{ const k=r.platform||'Unspecified'; (byPlatform[k]=byPlatform[k]||[]).push(r); });
+  const platRows=Object.entries(byPlatform).sort((a,b)=>b[1].length-a[1].length).map(([k,rs])=>{
+    const sc=rs.map(r=>r.total);
+    return `<tr><td>${cEsc(k)}</td><td class="r mono">${rs.length}</td><td class="r mono">${mean(sc).toFixed(1)}</td><td class="r mono">${Math.min(...sc)}</td></tr>`;
+  }).join('');
+  return `
+   <div class="grid g2" style="margin-bottom:18px">
+     <div class="card card-pad"><div class="kicker">Scoring · online</div><div class="h-sec">Online round history</div>${oTrend}</div>
+     <div class="card card-pad"><div class="kicker">Where you play</div><div class="h-sec">By platform</div>
+       <div class="scroll-x"><table class="clean"><thead><tr><th>Platform</th><th class="r">Rounds</th><th class="r">Avg</th><th class="r">Best</th></tr></thead><tbody>${platRows}</tbody></table></div>
+       <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:12px">Online scoring runs its own average of <b>${oAvg.toFixed(1)}</b> (best <b>${oBest}</b>) across ${online.length} round${online.length===1?'':'s'}. Simulator conditions don't carry a real handicap, so these sit beside your course record rather than inside it.</div>
+     </div>
+   </div>
+   <div class="card card-pad">
+     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:2px">
+       <div><div class="kicker">Scorecards · online</div><div class="h-sec" style="margin-bottom:0">Online rounds</div></div>
+       <button class="btn primary" onclick="openRoundEntry()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M12 5v14M5 12h14"/></svg>Log a round</button></div>
+     <div class="scroll-x" style="margin-top:14px"><table class="clean"><thead><tr><th>Date</th><th>Course</th><th>Platform</th><th class="r">Out</th><th class="r">In</th><th class="r">Score</th></tr></thead><tbody>
+     ${online.map(r=>{const f=r.holes&&r.holes.length>=18?r.holes.slice(0,9).reduce((a,b)=>a+b,0):'—';const b=r.holes&&r.holes.length>=18?r.holes.slice(9).reduce((a,b)=>a+b,0):'—';const ov=r.total-(r.par||72);
+       return `<tr><td class="mono">${(r.date||'').slice(0,10)}</td><td>${cEsc(r.course)}${r.layout?' · '+cEsc(r.layout):''}</td><td style="color:var(--ink-faint)">${r.platform?cEsc(r.platform):'—'}</td><td class="r mono">${f}</td><td class="r mono">${b}</td><td class="r mono"><b>${r.total}</b> <span style="color:${ov>0?'var(--bad)':'var(--good)'}">(${ov>0?'+':''}${ov})</span></td></tr>`;}).join('')}
      </tbody></table></div>
    </div>`;
 }
@@ -3810,16 +3867,36 @@ const GOLF_CSV_MAP={'date':'date','club type':'clubRaw','club name':'clubName','
   'carry distance':'carry','carry deviation distance':'carryDev','total distance':'total','total deviation distance':'totalDev'};
 
 /* ---- Round entry via Garmin scorecard image (Claude vision) ---- */
+/* Where the round was played. Online rounds (simulator / virtual) are kept
+   apart from real scorecards everywhere — they are not the same game and
+   averaging them together flatters or flatters-not the on-course numbers. */
+function roundMode(r){ return (r&&r.mode==='online')?'online':'course'; }
+let _roundMode='course';
+function setRoundMode(m){
+  _roundMode=(m==='online')?'online':'course';
+  document.querySelectorAll('#rmSeg .seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.mode===_roundMode));
+  const pf=document.getElementById('rmPlatformWrap');
+  if(pf) pf.style.display=_roundMode==='online'?'block':'none';
+}
 function openRoundEntry(){
+  _roundMode='course';
   showModal(`<div class="modal-head">
     <div><h2>Log a round</h2><div class="ms">Upload a photo of your Garmin scorecard — Claude reads it automatically</div></div>
     <button class="x" onclick="closeModal()">${xSvg()}</button>
   </div>
   <div class="modal-body">
+    <div class="seg" id="rmSeg" style="margin-bottom:14px">
+      <button class="seg-btn active" data-mode="course" onclick="setRoundMode('course')">On course</button>
+      <button class="seg-btn" data-mode="online" onclick="setRoundMode('online')">Online</button>
+    </div>
+    <div id="rmPlatformWrap" style="display:none;margin-bottom:16px">
+      <div class="kicker" style="margin-bottom:6px">Platform</div>
+      <input id="rmPlatform" class="exp-in" style="width:100%" placeholder="Where you played it — GSPro, SkyTrak, WGT, TrackMan…">
+    </div>
     <div class="dz" id="rdz" onclick="document.getElementById('rndImg').click()">
       <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
       <div class="dz-t">Drop scorecard image or tap to browse</div>
-      <div class="dz-s">Screenshot or photo of your Garmin Golf scorecard · PNG / JPG / WEBP</div>
+      <div class="dz-s">Screenshot or photo of your scorecard · PNG / JPG / WEBP</div>
     </div>
     <input type="file" id="rndImg" accept="image/*" style="display:none" onchange="handleRoundImage(this.files[0])">
     <div id="rndPreview"></div>
@@ -3970,6 +4047,9 @@ function commitRound(){
   const r=window._pendingRound;
   if(!r||!r.total){ toast('No round data to save'); return; }
   DB.golf=DB.golf||{shots:[],rounds:[]};
+  const mode=_roundMode==='online'?'online':'course';
+  const pfEl=document.getElementById('rmPlatform');
+  const platform=mode==='online'?((pfEl&&pfEl.value||'').trim()||null):null;
   DB.golf.rounds.push({
     id:'r'+Date.now(),
     course:r.course||'Unknown',
@@ -3979,11 +4059,13 @@ function commitRound(){
     format:r.format||'Stroke Play',
     par:r.par||72,
     total:r.total,
-    holes:r.holes||[]
+    holes:r.holes||[],
+    mode,
+    platform
   });
   window._pendingRound=null;
   save(); closeModal(); renderGolf(); renderHome();
-  toast('Round saved: '+r.total+' at '+(r.course||'course'));
+  toast((mode==='online'?'Online round saved: ':'Round saved: ')+r.total+' at '+(r.course||'course'));
 }
 function openGolfImport(){
   showModal(`<div class="modal-head"><div><h2>Import range session</h2><div class="ms">Drop a Garmin / launch-monitor CSV — clubs map to your bag automatically</div></div>
@@ -5774,6 +5856,32 @@ function b64ToUint8(b64){
   const raw=atob((b64+pad).replace(/-/g,'+').replace(/_/g,'/'));
   return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
 }
+function uint8ToB64Url(buf){
+  let s=''; new Uint8Array(buf).forEach(b=>{ s+=String.fromCharCode(b); });
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+/* The key a subscription was actually created with. Safari exposes this from
+   16.4; when it doesn't, we fall back to asking the server. */
+function subAppKey(sub){
+  try{ const k=sub&&sub.options&&sub.options.applicationServerKey; return k?uint8ToB64Url(k):null; }
+  catch(e){ return null; }
+}
+/* Subscribe from scratch, throwing away whatever this device was holding.
+   A subscription is welded to the VAPID key it was born with: if the server's
+   keypair has changed (it regenerates one whenever its volume is empty), every
+   push to the old subscription is rejected 403 and nothing reaches the phone.
+   Re-POSTing the same subscription does not fix that — only this does. */
+async function registerPush(publicKey){
+  const base=proxyBase();
+  const reg=await ensureSW(); if(!reg) throw new Error('Service worker unavailable');
+  const existing=await reg.pushManager.getSubscription();
+  if(existing) await existing.unsubscribe().catch(()=>{});
+  const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToUint8(publicKey)});
+  const r=await fetch(base+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({subscription:sub.toJSON(),appKey:publicKey,label:navigator.platform||'device'})});
+  if(!r.ok) throw new Error('Server rejected the subscription');
+  return r.json();
+}
 /* Must be called straight off a tap — iOS throws away a permission request
    that isn't tied to a user gesture. */
 async function enableNotifications(){
@@ -5786,21 +5894,43 @@ async function enableNotifications(){
   try{
     const perm=await Notification.requestPermission();
     if(perm!=='granted'){ toast('Notifications were blocked'); renderCoach(); return; }
-    const reg=await ensureSW(); if(!reg) throw new Error('Service worker unavailable');
     const {publicKey}=await fetch(base+'/push/key').then(r=>r.json());
     if(!publicKey) throw new Error('Push not configured on the server');
-    let sub=await reg.pushManager.getSubscription();
-    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToUint8(publicKey)});
-    const r=await fetch(base+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({subscription:sub.toJSON(),label:navigator.platform||'device'})});
-    if(!r.ok) throw new Error('Server rejected the subscription');
-    toast('Notifications on'); renderCoach();
+    const out=await registerPush(publicKey);
+    await refreshPushState();
+    toast(out&&out.devices?'Notifications on':'Registered, but the server sees no live device');
+    renderCoach();
   }catch(e){ toast(e.message||'Could not enable notifications'); renderCoach(); }
+}
+/* Silent repair, run whenever the app opens. If this device's subscription is
+   one the server can no longer reach, resubscribe before he finds out the hard
+   way by missing a reminder. Permission is already granted at this point, so
+   no user gesture is needed. */
+async function healPush(){
+  const base=proxyBase(); if(!base) return;
+  if(!pushSupported()) return;
+  if(!window.Notification||Notification.permission!=='granted') return;
+  try{
+    const reg=await ensureSW(); if(!reg) return;
+    const sub=await reg.pushManager.getSubscription();
+    const {publicKey}=await fetch(base+'/push/key').then(r=>r.json()).catch(()=>({}));
+    if(!publicKey) return;
+    if(!sub){ await registerPush(publicKey); await refreshPushState(); return; }
+    const mine=subAppKey(sub);
+    if(mine){ if(mine!==publicKey){ await registerPush(publicKey); await refreshPushState(); } return; }
+    // Key not readable on this browser — let the server judge the endpoint.
+    const chk=await fetch(base+'/push/check',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({endpoint:sub.endpoint})}).then(r=>r.json()).catch(()=>null);
+    if(chk&&(chk.stale||!chk.known)){ await registerPush(publicKey); await refreshPushState(); }
+  }catch(e){ console.log('[PUSH] heal failed',e.message); }
 }
 async function sendTestPush(){
   const base=proxyBase(); if(!base) return;
-  const r=await fetch(base+'/push/test',{method:'POST'}).then(x=>x.json()).catch(()=>({sent:0}));
-  toast(r.sent?('Sent to '+r.sent+' device'+(r.sent===1?'':'s')):'No devices registered');
+  const r=await fetch(base+'/push/test',{method:'POST'}).then(x=>x.json()).catch(()=>({sent:0,errors:['could not reach the proxy']}));
+  await refreshPushState();
+  if(r.sent) toast('Sent to '+r.sent+' device'+(r.sent===1?'':'s'));
+  else toast((r.errors&&r.errors[0])||'Nothing was delivered');
+  renderCoach();
 }
 
 /* --- reminders --- */
@@ -6020,6 +6150,24 @@ function renderCoach(){
   const canPush=pushSupported()&&!needsInstall;
   const perm=(window.Notification&&Notification.permission)||'default';
 
+  /* Delivery diagnostics, in plain sight. "Notifications on" used to be a
+     count of rows in a file on the proxy — it stayed green long after the
+     phone had stopped receiving anything. */
+  const lp=_pushState.lastPush;
+  const lastLine=lp
+    ? (lp.sent
+        ? `Last send: ${new Date(lp.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})} → delivered to ${lp.sent} device${lp.sent===1?'':'s'}.`
+        : `Last send: ${new Date(lp.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})} → <strong>not delivered</strong>${lp.errors&&lp.errors.length?' — '+cEsc(lp.errors[0]):''}.`)
+    : 'Nothing has been sent yet.';
+  const keyWarn=(_pushState.configured&&_pushState.keyPersistent===false)
+    ? `<div class="c-note" style="margin-top:8px">⚠ The proxy's push keypair isn't persistent (${cEsc(_pushState.keySource||'')}),
+       so a redeploy silently kills every registration. Set <span class="mono">VAPID_PUBLIC_KEY</span> and
+       <span class="mono">VAPID_PRIVATE_KEY</span> in Railway — the current pair is printed in the deploy log.</div>`
+    : '';
+  const staleLine=_pushState.stale
+    ? `<div class="c-note" style="margin-top:6px">${_pushState.stale} stale registration${_pushState.stale===1?'':'s'} on file — from before the proxy's push key last changed.</div>`
+    : '';
+
   const notifBlock = needsInstall
     ? `<div class="c-card warn">
          <div class="c-h">Install the app to get notifications</div>
@@ -6031,11 +6179,23 @@ function renderCoach(){
     : !canPush
       ? `<div class="c-card warn"><div class="c-h">Notifications unavailable</div>
          <div class="c-note">This browser doesn't support web push.</div></div>`
+      : !_pushState.configured
+        ? `<div class="c-card warn"><div class="c-h">Push isn't configured on the proxy</div>
+           <div class="c-note">The server has no VAPID keypair, so nothing can be delivered. Check the proxy's deploy log.</div></div>`
       : perm==='granted'&&_pushState.devices
-        ? `<div class="c-card ok"><div class="c-h">Notifications on · ${_pushState.devices} device${_pushState.devices===1?'':'s'}</div>
+        ? `<div class="c-card ${lp&&!lp.sent?'warn':'ok'}"><div class="c-h">Notifications on · ${_pushState.devices} live device${_pushState.devices===1?'':'s'}</div>
+           <div class="c-note">${lastLine}</div>${staleLine}${keyWarn}
            <div style="display:flex;gap:9px;margin-top:10px">
              <button class="btn" onclick="sendTestPush()">Send a test</button>
              <button class="btn" onclick="enableNotifications()">Re-register this device</button></div></div>`
+        : perm==='granted'&&!_pushState.devices
+          ? `<div class="c-card warn"><div class="c-h">Nothing can be delivered to this phone</div>
+             <div class="c-note">You've allowed notifications, but the proxy has no live registration for this device —
+             ${_pushState.stale?'the ones on file were made under an older push key':'nothing is registered'}.
+             Tap below to register it again; reminders set in the meantime will still be waiting.</div>${keyWarn}
+             <div style="display:flex;gap:9px;margin-top:10px">
+               <button class="btn primary" onclick="enableNotifications()">Re-register this device</button>
+               <button class="btn" onclick="sendTestPush()">Send a test</button></div></div>`
         : perm==='denied'
           ? `<div class="c-card warn"><div class="c-h">Notifications are blocked</div>
              <div class="c-note">Allow them for this site in your browser settings, then reload.</div></div>`
@@ -6091,7 +6251,8 @@ function renderCoach(){
             </div>`).join('')
           :`<div class="c-note" style="margin-top:12px">Nothing scheduled. Record a voice note or add one.</div>`}
           ${done.length?`<div class="c-note" style="margin-top:14px;opacity:.75">Recently done</div>
-            ${done.map(r=>`<div class="c-rem" style="opacity:.55"><div style="flex:1"><div class="c-rem-t" style="text-decoration:line-through">${cEsc(r.text)}</div></div>
+            ${done.map(r=>`<div class="c-rem" style="opacity:.55"><div style="flex:1"><div class="c-rem-t" style="text-decoration:line-through">${cEsc(r.text)}</div>
+              ${r.firedAt&&!r.delivered?`<div class="c-note" style="color:var(--bad)">Fired but never reached a device${r.deliveryError?' — '+cEsc(r.deliveryError):''}</div>`:''}</div>
               <button class="btn" style="padding:4px 8px;font-size:12px" onclick="remDelete('${r.id}')">✕</button></div>`).join('')}`:''}
         </div>
         <div class="c-card">
@@ -6105,6 +6266,10 @@ function renderCoach(){
 async function initCoach(){
   await Promise.all([loadReminders(),refreshPushState()]);
   if(pushSupported()&&Notification.permission==='granted') ensureSW();
+  renderCoach();
+  // Repair a subscription the server can no longer push to, then redraw with
+  // the truth. Deliberately after the first paint — it can involve a round trip.
+  await healPush();
   renderCoach();
 }
 

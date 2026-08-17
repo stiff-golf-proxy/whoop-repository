@@ -514,10 +514,48 @@ const COACH_TOOLS = [
       properties: { id: { type: 'string', description: 'The reminder id from list_reminders' } },
       required: ['id']
     }
+  },
+  {
+    name: 'send_notification',
+    description: 'Push a notification to Stuart\'s phone RIGHT NOW. Use when he asks you to notify or ' +
+                 'alert him immediately, or to test that notifications work — not for anything with a ' +
+                 'time attached, which is set_reminder. The result tells you how many devices actually ' +
+                 'accepted it; report that honestly, including failure.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Short notification title, e.g. "Life"' },
+        body:  { type: 'string', description: 'The notification text, in second person' }
+      },
+      required: ['body']
+    }
+  },
+  {
+    name: 'notification_status',
+    description: 'Check whether push notifications can currently reach his phone at all — how many live ' +
+                 'devices are registered, and how the last send went. Use before promising delivery, and ' +
+                 'whenever he says a notification did not arrive.',
+    input_schema: { type: 'object', properties: {}, required: [] }
   }
 ];
 
-function runCoachTool(name, input) {
+/* Delivery truth, in the words the model should be repeating back. */
+function deliveryNote() {
+  const subs = readSubs();
+  const live = liveSubs(subs).length;
+  const stale = subs.length - live;
+  if (live) return { liveDevices: live, staleDevices: stale, ok: true,
+    note: 'Will push to ' + live + ' live device(s).' };
+  if (stale) return { liveDevices: 0, staleDevices: stale, ok: false,
+    note: 'NOTHING can be delivered: all ' + stale + ' registered device(s) are stale (the server\'s push keypair ' +
+          'changed since they subscribed). Tell him to open Coach and tap "Re-register this device" — the app also ' +
+          'repairs this by itself next time it is opened.' };
+  return { liveDevices: 0, staleDevices: 0, ok: false,
+    note: 'NOTHING can be delivered: no device is registered for notifications. Tell him to open the app from its ' +
+          'Home Screen icon, go to Coach, and tap "Enable notifications".' };
+}
+
+async function runCoachTool(name, input) {
   try {
     if (name === 'set_reminder') {
       const at = localToInstant(input.at);
@@ -527,11 +565,23 @@ function runCoachTool(name, input) {
         text: String(input.text || '').slice(0, 400), at, repeat: input.repeat || 'none',
         source: 'coach', done: false, firedAt: null, createdAt: new Date().toISOString() };
       rems.push(rem); writeRems(rems);
-      const devices = readSubs().length;
+      const d = deliveryNote();
       return { ok: true, id: rem.id, firesAtLocal: input.at, repeat: rem.repeat,
         // tell the model the truth about delivery so it doesn't over-promise
-        note: devices ? 'Will push to ' + devices + ' registered device(s).'
-                      : 'Saved, but NO device is registered for notifications yet — tell him to open Coach and tap Enable notifications, or it will only show in the app.' };
+        deliverable: d.ok, liveDevices: d.liveDevices, staleDevices: d.staleDevices, note: d.note };
+    }
+    if (name === 'send_notification') {
+      const r = await sendPush({ title: String(input.title || 'Life').slice(0, 60),
+        body: String(input.body || '').slice(0, 300), tag: 'coach', url: '/app' });
+      return r.sent
+        ? { ok: true, delivered: r.sent, note: 'Accepted by ' + r.sent + ' device(s). It should appear on his phone within seconds.' }
+        : { ok: false, delivered: 0, errors: r.errors, note: 'NOT delivered — say so plainly instead of claiming it was sent. ' + deliveryNote().note };
+    }
+    if (name === 'notification_status') {
+      const d = deliveryNote();
+      return { liveDevices: d.liveDevices, staleDevices: d.staleDevices, canDeliver: d.ok,
+        keySource: VAPID_SOURCE, keyPersistent: DATA_PERSISTENT || VAPID_SOURCE === 'env',
+        lastPush: LAST_PUSH, note: d.note };
     }
     if (name === 'list_reminders') {
       return { reminders: readRems().filter(r => !r.done)
@@ -564,9 +614,16 @@ app.post('/coach', async (req, res) => {
     const nowLocal = new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ, hour12: false,
       year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'long' }).format(new Date());
     const system = COACH_SYSTEM
-      + `\n\nIt is currently ${nowLocal} (${APP_TZ}). You can set, list and cancel reminders yourself using your tools — `
-      + `never tell him to use his phone's clock or calendar app instead, and never say you are unable to send alerts. `
-      + `Reminders you set are delivered as push notifications to his phone by this dashboard.`
+      + `\n\nIt is currently ${nowLocal} (${APP_TZ}). You can set, list and cancel reminders, send an immediate `
+      + `notification, and check notification health yourself using your tools — never tell him to use his phone's `
+      + `clock or calendar app instead.`
+      + `\n\nNEVER claim a notification was sent unless a tool result says it was. To notify him now, call `
+      + `send_notification and read its result: only "ok": true with a non-zero "delivered" count means his phone `
+      + `got it. If a tool reports 0 live devices, a delivery failure, or stale devices, tell him plainly that `
+      + `nothing was delivered and repeat the fix in the tool's note — do not soften it, and do not say "I've sent `
+      + `you a notification" when nothing left the server. Scheduling a reminder is not the same as delivering one: `
+      + `say when it will fire, and flag it if delivery is currently broken. If he says a notification never `
+      + `arrived, call notification_status first and answer from what it reports.`
       + (context ? `\n\n${String(context).slice(0, 5000)}` : '');
 
     const convo = clean.slice();
@@ -585,12 +642,14 @@ app.post('/coach', async (req, res) => {
       if (j.stop_reason !== 'tool_use') break;
       const calls = (j.content || []).filter(b => b.type === 'tool_use');
       convo.push({ role: 'assistant', content: j.content });
-      convo.push({ role: 'user', content: calls.map(c => {
-        const out = runCoachTool(c.name, c.input || {});
+      const results = [];
+      for (const c of calls) {
+        const out = await runCoachTool(c.name, c.input || {});
         used.push(c.name);
         console.log('[COACH] tool', c.name, JSON.stringify(out).slice(0, 160));
-        return { type: 'tool_result', tool_use_id: c.id, content: JSON.stringify(out) };
-      }) });
+        results.push({ type: 'tool_result', tool_use_id: c.id, content: JSON.stringify(out) });
+      }
+      convo.push({ role: 'user', content: results });
     }
     res.json({ reply: reply || '(no reply)', toolsUsed: used });
   } catch (e) { console.log('[COACH] failed', e.message); res.status(500).json({ error: e.message }); }
@@ -1649,21 +1708,39 @@ app.get('/sw.js', (req, res) => {
 const VAPID_FILE = DATA_DIR + '/vapid.json';
 const SUBS_FILE  = DATA_DIR + '/push-subs.json';
 let VAPID = null;
+let VAPID_SOURCE = 'none';
+/* A subscription is bound to the public key it was created with. If this
+   process ever comes up holding a DIFFERENT keypair, every push to the phones
+   registered under the old one is rejected by Apple/Google with a 403 — the
+   phone stays listed, the send "succeeds" as far as the caller can see, and
+   nothing arrives. So the source of the keypair is a first-class fact here. */
+const DATA_PERSISTENT = !!(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH);
 
 function initVapid() {
   try {
     if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
       VAPID = { publicKey: process.env.VAPID_PUBLIC_KEY, privateKey: process.env.VAPID_PRIVATE_KEY };
+      VAPID_SOURCE = 'env';
     } else if (fs.existsSync(VAPID_FILE)) {
       VAPID = JSON.parse(fs.readFileSync(VAPID_FILE, 'utf8'));
+      VAPID_SOURCE = DATA_PERSISTENT ? 'volume' : 'container disk (ephemeral)';
     } else {
       VAPID = webpush.generateVAPIDKeys();
       if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(VAPID_FILE, JSON.stringify(VAPID));
-      console.log('[PUSH] generated a new VAPID keypair on the volume');
+      VAPID_SOURCE = DATA_PERSISTENT ? 'volume (new keypair)' : 'generated, ephemeral';
+      console.log('[PUSH] generated a new VAPID keypair at', VAPID_FILE);
     }
     webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:stuarth@gerber.co.za', VAPID.publicKey, VAPID.privateKey);
-    console.log('[PUSH] VAPID ready');
+    console.log('[PUSH] VAPID ready — source =', VAPID_SOURCE);
+    if (!DATA_PERSISTENT && VAPID_SOURCE !== 'env') {
+      // The single most likely reason notifications silently stop working.
+      console.log('[PUSH] WARNING keypair is NOT persistent: no DATA_DIR / volume is mounted, so the next');
+      console.log('[PUSH]   redeploy invents a new one and every already-registered phone goes dead-but-listed.');
+      console.log('[PUSH]   Pin it by setting these Railway variables and redeploying:');
+      console.log('[PUSH]   VAPID_PUBLIC_KEY  =', VAPID.publicKey);
+      console.log('[PUSH]   VAPID_PRIVATE_KEY =', VAPID.privateKey);
+    }
   } catch (e) { console.log('[PUSH] VAPID init failed', e.message); VAPID = null; }
 }
 initVapid();
@@ -1671,24 +1748,57 @@ initVapid();
 const readSubs  = () => { try { return JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8')); } catch (e) { return []; } };
 const writeSubs = s => { try { if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(SUBS_FILE, JSON.stringify(s)); } catch (e) { console.log('[PUSH] save failed', e.message); } };
 
-/* Fan a payload out to every registered device, pruning any the push service
-   has retired (410/404) so dead phones don't accumulate forever. */
+/* A device counts as live only if it was registered under the key we still
+   hold. Anything else is stale: it needs re-subscribing on the phone, which
+   no amount of re-POSTing the same subscription will achieve. */
+const subIsStale = s => !!(VAPID && s.appKey && s.appKey !== VAPID.publicKey);
+const liveSubs   = subs => subs.filter(s => !subIsStale(s) && !s.deadAt);
+/* Last delivery outcome, so "the coach said it sent" can be checked against
+   what the push service actually accepted. */
+let LAST_PUSH = null;
+
+/* Fan a payload out to every live device. Endpoints the push service has
+   retired (404/410) are pruned; a 403 means the JWT didn't match the key the
+   subscription was made with, so that device is marked stale rather than
+   pruned — the app can then re-register it silently. */
 async function sendPush(payload) {
-  if (!VAPID) { console.log('[PUSH] no VAPID configured — skipping'); return { sent: 0, pruned: 0 }; }
+  const stamp = new Date().toISOString();
+  const record = extra => {
+    LAST_PUSH = Object.assign({ at: stamp, title: payload && payload.title, sent: 0, failed: 0,
+      pruned: 0, stale: 0, errors: [] }, extra);
+    return LAST_PUSH;
+  };
+  if (!VAPID) { console.log('[PUSH] no VAPID configured — skipping'); return record({ errors: ['push not configured on the server'] }); }
   const subs = readSubs();
-  if (!subs.length) return { sent: 0, pruned: 0 };
+  const targets = liveSubs(subs);
+  const staleCount = subs.length - targets.length;
+  if (!targets.length) {
+    console.log('[PUSH] nothing sent — 0 live devices (' + staleCount + ' stale/dead of ' + subs.length + ')');
+    return record({ stale: staleCount,
+      errors: [subs.length ? 'every registered device is stale — re-enable notifications on the phone'
+                           : 'no device is registered for notifications'] });
+  }
   const body = JSON.stringify(payload);
-  let sent = 0; const dead = [];
-  await Promise.all(subs.map(async s => {
+  let sent = 0, failed = 0; const dead = [], wrongKey = [], errors = [];
+  await Promise.all(targets.map(async s => {
     try { await webpush.sendNotification(s.sub, body); sent++; }
     catch (e) {
+      failed++;
       const code = e && e.statusCode;
-      if (code === 404 || code === 410) dead.push(s.sub.endpoint);
-      else console.log('[PUSH] send failed', code || e.message);
+      if (code === 404 || code === 410) { dead.push(s.sub.endpoint); errors.push('device gone (' + code + ')'); }
+      else if (code === 403) { wrongKey.push(s.sub.endpoint); errors.push('push service rejected our VAPID key (403) — device must re-subscribe'); }
+      else errors.push('send failed: ' + (code || e.message));
+      console.log('[PUSH] send failed', code || e.message);
     }
   }));
-  if (dead.length) writeSubs(subs.filter(s => !dead.includes(s.sub.endpoint)));
-  return { sent, pruned: dead.length };
+  if (dead.length || wrongKey.length) {
+    writeSubs(subs
+      .filter(s => !dead.includes(s.sub.endpoint))
+      .map(s => wrongKey.includes(s.sub.endpoint) ? Object.assign({}, s, { appKey: 'stale:' + (s.appKey || 'unknown') }) : s));
+  }
+  const out = record({ sent, failed, pruned: dead.length, stale: staleCount + wrongKey.length, errors: [...new Set(errors)] });
+  console.log('[PUSH] sent ' + sent + '/' + targets.length + (failed ? ' (' + failed + ' failed)' : ''));
+  return out;
 }
 
 app.get('/push/key', (req, res) => {
@@ -1696,21 +1806,44 @@ app.get('/push/key', (req, res) => {
   res.json({ publicKey: VAPID.publicKey });
 });
 app.get('/push/status', (req, res) => {
-  res.json({ configured: !!VAPID, devices: readSubs().length });
+  const subs = readSubs();
+  const live = liveSubs(subs);
+  res.json({
+    configured: !!VAPID,
+    devices: live.length,              // live devices — what the UI should trust
+    registered: subs.length,           // everything on file, stale included
+    stale: subs.length - live.length,
+    keySource: VAPID_SOURCE,
+    keyPersistent: DATA_PERSISTENT || VAPID_SOURCE === 'env',
+    lastPush: LAST_PUSH
+  });
+});
+/* The phone asks whether the subscription it is holding is still one we can
+   reach. A "stale" answer is the app's cue to unsubscribe and subscribe
+   again — the only thing that actually repairs a rotated keypair. */
+app.post('/push/check', (req, res) => {
+  const { endpoint } = req.body || {};
+  if (!endpoint) return res.status(400).json({ error: 'endpoint required' });
+  const s = readSubs().find(x => x.sub.endpoint === endpoint);
+  res.json({ known: !!s, stale: s ? subIsStale(s) || !!s.deadAt : true, currentKey: VAPID ? VAPID.publicKey : null });
 });
 app.post('/push/subscribe', (req, res) => {
-  const { subscription, label } = req.body || {};
+  const { subscription, label, appKey } = req.body || {};
   if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'subscription required' });
+  // Record which key this subscription was created under so staleness is detectable later.
+  const key = appKey || (VAPID ? VAPID.publicKey : null);
   const subs = readSubs().filter(s => s.sub.endpoint !== subscription.endpoint);
-  subs.push({ sub: subscription, label: label || 'device', addedAt: new Date().toISOString() });
+  subs.push({ sub: subscription, label: label || 'device', appKey: key, addedAt: new Date().toISOString() });
   writeSubs(subs);
-  res.json({ ok: true, devices: subs.length });
+  const live = liveSubs(subs).length;
+  console.log('[PUSH] subscribed ' + (label || 'device') + ' — ' + live + ' live device(s)');
+  res.json({ ok: true, devices: live, stale: subs.length - live, keyMatched: !!VAPID && key === VAPID.publicKey });
 });
 app.post('/push/unsubscribe', (req, res) => {
   const { endpoint } = req.body || {};
   const subs = readSubs().filter(s => s.sub.endpoint !== endpoint);
   writeSubs(subs);
-  res.json({ ok: true, devices: subs.length });
+  res.json({ ok: true, devices: liveSubs(subs).length });
 });
 app.post('/push/test', async (req, res) => {
   const r = await sendPush({ title: 'Life', body: 'Notifications are working.', tag: 'test', url: '/app' });
@@ -1797,14 +1930,19 @@ setInterval(async () => {
     const due = rems.filter(r => !r.done && !r.firedAt && new Date(r.at).getTime() <= now);
     if (due.length) {
       for (const r of due) {
-        await sendPush({ title: 'Reminder', body: r.text, tag: r.id, url: '/app?remind=' + r.id, id: r.id });
+        const out = await sendPush({ title: 'Reminder', body: r.text, tag: r.id, url: '/app?remind=' + r.id, id: r.id });
+        // Keep the delivery verdict on the reminder. A reminder that fired into
+        // thin air used to look identical to one that reached the phone.
+        r.delivered = out.sent;
+        r.deliveryError = out.sent ? null : (out.errors[0] || 'nothing was delivered');
         r.firedAt = new Date().toISOString();
         const nxt = nextOccurrence(r.at, r.repeat);
         if (nxt) { r.at = nxt; r.firedAt = null; }   // recurring: re-arm rather than close out
         else r.done = true;
       }
       writeRems(rems);
-      console.log('[REMIND] fired ' + due.length);
+      const undelivered = due.filter(r => !r.delivered).length;
+      console.log('[REMIND] fired ' + due.length + (undelivered ? ' — ' + undelivered + ' NOT delivered to any device' : ''));
     }
   } catch (e) { console.log('[REMIND] tick failed', e.message); }
   _remTicking = false;

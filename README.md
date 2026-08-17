@@ -32,6 +32,32 @@ Copy that value into a new Railway variable:
    WHOOP_REFRESH_TOKEN = <that value>
 Now redeploys/restarts stay logged in without you re-authorising.
 
+## Keeping notifications alive across redeploys
+Every phone subscription is welded to the VAPID public key it was created with.
+If the proxy comes up holding a different keypair, Apple rejects every push with
+a 403: the phone stays listed in `push-subs.json`, sends look like they worked,
+and nothing arrives.
+
+The keypair is read from `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` if they are
+set, otherwise from `vapid.json` in `DATA_DIR` — which is the container's own
+disk unless a volume is mounted, so it is regenerated on every redeploy.
+
+Pin it once and it never rotates again:
+1. Look in the deploy log for the `[PUSH] WARNING keypair is NOT persistent` block —
+   it prints the current public and private keys.
+2. Add both as Railway variables:
+   - VAPID_PUBLIC_KEY  = <the printed public key>
+   - VAPID_PRIVATE_KEY = <the printed private key>
+3. Redeploy, then re-enable notifications once on the phone (Coach →
+   Re-register this device). Registrations made under the old key are shown as
+   stale and the app re-subscribes itself next time it opens.
+
+Mounting a Railway volume and setting `DATA_DIR` to its mount path achieves the
+same thing, and also keeps reminders, WHOOP tokens and the userdata blob.
+
+`GET /push/status` reports live vs stale devices, where the keypair came from,
+whether it is persistent, and the outcome of the last send.
+
 ## Notes
 - Free tier may cold-start after idle; first request waits a few seconds.
 - Never commit `.env` or `tokens.json` (the .gitignore handles this).
