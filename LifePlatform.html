@@ -5927,6 +5927,76 @@ async function healPush(){
 /* Test THIS device. Sending to "all registered devices" and being told it
    worked tells you nothing when the phone in your hand might not be one of
    them — so we hand the server this device's own endpoint. */
+/* The decisive test, because it skips the push service entirely: ask the
+   service worker to display a notification right now, from the page. If this
+   appears, iOS is willing to show notifications for this web app and the fault
+   is somewhere in the push path. If it doesn't, no amount of push debugging
+   will help — iOS is refusing to display, and that lives in Settings. */
+async function localTestNotification(){
+  try{
+    if(!('Notification' in window)) throw new Error('This browser has no Notification API');
+    if(Notification.permission!=='granted'){
+      const p=await Notification.requestPermission();
+      if(p!=='granted') throw new Error('Permission not granted — iOS will show nothing');
+    }
+    const reg=await ensureSW(); if(!reg) throw new Error('Service worker unavailable');
+    await reg.showNotification('Life',{body:'Local test — if you can see this, iOS is willing to show notifications.',
+      icon:'/icon-192.png',badge:'/icon-192.png',tag:'local-test',data:{url:'/app'}});
+    toast('Fired locally — check your Lock Screen and Notification Centre');
+  }catch(e){ toast(e.message||'Could not show a local notification'); }
+}
+
+/* Everything about THIS device in one readout, so the state of the phone stops
+   being something we infer from the server's side of the wire. */
+let _devDiag=null;
+async function diagnoseDevice(){
+  const base=proxyBase();
+  const d={ standalone:isStandalone(), ios:isIOS(), supported:pushSupported(),
+    permission:('Notification' in window)?Notification.permission:'no Notification API',
+    sw:false, sub:false, subTail:'', serverKnows:null, serverStale:null };
+  try{
+    const reg=await ensureSW(); d.sw=!!reg;
+    const sub=reg&&await reg.pushManager.getSubscription();
+    d.sub=!!sub;
+    if(sub){
+      d.subTail=String(sub.endpoint).slice(-8);
+      if(base){
+        const c=await fetch(base+'/push/check',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({endpoint:sub.endpoint})}).then(r=>r.json()).catch(()=>null);
+        if(c){ d.serverKnows=c.known; d.serverStale=c.stale; }
+      }
+    }
+  }catch(e){ d.error=e.message; }
+  _devDiag=d; renderCoach();
+  toast('Checked this device');
+}
+function deviceDiagHtml(){
+  if(!_devDiag) return '';
+  const d=_devDiag;
+  const row=(label,ok,text)=>`<div style="display:flex;gap:8px;align-items:baseline">
+    <span style="color:${ok===null?'var(--ink-faint)':ok?'var(--good)':'var(--bad)'};font-weight:700">${ok===null?'·':ok?'✓':'✗'}</span>
+    <span style="flex:1">${label}<span style="opacity:.65"> — ${cEsc(text)}</span></span></div>`;
+  // The verdict matters more than the rows; say it in one line.
+  let verdict;
+  if(d.ios&&!d.standalone) verdict='Opened as a browser tab, not the installed app. iOS only delivers push to the Home Screen web app — open it from the icon.';
+  else if(d.permission==='denied') verdict='This web app is blocked from notifying. Delete the Home Screen icon, re-add it, open it and allow notifications.';
+  else if(d.permission!=='granted') verdict='Notifications have not been allowed on this device yet — tap Enable notifications.';
+  else if(!d.sub) verdict='No push subscription on this device. Tap Re-register this device.';
+  else if(d.serverKnows===false) verdict='This device holds a subscription the proxy has never seen — tap Re-register this device.';
+  else if(d.serverStale) verdict='This device’s subscription is stale — tap Re-register this device.';
+  else verdict='This device is correctly registered. If a targeted test is accepted and still nothing appears, iOS is withholding it: Settings → Notifications → Life.';
+  return `<div class="c-note" style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px">
+    <div style="font-weight:600;margin-bottom:6px">This device</div>
+    ${row('Installed web app',d.ios?d.standalone:null,d.standalone?'running standalone':(d.ios?'running in a browser tab':'not iOS — standalone not required'))}
+    ${row('Push API available',d.supported,d.supported?'service worker + PushManager present':'missing on this browser')}
+    ${row('Permission',d.permission==='granted',d.permission)}
+    ${row('Service worker',d.sw,d.sw?'registered':'not registered')}
+    ${row('Subscription',d.sub,d.sub?('present · …'+d.subTail):'none on this device')}
+    ${d.sub?row('Known to the proxy',d.serverKnows===null?null:(d.serverKnows&&!d.serverStale),d.serverKnows===null?'not checked':(d.serverKnows?(d.serverStale?'known but stale':'known and current'):'unknown to the proxy')):''}
+    ${d.error?`<div style="color:var(--bad);margin-top:6px">${cEsc(d.error)}</div>`:''}
+    <div style="margin-top:8px;font-style:italic">${verdict}</div></div>`;
+}
+
 async function sendTestPush(allDevices){
   const base=proxyBase(); if(!base) return;
   let endpoint=null;
@@ -6252,6 +6322,17 @@ function renderCoach(){
           <div id="vState"></div>
         </div>
         ${notifBlock}
+        <div class="c-card">
+          <div class="c-h">Why isn't a notification arriving?</div>
+          <div class="c-note">The local test skips the push service entirely. If it appears, iOS is willing to show
+            notifications here and the fault is in delivery. If it doesn't, iOS is refusing to display them and no
+            amount of push debugging will help — that lives in Settings → Notifications → Life.</div>
+          <div style="display:flex;gap:9px;margin-top:10px;flex-wrap:wrap">
+            <button class="btn primary" onclick="localTestNotification()">Show a test notification (no push)</button>
+            <button class="btn" onclick="diagnoseDevice()">Check this device</button>
+          </div>
+          ${deviceDiagHtml()}
+        </div>
       </div>
       <div>
         <div class="c-card">
