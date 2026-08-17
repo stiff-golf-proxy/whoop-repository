@@ -1739,16 +1739,58 @@ const VOICE_SCHEMA = {
   additionalProperties: false
 };
 
+/* The thinking half, shared by both input routes. Audio is the only thing that
+   needs Whisper — once there are words, this is pure Claude. `now` is the
+   phone's clock so "tomorrow at 3" resolves against the user's day, not UTC. */
+async function interpretNote(transcript, now) {
+  const akey = process.env.ANTHROPIC_API_KEY;
+  if (!akey) { const e = new Error('ANTHROPIC_API_KEY not set on the proxy'); e.status = 501; throw e; }
+  const stamp = now && !isNaN(new Date(now).getTime()) ? new Date(now) : new Date();
+  const localNow = new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'long' }).format(stamp);
+  const ar = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': akey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: process.env.VOICE_MODEL || 'claude-opus-5',
+      max_tokens: 2000,
+      thinking: { type: 'disabled' },
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: VOICE_SCHEMA } },
+      system: 'You turn a short note from Stuart into a structured reminder for his personal dashboard. ' +
+              'It is currently ' + localNow + ' in ' + APP_TZ + '. Resolve relative times ("tomorrow", "in an hour", ' +
+              '"Friday morning") against that. Morning defaults to 08:00, afternoon to 14:00, evening to 18:00. ' +
+              'If no time at all is implied, return intent "note" with an empty at. Never invent a time that was not implied.',
+      messages: [{ role: 'user', content: 'Note: "' + transcript + '"' }]
+    })
+  });
+  const atext = await ar.text();
+  if (!ar.ok) { console.log('[NOTE] claude error', ar.status, atext.slice(0, 300)); const e = new Error('Could not interpret that note'); e.status = 502; throw e; }
+  const aj = JSON.parse(atext);
+  if (aj.stop_reason === 'refusal') { const e = new Error('request declined'); e.status = 502; throw e; }
+  const parsed = JSON.parse((aj.content || []).filter(b => b.type === 'text').map(b => b.text).join(''));
+  const atIso = (parsed.intent === 'reminder' && parsed.at) ? localToInstant(parsed.at) : null;
+  return { ...parsed, at: atIso, atLocal: parsed.at || '' };
+}
+
+/* Typed or dictated with the phone keyboard's own mic — no transcription
+   service involved, so this works on the Claude key alone. */
+app.post('/interpret', async (req, res) => {
+  try {
+    const { text, now } = req.body || {};
+    if (!text || !String(text).trim()) return res.status(400).json({ error: 'text required' });
+    const transcript = String(text).trim().slice(0, 2000);
+    const out = await interpretNote(transcript, now);
+    res.json({ transcript, ...out });
+  } catch (e) { console.log('[INTERPRET] failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+});
+
 app.post('/voice', async (req, res) => {
   try {
     const okey = process.env.OPENAI_API_KEY;
-    const akey = process.env.ANTHROPIC_API_KEY;
-    if (!okey) return res.status(501).json({ error: 'OPENAI_API_KEY not set on the proxy — needed to transcribe voice notes' });
-    if (!akey) return res.status(501).json({ error: 'ANTHROPIC_API_KEY not set on the proxy' });
+    if (!okey) return res.status(501).json({ error: 'OPENAI_API_KEY not set — use the dictation box instead, or add the key' });
     const { audio, media_type = 'audio/webm', now } = req.body || {};
     if (!audio) return res.status(400).json({ error: 'audio field required (base64)' });
 
-    // 1. transcribe
     const ext = /mp4|m4a/.test(media_type) ? 'm4a' : /ogg/.test(media_type) ? 'ogg' : /wav/.test(media_type) ? 'wav' : 'webm';
     const fd = new FormData();
     fd.append('file', new Blob([Buffer.from(audio, 'base64')], { type: media_type }), 'note.' + ext);
@@ -1761,36 +1803,9 @@ app.post('/voice', async (req, res) => {
     const transcript = (JSON.parse(wtext).text || '').trim();
     if (!transcript) return res.json({ transcript: '', intent: 'unclear', reply: "I couldn't hear anything in that." });
 
-    // 2. work out what it means. `now` is the phone's local clock so that
-    //    "tomorrow at 3" resolves against the user's day, not the server's.
-    const stamp = now && !isNaN(new Date(now).getTime()) ? new Date(now) : new Date();
-    const localNow = new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ, hour12: false,
-      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'long' }).format(stamp);
-    const ar = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': akey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: process.env.VOICE_MODEL || 'claude-opus-5',
-        max_tokens: 2000,
-        thinking: { type: 'disabled' },
-        output_config: { effort: 'low', format: { type: 'json_schema', schema: VOICE_SCHEMA } },
-        system: 'You turn a spoken note from Stuart into a structured reminder for his personal dashboard. ' +
-                'It is currently ' + localNow + ' in ' + APP_TZ + '. Resolve relative times ("tomorrow", "in an hour", ' +
-                '"Friday morning") against that. Morning defaults to 08:00, afternoon to 14:00, evening to 18:00. ' +
-                'If no time at all is implied, return intent "note" with an empty at. Never invent a time that was not implied.',
-        messages: [{ role: 'user', content: 'Spoken note: "' + transcript + '"' }]
-      })
-    });
-    const atext = await ar.text();
-    if (!ar.ok) { console.log('[VOICE] claude error', ar.status, atext.slice(0, 300)); return res.status(502).json({ error: 'Could not interpret that note' }); }
-    const aj = JSON.parse(atext);
-    const parsed = JSON.parse((aj.content || []).filter(b => b.type === 'text').map(b => b.text).join(''));
-
-    // 3. local wall-clock -> absolute instant in the app's timezone
-    let atIso = null;
-    if (parsed.intent === 'reminder' && parsed.at) atIso = localToInstant(parsed.at);
-    res.json({ transcript, ...parsed, at: atIso, atLocal: parsed.at || '' });
-  } catch (e) { console.log('[VOICE] failed', e.message); res.status(500).json({ error: e.message }); }
+    const out = await interpretNote(transcript, now);
+    res.json({ transcript, ...out });
+  } catch (e) { console.log('[VOICE] failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
 });
 
 /* "2026-08-18T15:00" in APP_TZ -> a real UTC instant. Works out the zone's

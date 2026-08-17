@@ -168,6 +168,9 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .c-sq{width:19px;height:19px;background:#fff;border-radius:4px;display:block}
 @keyframes cpulse{0%,100%{box-shadow:0 0 0 0 rgba(203,70,60,.5)}50%{box-shadow:0 0 0 12px rgba(203,70,60,0)}}
 .c-rec-t{font-family:var(--mono);font-size:13px;color:var(--bad);letter-spacing:.5px}
+.c-or{display:flex;align-items:center;gap:10px;margin:16px 0 12px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)}
+.c-or::before,.c-or::after{content:"";flex:1;height:1px;background:var(--line)}
 .c-heard{font-family:var(--serif);font-style:italic;font-size:14px;color:var(--ink-faint);line-height:1.55}
 .c-reply{font-family:var(--serif);font-size:14.5px;color:var(--ink);margin-top:8px;line-height:1.55}
 .c-rem{display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
@@ -5750,6 +5753,8 @@ function renderScenario(){
    Reminders live on the server, not in DB — they have to fire while the
    phone is asleep and the app is closed, which only the always-on proxy
    can do. Push needs the app installed to the Home Screen on iOS. */
+// Little inline mic glyph, so the copy can point at the keyboard's own button.
+function micGlyph(){ return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><path d="M12 3a3 3 0 013 3v5a3 3 0 01-6 0V6a3 3 0 013-3z"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>'; }
 function cEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function isStandalone(){
   return window.navigator.standalone===true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
@@ -5979,10 +5984,32 @@ async function commitReminder(){
 }
 
 /* --- pane --- */
-let _pushState={configured:false,devices:0};
+let _pushState={configured:false,devices:0}, _voiceReady=false;
 async function refreshPushState(){
   const base=proxyBase(); if(!base) return;
   try{ _pushState=await fetch(base+'/push/status').then(r=>r.json()); }catch(e){}
+  // /status is open and reports whether the transcription key is present, so
+  // the pane can offer recording only when it would actually work.
+  try{ const s=await fetch(base+'/status').then(r=>r.json()); _voiceReady=/^configured/.test(s.voice||''); }catch(e){}
+}
+/* Typed, or dictated with the keyboard's own microphone. No transcription
+   service in the loop — Claude does the interpreting off the existing key. */
+async function sendTypedNote(){
+  const el=document.getElementById('nText'); if(!el) return;
+  const text=(el.value||'').trim();
+  if(!text){ toast('Type or dictate something first'); return; }
+  const S=document.getElementById('vState');
+  S.innerHTML='<div class="c-note">Working out what you meant…</div>';
+  const base=proxyBase();
+  if(!base){ S.innerHTML='<div class="c-note bad">No proxy configured — set it in Settings.</div>'; return; }
+  try{
+    const r=await fetch(base+'/interpret',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text,now:new Date().toISOString()})});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'Could not interpret that');
+    el.value='';
+    showVoiceResult(d);
+  }catch(e){ S.innerHTML='<div class="c-note bad">⚠ '+cEsc(e.message)+'</div>'; }
 }
 function renderCoach(){
   const P=document.getElementById('pane-coach'); if(!P) return;
@@ -6020,19 +6047,26 @@ function renderCoach(){
     <div class="c-grid">
       <div>
         <div class="c-card">
-          <div class="c-h">Voice note</div>
-          <div class="c-note">Speak an instruction — “remind me to call the plumber tomorrow at nine”.</div>
-          ${voiceSupported()?`
-            <div style="display:flex;align-items:center;gap:14px;margin-top:14px">
+          <div class="c-h">Tell the coach</div>
+          <div class="c-note">“Remind me to call the plumber tomorrow at nine.”
+            On your phone, tap the ${micGlyph()} on the keyboard and just say it.</div>
+          <textarea id="nText" class="exp-in" rows="3" style="width:100%;margin-top:12px"
+            placeholder="Type it, or dictate with the keyboard mic…"
+            onkeydown="if(event.key==='Enter'&&(event.metaKey||event.ctrlKey))sendTypedNote()"></textarea>
+          <button class="btn primary" style="width:100%;justify-content:center;margin-top:9px" onclick="sendTypedNote()">Set it up</button>
+
+          ${voiceSupported()&&_voiceReady?`
+            <div class="c-or">or record</div>
+            <div style="display:flex;align-items:center;gap:14px">
               ${rec?`<button class="c-mic rec" onclick="stopVoice()" aria-label="Stop recording"><span class="c-sq"></span></button>
                      <div><div class="c-rec-t">Recording <span id="vTime">0s</span></div>
                      <div class="c-note">Tap the square when you're done</div></div>
                      <button class="btn" style="margin-left:auto" onclick="cancelVoice()">Cancel</button>`
                   :`<button class="c-mic" onclick="startVoice()" aria-label="Start recording">
                       <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="26" height="26"><path d="M12 3a3 3 0 013 3v5a3 3 0 01-6 0V6a3 3 0 013-3z"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
-                    </button><div class="c-note">Tap to start</div>`}
+                    </button><div class="c-note">Tap to record a longer note</div>`}
             </div>`
-          :`<div class="c-note bad" style="margin-top:10px">Recording needs a secure (https) connection.</div>`}
+          :''}
           <div id="vState"></div>
         </div>
         ${notifBlock}
