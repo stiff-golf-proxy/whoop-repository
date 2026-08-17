@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Stuart Harris · Life</title>
+<!-- Installable web app. iOS only delivers Web Push to a site added to the Home
+     Screen WITH these in place — a plain bookmark gets nothing. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a8a96">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Life">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -142,6 +151,62 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .dz:hover{border-color:var(--terra);background:rgba(14,124,134,.05)}
 .dz .dz-t{font-family:var(--disp);font-weight:600;font-size:17px}
 .dz .dz-s{font-family:var(--serif);font-style:italic;font-size:13px;color:var(--ink-faint);margin-top:6px}
+/* ---- Coach: notifications, voice, reminders ---- */
+.c-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media(max-width:860px){.c-grid{grid-template-columns:1fr}}
+.c-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow);margin-bottom:18px}
+.c-card.ok{border-color:var(--good)}
+.c-card.warn{border-color:var(--warn)}
+.c-h{font-family:var(--disp);font-weight:600;font-size:17px;margin-bottom:4px}
+.c-note{font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);line-height:1.6}
+.c-note.bad{color:var(--bad)}
+.c-mic{width:58px;height:58px;flex:0 0 58px;border-radius:50%;border:none;cursor:pointer;
+  background:linear-gradient(135deg,var(--terra),var(--sage-deep));display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 14px rgba(14,90,95,.3);transition:.16s}
+.c-mic:hover{transform:translateY(-1px)}
+.c-mic.rec{background:var(--bad);animation:cpulse 1.4s ease-in-out infinite}
+.c-sq{width:19px;height:19px;background:#fff;border-radius:4px;display:block}
+@keyframes cpulse{0%,100%{box-shadow:0 0 0 0 rgba(203,70,60,.5)}50%{box-shadow:0 0 0 12px rgba(203,70,60,0)}}
+.c-rec-t{font-family:var(--mono);font-size:13px;color:var(--bad);letter-spacing:.5px}
+.c-heard{font-family:var(--serif);font-style:italic;font-size:14px;color:var(--ink-faint);line-height:1.55}
+.c-reply{font-family:var(--serif);font-size:14.5px;color:var(--ink);margin-top:8px;line-height:1.55}
+.c-rem{display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.c-rem:last-child{border-bottom:none}
+.c-rem-t{font-family:var(--disp);font-weight:500;font-size:14.5px}
+#pane-coach .ms{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint)}
+/* ---- Expense claims ---- */
+.exp-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;margin-bottom:10px}
+.exp-thumb{width:58px;height:58px;flex:0 0 58px;border-radius:10px;object-fit:cover;background:var(--paper2);border:1px solid var(--line);cursor:zoom-in}
+.exp-mer{font-family:var(--disp);font-weight:600;font-size:15.5px}
+.exp-why{font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);margin-top:3px;line-height:1.5}
+.exp-amt{font-family:var(--mono);font-size:15px;white-space:nowrap;margin-left:auto;text-align:right}
+.exp-pill{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;
+  padding:3px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--ink-faint);margin-top:6px}
+.exp-pill.ok{color:var(--good);border-color:var(--good)}
+.exp-pill.maybe{color:var(--warn);border-color:var(--warn)}
+.exp-pill.none{color:var(--bad);border-color:var(--bad)}
+.exp-req{color:var(--bad)}
+#pane-expenses .ms{font-family:var(--mono);font-size:11.5px;letter-spacing:.4px;color:var(--ink-faint)}
+.exp-lbl{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:5px}
+.exp-in{background:var(--paper);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;
+  font-family:var(--serif);font-size:14.5px;color:var(--ink)}
+.exp-in:focus{outline:none;border-color:var(--terra);box-shadow:0 0 0 3px rgba(14,124,134,.16)}
+/* Report view: hidden until built, and the only thing that prints */
+#expReport{display:none}
+#expReport.show{display:block}
+.exp-rep-row{break-inside:avoid;page-break-inside:avoid;border-bottom:1px solid var(--line);padding:16px 0;display:flex;gap:18px;align-items:flex-start}
+.exp-rep-img{width:170px;flex:0 0 170px;border:1px solid var(--line);border-radius:8px}
+@media print{
+  @page{margin:14mm}
+  body{background:#fff}
+  .nav,.topbar,#toast,.overlay,.exp-noprint{display:none!important}
+  .pane{display:none!important}
+  .pane#pane-expenses{display:block!important}
+  #expWorkspace{display:none!important}
+  #expReport{display:block!important}
+  .exp-rep-img{width:150px;flex:0 0 150px}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 .sw-strip{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px}
 .sw-strip img{height:84px;border-radius:7px;border:1px solid var(--line2);flex:none}
 .sw-chat{display:flex;flex-direction:column;gap:12px;max-height:46vh;overflow-y:auto;padding:4px 2px 6px}
@@ -457,6 +522,8 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
     <button data-pane="health"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg>Health</button>
     <button data-pane="goals"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4h12l-2.5 4L17 12H5"/></svg>Goals</button>
     <button data-pane="finance"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>Wealth</button>
+    <button data-pane="coach"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a3 3 0 013 3v5a3 3 0 01-6 0V6a3 3 0 013-3z"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>Coach</button>
+    <button data-pane="expenses"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg>Expenses</button>
     <button data-pane="pairs"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-6 4 3 5-7M16 7h3v3"/></svg>Pairs</button>
     <button data-pane="scenario"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg>Scenarios</button>
     <button data-pane="retire"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22a10 10 0 100-20 10 10 0 000 20zM12 6v6l4 2"/></svg>Retire</button>
@@ -483,6 +550,8 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   <section id="pane-whoop" class="pane"></section>
   <section id="pane-goals" class="pane"></section>
   <section id="pane-wealth" class="pane"></section>
+  <section id="pane-coach" class="pane"></section>
+  <section id="pane-expenses" class="pane"></section>
   <section id="pane-pairs" class="pane"></section>
   <section id="pane-scenario" class="pane"></section>
   <section id="pane-retire" class="pane"></section>
@@ -5677,7 +5746,864 @@ function renderScenario(){
    ${body}`;
 }
 
-function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire();renderPairs();renderScenario(); }
+/* ============ COACH: NOTIFICATIONS, VOICE, REMINDERS ============
+   Reminders live on the server, not in DB — they have to fire while the
+   phone is asleep and the app is closed, which only the always-on proxy
+   can do. Push needs the app installed to the Home Screen on iOS. */
+function cEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function isStandalone(){
+  return window.navigator.standalone===true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+}
+function isIOS(){ return /iP(hone|ad|od)/.test(navigator.platform||'') || (/Mac/.test(navigator.platform||'')&&navigator.maxTouchPoints>1); }
+function pushSupported(){ return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+
+let _swReg=null;
+async function ensureSW(){
+  if(_swReg) return _swReg;
+  if(!('serviceWorker' in navigator)) return null;
+  try{ _swReg=await navigator.serviceWorker.register('/sw.js',{scope:'/'}); await navigator.serviceWorker.ready; return _swReg; }
+  catch(e){ console.log('[SW] register failed',e.message); return null; }
+}
+function b64ToUint8(b64){
+  const pad='='.repeat((4-b64.length%4)%4);
+  const raw=atob((b64+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
+/* Must be called straight off a tap — iOS throws away a permission request
+   that isn't tied to a user gesture. */
+async function enableNotifications(){
+  const base=proxyBase();
+  if(!base){ toast('Set the proxy URL in Settings first'); return; }
+  if(!pushSupported()){
+    toast(isIOS()&&!isStandalone()?'Add the app to your Home Screen first':'This browser can\'t do push');
+    renderCoach(); return;
+  }
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){ toast('Notifications were blocked'); renderCoach(); return; }
+    const reg=await ensureSW(); if(!reg) throw new Error('Service worker unavailable');
+    const {publicKey}=await fetch(base+'/push/key').then(r=>r.json());
+    if(!publicKey) throw new Error('Push not configured on the server');
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToUint8(publicKey)});
+    const r=await fetch(base+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subscription:sub.toJSON(),label:navigator.platform||'device'})});
+    if(!r.ok) throw new Error('Server rejected the subscription');
+    toast('Notifications on'); renderCoach();
+  }catch(e){ toast(e.message||'Could not enable notifications'); renderCoach(); }
+}
+async function sendTestPush(){
+  const base=proxyBase(); if(!base) return;
+  const r=await fetch(base+'/push/test',{method:'POST'}).then(x=>x.json()).catch(()=>({sent:0}));
+  toast(r.sent?('Sent to '+r.sent+' device'+(r.sent===1?'':'s')):'No devices registered');
+}
+
+/* --- reminders --- */
+let _reminders=[];
+async function loadReminders(){
+  const base=proxyBase(); if(!base){ _reminders=[]; return; }
+  try{ _reminders=await fetch(base+'/reminders').then(r=>r.json()); }catch(e){ _reminders=[]; }
+}
+async function addReminder(text,atIso,repeat,source){
+  const base=proxyBase(); if(!base) throw new Error('No proxy configured');
+  const r=await fetch(base+'/reminders',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text,at:atIso,repeat:repeat||'none',source:source||'typed'})});
+  if(!r.ok) throw new Error('Could not save the reminder');
+  return r.json();
+}
+async function remPatch(id,body){
+  const base=proxyBase(); if(!base) return;
+  await fetch(base+'/reminders/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  await loadReminders(); renderCoach();
+}
+async function remDelete(id){
+  const base=proxyBase(); if(!base) return;
+  await fetch(base+'/reminders/'+id,{method:'DELETE'});
+  await loadReminders(); renderCoach(); toast('Reminder removed');
+}
+function remWhen(iso){
+  const d=new Date(iso), now=new Date();
+  const time=d.toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const sameDay=d.toDateString()===now.toDateString();
+  const tmw=new Date(now.getTime()+86400000).toDateString()===d.toDateString();
+  if(sameDay) return 'Today '+time;
+  if(tmw) return 'Tomorrow '+time;
+  return d.toLocaleDateString('en-ZA',{day:'numeric',month:'short'})+' '+time;
+}
+
+/* --- voice capture --- */
+let _vRec=null,_vChunks=[],_vStream=null,_vStart=0,_vTimer=null;
+function voiceSupported(){ return !!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder&&window.isSecureContext); }
+function vMime(){
+  const opts=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/aac'];
+  for(const m of opts){ try{ if(MediaRecorder.isTypeSupported(m)) return m; }catch(e){} }
+  return '';   // let the browser pick (Safari lands on audio/mp4)
+}
+function stopVoiceStream(){ if(_vStream){ try{_vStream.getTracks().forEach(t=>t.stop());}catch(e){} _vStream=null; } }
+async function startVoice(){
+  if(!voiceSupported()){ toast('Recording needs a secure connection'); return; }
+  const S=document.getElementById('vState'); if(S) S.innerHTML='';
+  try{
+    _vStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const mt=vMime();
+    // Hold the recorder in the closure: stopVoice() clears _vRec straight after
+    // calling stop(), and onstop fires later — reading _vRec in here would throw
+    // and silently swallow both the upload and the stream release.
+    const rec=mt?new MediaRecorder(_vStream,{mimeType:mt}):new MediaRecorder(_vStream);
+    _vRec=rec;
+    _vChunks=[];
+    rec.ondataavailable=e=>{ if(e.data&&e.data.size) _vChunks.push(e.data); };
+    rec.onstop=()=>{
+      const blob=new Blob(_vChunks,{type:rec.mimeType||'audio/webm'});
+      stopVoiceStream();
+      if(blob.size) sendVoice(blob); else toast('Nothing was recorded');
+    };
+    rec.start();
+    _vStart=Date.now();
+    _vTimer=setInterval(()=>{
+      const el=document.getElementById('vTime');
+      if(el) el.textContent=Math.floor((Date.now()-_vStart)/1000)+'s';
+      if(Date.now()-_vStart>120000) stopVoice();      // hard cap, 2 minutes
+    },250);
+    renderCoach();
+  }catch(e){
+    stopVoiceStream();
+    toast(e&&e.name==='NotAllowedError'?'Microphone access was denied':'Could not start recording');
+  }
+}
+function stopVoice(){
+  clearInterval(_vTimer); _vTimer=null;
+  if(_vRec&&_vRec.state!=='inactive'){ try{_vRec.stop();}catch(e){} }
+  _vRec=null; renderCoach();
+}
+function cancelVoice(){
+  clearInterval(_vTimer); _vTimer=null;
+  if(_vRec&&_vRec.state!=='inactive'){ _vRec.onstop=null; try{_vRec.stop();}catch(e){} }
+  _vRec=null; _vChunks=[]; stopVoiceStream(); renderCoach();
+}
+function blobB64(b){ return new Promise((res,rej)=>{ const fr=new FileReader();
+  fr.onerror=()=>rej(new Error('Could not read the recording')); fr.onload=()=>res(fr.result.split(',')[1]); fr.readAsDataURL(b); }); }
+
+async function sendVoice(blob){
+  const S=document.getElementById('vState');
+  if(S) S.innerHTML='<div class="c-note">Transcribing…</div>';
+  const base=proxyBase();
+  if(!base){ if(S) S.innerHTML='<div class="c-note bad">No proxy configured — set it in Settings.</div>'; return; }
+  try{
+    const b64=await blobB64(blob);
+    const r=await fetch(base+'/voice',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({audio:b64,media_type:blob.type||'audio/webm',now:new Date().toISOString()})});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'Voice note failed');
+    showVoiceResult(d);
+  }catch(e){ if(S) S.innerHTML='<div class="c-note bad">⚠ '+cEsc(e.message)+'</div>'; }
+}
+/* Never create anything straight off a transcript — show what was understood
+   and let it be corrected first. Mishearing a date is too easy. */
+function showVoiceResult(d){
+  window._vPending=d;
+  const S=document.getElementById('vState'); if(!S) return;
+  if(d.intent==='unclear'||!d.transcript){
+    S.innerHTML='<div class="c-note">'+cEsc(d.reply||"I couldn't make that out.")+
+      (d.transcript?'<div class="c-heard">“'+cEsc(d.transcript)+'”</div>':'')+'</div>'; return;
+  }
+  const isRem=d.intent==='reminder'&&d.at;
+  S.innerHTML=`
+    <div class="c-card">
+      <div class="c-heard">“${cEsc(d.transcript)}”</div>
+      <div class="c-reply">${cEsc(d.reply||'')}</div>
+      <label class="exp-lbl" style="margin-top:12px">${isRem?'Remind you to':'Note'}</label>
+      <input id="vText" class="exp-in" style="width:100%" value="${cEsc(d.text||'')}">
+      ${isRem?`<div style="display:flex;gap:9px;margin-top:9px">
+        <div style="flex:1"><label class="exp-lbl">When</label>
+          <input id="vWhen" class="exp-in" type="datetime-local" style="width:100%" value="${cEsc((d.atLocal||'').slice(0,16))}"></div>
+        <div style="width:130px"><label class="exp-lbl">Repeat</label>
+          <select id="vRep" class="exp-in" style="width:100%">
+            ${['none','daily','weekdays','weekly','monthly'].map(x=>`<option value="${x}" ${d.repeat===x?'selected':''}>${x==='none'?'Once':x}</option>`).join('')}
+          </select></div>
+      </div>`:''}
+      <div style="display:flex;gap:9px;margin-top:12px">
+        <button class="btn primary" style="flex:1;justify-content:center" onclick="confirmVoice(${isRem?'true':'false'})">
+          ${isRem?'Set reminder':'Save note'}</button>
+        <button class="btn" onclick="document.getElementById('vState').innerHTML=''">Discard</button>
+      </div>
+    </div>`;
+}
+async function confirmVoice(isRem){
+  const text=(document.getElementById('vText').value||'').trim();
+  if(!text){ toast('Nothing to save'); return; }
+  if(!isRem){
+    morningCfg().tasks.push({id:'t'+Date.now(),text:text.slice(0,180),done:false,projectId:null,
+      priority:2,due:null,createdAt:Date.now(),source:'voice'});
+    save(); document.getElementById('vState').innerHTML=''; toast('Saved to tasks'); renderHomeIfActive(); return;
+  }
+  const when=document.getElementById('vWhen').value;
+  if(!when){ toast('Pick a time'); return; }
+  try{
+    await addReminder(text,new Date(when).toISOString(),document.getElementById('vRep').value,'voice');
+    await loadReminders();
+    document.getElementById('vState').innerHTML='';
+    toast('Reminder set'); renderCoach();
+  }catch(e){ toast(e.message); }
+}
+
+/* --- typed reminder --- */
+function openReminderAdd(){
+  const now=new Date(Date.now()+3600000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  showModal(`<div class="modal-head"><div><h2>New reminder</h2><div class="ms">It'll push to your phone</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <label class="exp-lbl">Remind you to</label>
+      <input id="rText" class="exp-in" style="width:100%" placeholder="Call the plumber about the geyser">
+      <div style="display:flex;gap:9px;margin-top:10px">
+        <div style="flex:1"><label class="exp-lbl">When</label>
+          <input id="rWhen" class="exp-in" type="datetime-local" style="width:100%" value="${now}"></div>
+        <div style="width:130px"><label class="exp-lbl">Repeat</label>
+          <select id="rRep" class="exp-in" style="width:100%">
+            <option value="none">Once</option><option value="daily">daily</option>
+            <option value="weekdays">weekdays</option><option value="weekly">weekly</option><option value="monthly">monthly</option>
+          </select></div>
+      </div>
+      <button class="btn primary" style="width:100%;justify-content:center;margin-top:14px" onclick="commitReminder()">Set reminder</button>
+    </div>`);
+}
+async function commitReminder(){
+  const t=(document.getElementById('rText').value||'').trim();
+  const w=document.getElementById('rWhen').value;
+  if(!t){ toast('What should I remind you about?'); return; }
+  if(!w){ toast('Pick a time'); return; }
+  try{
+    await addReminder(t,new Date(w).toISOString(),document.getElementById('rRep').value,'typed');
+    await loadReminders(); closeModal(); toast('Reminder set'); renderCoach();
+  }catch(e){ toast(e.message); }
+}
+
+/* --- pane --- */
+let _pushState={configured:false,devices:0};
+async function refreshPushState(){
+  const base=proxyBase(); if(!base) return;
+  try{ _pushState=await fetch(base+'/push/status').then(r=>r.json()); }catch(e){}
+}
+function renderCoach(){
+  const P=document.getElementById('pane-coach'); if(!P) return;
+  const rec=!!_vRec;
+  const upcoming=_reminders.filter(r=>!r.done).sort((a,b)=>new Date(a.at)-new Date(b.at));
+  const done=_reminders.filter(r=>r.done).slice(-5).reverse();
+  const needsInstall=isIOS()&&!isStandalone();
+  const canPush=pushSupported()&&!needsInstall;
+  const perm=(window.Notification&&Notification.permission)||'default';
+
+  const notifBlock = needsInstall
+    ? `<div class="c-card warn">
+         <div class="c-h">Install the app to get notifications</div>
+         <div class="c-note">iOS only sends push notifications to a web app that's been added to the Home Screen.
+         Open this page in <strong>Safari</strong>, tap the Share button, choose <strong>Add to Home Screen</strong>,
+         then open it from the new icon and come back here.
+         ${window.navigator.standalone===false?'<br><br>If you already have an icon, delete it and add it again — bookmarks made before this update can\'t receive push.':''}</div>
+       </div>`
+    : !canPush
+      ? `<div class="c-card warn"><div class="c-h">Notifications unavailable</div>
+         <div class="c-note">This browser doesn't support web push.</div></div>`
+      : perm==='granted'&&_pushState.devices
+        ? `<div class="c-card ok"><div class="c-h">Notifications on · ${_pushState.devices} device${_pushState.devices===1?'':'s'}</div>
+           <div style="display:flex;gap:9px;margin-top:10px">
+             <button class="btn" onclick="sendTestPush()">Send a test</button>
+             <button class="btn" onclick="enableNotifications()">Re-register this device</button></div></div>`
+        : perm==='denied'
+          ? `<div class="c-card warn"><div class="c-h">Notifications are blocked</div>
+             <div class="c-note">Allow them for this site in your browser settings, then reload.</div></div>`
+          : `<div class="c-card"><div class="c-h">Turn on notifications</div>
+             <div class="c-note">Reminders will arrive on this device even when the app is closed.</div>
+             <button class="btn primary" style="margin-top:10px" onclick="enableNotifications()">Enable notifications</button></div>`;
+
+  P.innerHTML=`
+    <div class="c-grid">
+      <div>
+        <div class="c-card">
+          <div class="c-h">Voice note</div>
+          <div class="c-note">Speak an instruction — “remind me to call the plumber tomorrow at nine”.</div>
+          ${voiceSupported()?`
+            <div style="display:flex;align-items:center;gap:14px;margin-top:14px">
+              ${rec?`<button class="c-mic rec" onclick="stopVoice()" aria-label="Stop recording"><span class="c-sq"></span></button>
+                     <div><div class="c-rec-t">Recording <span id="vTime">0s</span></div>
+                     <div class="c-note">Tap the square when you're done</div></div>
+                     <button class="btn" style="margin-left:auto" onclick="cancelVoice()">Cancel</button>`
+                  :`<button class="c-mic" onclick="startVoice()" aria-label="Start recording">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="26" height="26"><path d="M12 3a3 3 0 013 3v5a3 3 0 01-6 0V6a3 3 0 013-3z"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
+                    </button><div class="c-note">Tap to start</div>`}
+            </div>`
+          :`<div class="c-note bad" style="margin-top:10px">Recording needs a secure (https) connection.</div>`}
+          <div id="vState"></div>
+        </div>
+        ${notifBlock}
+      </div>
+      <div>
+        <div class="c-card">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="c-h" style="margin:0">Reminders</div>
+            <button class="btn" style="margin-left:auto;padding:5px 10px;font-size:12.5px" onclick="openReminderAdd()">+ Add</button>
+          </div>
+          ${upcoming.length?upcoming.map(r=>`
+            <div class="c-rem">
+              <div style="flex:1;min-width:0">
+                <div class="c-rem-t">${cEsc(r.text)}</div>
+                <div class="c-note">${remWhen(r.at)}${r.repeat&&r.repeat!=='none'?' · '+cEsc(r.repeat):''}${r.source==='voice'?' · voice':''}</div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn" style="padding:4px 8px;font-size:12px" onclick="remPatch('${r.id}',{snoozeMin:60})">+1h</button>
+                <button class="btn" style="padding:4px 8px;font-size:12px" onclick="remPatch('${r.id}',{done:true})">Done</button>
+                <button class="btn" style="padding:4px 8px;font-size:12px" onclick="remDelete('${r.id}')">✕</button>
+              </div>
+            </div>`).join('')
+          :`<div class="c-note" style="margin-top:12px">Nothing scheduled. Record a voice note or add one.</div>`}
+          ${done.length?`<div class="c-note" style="margin-top:14px;opacity:.75">Recently done</div>
+            ${done.map(r=>`<div class="c-rem" style="opacity:.55"><div style="flex:1"><div class="c-rem-t" style="text-decoration:line-through">${cEsc(r.text)}</div></div>
+              <button class="btn" style="padding:4px 8px;font-size:12px" onclick="remDelete('${r.id}')">✕</button></div>`).join('')}`:''}
+        </div>
+        <div class="c-card">
+          <div class="c-h">Talk it through</div>
+          <div class="c-note">Open a conversation with the coach about your training, goals or the week ahead.</div>
+          <button class="btn primary" style="margin-top:10px" onclick="openCoach()">Open coach chat</button>
+        </div>
+      </div>
+    </div>`;
+}
+async function initCoach(){
+  await Promise.all([loadReminders(),refreshPushState()]);
+  if(pushSupported()&&Notification.permission==='granted') ensureSW();
+  renderCoach();
+}
+
+/* ============ EXPENSE CLAIMS ============
+   Photograph a slip (an explanation of the spend is mandatory), upload the
+   card statement PDF, let the server-side extraction + local matcher pair
+   them up, then print a claim pack with every slip image inline.
+   Slip metadata syncs via DB; the images live on the volume behind
+   /expenses/slips/:id so they never enter the localStorage blob. */
+function expEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function expId(p){ return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function expCfg(){ if(!DB.expenses) DB.expenses={slips:[],statements:[]};
+  DB.expenses.slips=DB.expenses.slips||[]; DB.expenses.statements=DB.expenses.statements||[]; return DB.expenses; }
+function expMoney(v,cur){ const n=+v||0; return (cur==='ZAR'||!cur?'R ':cur+' ')+n.toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function expDays(a,b){ if(!a||!b) return 999; return Math.abs((new Date(a)-new Date(b))/86400000); }
+
+/* --- slip images: cached in memory, persisted on the volume --- */
+const _expImgs={};
+async function expLoadImg(id){
+  if(_expImgs[id]) return _expImgs[id];
+  const base=proxyBase(); if(!base) return null;
+  try{
+    const r=await fetch(base+'/expenses/slips/'+encodeURIComponent(id));
+    if(!r.ok) return null;
+    const j=await r.json();
+    _expImgs[id]='data:'+(j.media_type||'image/jpeg')+';base64,'+j.image;
+    return _expImgs[id];
+  }catch(e){ return null; }
+}
+async function expSaveImg(id,b64,mt){
+  _expImgs[id]='data:'+mt+';base64,'+b64;
+  const base=proxyBase(); if(!base) throw new Error('No proxy configured — set it in Settings');
+  const r=await fetch(base+'/expenses/slips',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id,image:b64,media_type:mt})});
+  if(!r.ok) throw new Error('Could not save the slip image (HTTP '+r.status+')');
+}
+/* Phone photos are 4-5MB; downscale before upload. 1800px keeps the small
+   print on a till slip legible while cutting payload and vision cost. */
+function expShrink(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>rej(new Error('Could not read that file'));
+    fr.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>rej(new Error('That file is not a readable image'));
+      img.onload=()=>{
+        const M=1800, sc=Math.min(1,M/Math.max(img.width,img.height));
+        const c=document.createElement('canvas');
+        c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        const url=c.toDataURL('image/jpeg',0.82);
+        res({b64:url.split(',')[1],mt:'image/jpeg',url});
+      };
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+function expReadB64(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>rej(new Error('Could not read that file'));
+    fr.onload=()=>res(fr.result.split(',')[1]);
+    fr.readAsDataURL(file);
+  });
+}
+
+/* --- add a slip ---
+   The camera runs inside the app via getUserMedia rather than handing off to
+   the OS photo picker, so on the phone you frame the slip and shoot without
+   leaving the page. Needs a secure context — fine on the Railway domain, and
+   the file picker stays as the fallback for desktop or a denied permission. */
+let _expStream=null;
+function expCamOk(){ return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext); }
+function expStopCam(){
+  if(_expStream){ try{ _expStream.getTracks().forEach(t=>t.stop()); }catch(e){} _expStream=null; }
+}
+function expCloseSlip(){ expStopCam(); closeModal(); }
+
+function openSlipUpload(){
+  const cam=expCamOk();
+  showModal(`<div class="modal-head"><div><h2>New slip</h2><div class="ms">Photograph the slip — then say what it was for</div></div>
+    <button class="x" onclick="expCloseSlip()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div id="sPick">
+        <div class="dz" id="sdz" onclick="${cam?'expStartCam()':"document.getElementById('sfile').click()"}">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+          <div class="dz-t">${cam?'Take a photo of the slip':'Choose a slip photo'}</div>
+          <div class="dz-s">The merchant, date and amount are read off the slip automatically.</div>
+        </div>
+        ${cam?`<button class="btn" style="width:100%;justify-content:center;margin-top:10px" onclick="document.getElementById('sfile').click()">Choose an existing photo instead</button>`:''}
+      </div>
+      <div id="sCamWrap" style="display:none">
+        <div style="position:relative;background:#000;border-radius:14px;overflow:hidden">
+          <video id="sCam" playsinline autoplay muted style="display:block;width:100%;max-height:56vh;object-fit:cover"></video>
+          <div style="position:absolute;inset:10% 8%;border:2px dashed rgba(255,255,255,.55);border-radius:10px;pointer-events:none"></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:18px;margin-top:14px">
+          <button class="btn" onclick="expCancelCam()">Cancel</button>
+          <button id="sShoot" onclick="expShoot()" aria-label="Take photo"
+            style="width:66px;height:66px;border-radius:50%;border:4px solid var(--terra);background:var(--terra);cursor:pointer;
+                   box-shadow:0 0 0 4px var(--card) inset"></button>
+          <button class="btn" id="sFlip" onclick="expFlipCam()" style="visibility:hidden">Flip</button>
+        </div>
+        <div id="sCamErr" style="font-family:var(--mono);font-size:12px;color:var(--bad);margin-top:10px;text-align:center"></div>
+      </div>
+      <input type="file" id="sfile" accept="image/*" capture="environment" style="display:none" onchange="handleSlipFile(this.files[0])">
+      <div id="sForm"></div>
+    </div>`);
+  const dz=document.getElementById('sdz');
+  ['dragover','dragenter'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--terra)';}));
+  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--line2)';}));
+  dz.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0])handleSlipFile(ev.dataTransfer.files[0]); });
+}
+
+let _expFacing='environment';
+async function expStartCam(){
+  document.getElementById('sPick').style.display='none';
+  document.getElementById('sCamWrap').style.display='';
+  document.getElementById('sCamErr').textContent='';
+  expStopCam();
+  try{
+    // `ideal` rather than `exact` so a laptop with only a front camera still works
+    _expStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:_expFacing},width:{ideal:2400},height:{ideal:1800}},audio:false});
+    const v=document.getElementById('sCam');
+    if(!v){ expStopCam(); return; }              // modal closed while we were waiting
+    v.srcObject=_expStream;
+    await v.play().catch(()=>{});
+    try{
+      const cams=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+      if(cams.length>1) document.getElementById('sFlip').style.visibility='visible';
+    }catch(e){}
+  }catch(e){
+    const msg = e && e.name==='NotAllowedError'
+      ? 'Camera access was denied. Allow it for this site, or choose an existing photo.'
+      : (e && e.name==='NotFoundError' ? 'No camera found on this device.' : 'Could not start the camera.');
+    document.getElementById('sCamErr').innerHTML=expEsc(msg)+
+      '<div style="margin-top:10px"><button class="btn" onclick="expCancelCam()">Choose a photo instead</button></div>';
+    document.getElementById('sShoot').style.display='none';
+  }
+}
+function expCancelCam(){
+  expStopCam();
+  const w=document.getElementById('sCamWrap'); if(w) w.style.display='none';
+  const p=document.getElementById('sPick'); if(p) p.style.display='';
+}
+async function expFlipCam(){ _expFacing = _expFacing==='environment'?'user':'environment'; await expStartCam(); }
+
+/* Grab the current frame at up to 1800px on the long edge — same budget the
+   file path uses, so extraction sees a consistent image either way. */
+function expShoot(){
+  const v=document.getElementById('sCam');
+  if(!v || !v.videoWidth){ document.getElementById('sCamErr').textContent='Camera is still warming up — try again in a second.'; return; }
+  const M=1800, sc=Math.min(1,M/Math.max(v.videoWidth,v.videoHeight));
+  const c=document.createElement('canvas');
+  c.width=Math.round(v.videoWidth*sc); c.height=Math.round(v.videoHeight*sc);
+  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+  const url=c.toDataURL('image/jpeg',0.82);
+  expStopCam();
+  document.getElementById('sCamWrap').style.display='none';
+  expUseShot({b64:url.split(',')[1],mt:'image/jpeg',url});
+}
+
+async function handleSlipFile(file){
+  if(!file) return;
+  expCancelCam();
+  const F=document.getElementById('sForm');
+  F.innerHTML='<div style="margin-top:18px;font-family:var(--mono);font-size:12px;color:var(--ink-faint)">Reading the slip…</div>';
+  let shot;
+  try{ shot=await expShrink(file); }
+  catch(e){ F.innerHTML='<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ '+expEsc(e.message)+'</div>'; return; }
+  expUseShot(shot);
+}
+/* Shared tail for both capture paths: hand the image to the extractor, then
+   show the form regardless of whether extraction worked. */
+async function expUseShot(shot){
+  const F=document.getElementById('sForm');
+  const P=document.getElementById('sPick'); if(P) P.style.display='none';
+  F.innerHTML='<div style="margin-top:18px;font-family:var(--mono);font-size:12px;color:var(--ink-faint)">Reading the slip…</div>';
+  window._expPending={b64:shot.b64,mt:shot.mt,url:shot.url};
+  let d={merchant:'',date:'',amount:0,currency:'ZAR',vat:0,cardLast4:'',lineItems:[],confidence:'low'};
+  let warn='';
+  const base=proxyBase();
+  if(base){
+    try{
+      const r=await fetch(base+'/expenses/extract-slip',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({image:shot.b64,media_type:shot.mt})});
+      if(r.ok) d=Object.assign(d,await r.json());
+      else warn='Automatic reading failed — fill the fields in yourself.';
+    }catch(e){ warn='Automatic reading failed — fill the fields in yourself.'; }
+  } else warn='No proxy configured, so the slip could not be read automatically.';
+  if(!warn && d.confidence!=='high') warn='The slip was hard to read — check the values below.';
+  expSlipForm(d,shot.url,warn);
+}
+function expSlipForm(d,url,warn){
+  const F=document.getElementById('sForm');
+  const items=(d.lineItems||[]).slice(0,12).join(', ');
+  F.innerHTML=`
+    <div style="margin-top:18px;display:flex;gap:16px;align-items:flex-start">
+      <div style="width:112px;flex:0 0 112px">
+        <img src="${url}" style="width:100%;border-radius:10px;border:1px solid var(--line)">
+        <button class="btn" style="width:100%;justify-content:center;margin-top:6px;padding:5px;font-size:12px"
+          onclick="expRetake()">Retake</button>
+      </div>
+      <div style="flex:1;min-width:0">
+        ${warn?`<div style="font-family:var(--mono);font-size:11.5px;color:var(--warn);margin-bottom:10px">⚠ ${expEsc(warn)}</div>`:
+                `<div style="font-family:var(--mono);font-size:11.5px;color:var(--good);margin-bottom:10px">✓ Slip read</div>`}
+        <label class="exp-lbl">Merchant</label>
+        <input id="sMer" class="exp-in" value="${expEsc(d.merchant)}" placeholder="Where you spent it" style="width:100%;margin-bottom:9px">
+        <div style="display:flex;gap:9px;margin-bottom:9px">
+          <div style="flex:1"><label class="exp-lbl">Date</label>
+            <input id="sDate" class="exp-in" type="date" value="${expEsc(d.date)}" style="width:100%"></div>
+          <div style="flex:1"><label class="exp-lbl">Amount</label>
+            <input id="sAmt" class="exp-in" type="number" step="0.01" value="${(+d.amount||0).toFixed(2)}" style="width:100%"></div>
+          <div style="width:88px"><label class="exp-lbl">VAT</label>
+            <input id="sVat" class="exp-in" type="number" step="0.01" value="${(+d.vat||0).toFixed(2)}" style="width:100%"></div>
+        </div>
+        ${items?`<div style="font-family:var(--serif);font-size:12.5px;color:var(--ink-faint);margin-bottom:9px">${expEsc(items)}</div>`:''}
+      </div>
+    </div>
+    <label class="exp-lbl" style="margin-top:6px">What was this for? <span class="exp-req">*</span></label>
+    <textarea id="sWhy" class="exp-in" rows="3" placeholder="e.g. Lunch with the Nicolwood contractor to sign off the Ebony Cottage levelling quote"
+      style="width:100%;margin-top:4px" oninput="expWhyCheck()">${expEsc(window._expRetakeWhy||'')}</textarea>
+    <div id="sWhyErr" style="font-family:var(--mono);font-size:11.5px;color:var(--bad);height:15px;margin-top:3px"></div>
+    <button class="btn primary" id="sSave" style="width:100%;justify-content:center;margin-top:8px" disabled onclick="commitSlip()">Save slip</button>`;
+  window._expRetakeWhy='';
+  expWhyCheck();   // re-enables Save straight away if a retake carried the note over
+}
+/* Discard the shot and go back to the camera (or the picker), keeping whatever
+   explanation has already been typed — a blurry photo shouldn't cost the note. */
+function expRetake(){
+  const why=(document.getElementById('sWhy')||{}).value||'';
+  window._expRetakeWhy=why;
+  window._expPending=null;
+  document.getElementById('sForm').innerHTML='';
+  if(expCamOk()) expStartCam();
+  else { const p=document.getElementById('sPick'); if(p) p.style.display=''; document.getElementById('sfile').click(); }
+}
+function expWhyCheck(){
+  const t=(document.getElementById('sWhy').value||'').trim();
+  const b=document.getElementById('sSave'), e=document.getElementById('sWhyErr');
+  const ok=t.length>=5;
+  b.disabled=!ok;
+  b.style.opacity=ok?'1':'.45'; b.style.cursor=ok?'pointer':'not-allowed';
+  e.textContent=t.length===0?'' : (ok?'':'A little more detail, please.');
+}
+async function commitSlip(){
+  const why=(document.getElementById('sWhy').value||'').trim();
+  if(why.length<5){ expWhyCheck(); return; }
+  const p=window._expPending; if(!p){ toast('No slip image'); return; }
+  const b=document.getElementById('sSave'); b.disabled=true; b.textContent='Saving…';
+  const id=expId('slip');
+  try{ await expSaveImg(id,p.b64,p.mt); }
+  catch(e){ b.disabled=false; b.textContent='Save slip'; toast(e.message); return; }
+  expCfg().slips.push({
+    id, merchant:(document.getElementById('sMer').value||'').trim()||'Unknown merchant',
+    date:document.getElementById('sDate').value||'',
+    amount:+document.getElementById('sAmt').value||0,
+    vat:+document.getElementById('sVat').value||0,
+    currency:'ZAR', why, match:null, createdAt:Date.now()
+  });
+  save(); closeModal(); toast('Slip saved'); renderExpenses();
+}
+
+/* --- statement --- */
+function openStatementUpload(){
+  showModal(`<div class="modal-head"><div><h2>Upload statement</h2><div class="ms">A credit-card statement PDF</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="dz" id="stdz" onclick="document.getElementById('stfile').click()">
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+        <div class="dz-t">Drop the statement PDF or click to browse</div>
+        <div class="dz-s">Every transaction line is read off, then matched against your slips.</div>
+      </div>
+      <input type="file" id="stfile" accept="application/pdf,.pdf" style="display:none" onchange="handleStatementFile(this.files[0])">
+      <div id="stOut"></div>
+    </div>`);
+  const dz=document.getElementById('stdz');
+  ['dragover','dragenter'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--terra)';}));
+  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--line2)';}));
+  dz.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0])handleStatementFile(ev.dataTransfer.files[0]); });
+}
+async function handleStatementFile(file){
+  if(!file) return;
+  const O=document.getElementById('stOut');
+  if(!/pdf$/i.test(file.type||'')&&!/\.pdf$/i.test(file.name||'')){
+    O.innerHTML='<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ That is not a PDF.</div>'; return; }
+  const base=proxyBase();
+  if(!base){ O.innerHTML='<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ Set the proxy URL in Settings first.</div>'; return; }
+  O.innerHTML='<div style="margin-top:18px;font-family:var(--mono);font-size:12px;color:var(--ink-faint)">Reading the statement — this can take a minute…</div>';
+  try{
+    const b64=await expReadB64(file);
+    const r=await fetch(base+'/expenses/statement',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pdf:b64})});
+    if(!r.ok) throw new Error('The statement could not be read (HTTP '+r.status+')');
+    const d=await r.json();
+    const txns=(d.transactions||[]).filter(t=>t&&+t.amount);
+    if(!txns.length) throw new Error('No transactions found in that PDF');
+    const st={id:expId('stmt'),account:d.account||'',periodStart:d.periodStart||'',periodEnd:d.periodEnd||'',
+      fileName:file.name||'statement.pdf',txns,createdAt:Date.now()};
+    expCfg().statements.push(st);
+    const n=expMatchStatement(st.id);
+    save(); closeModal();
+    toast(txns.length+' transactions · '+n.ok+' matched');
+    renderExpenses();
+  }catch(e){ O.innerHTML='<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ '+expEsc(e.message)+'</div>'; }
+}
+
+/* --- matching: greedy best-first over amount closeness, then date distance.
+   Each statement line can back only one slip, and vice versa. --- */
+function expMatchStatement(stmtId){
+  const C=expCfg(); const st=C.statements.find(s=>s.id===stmtId); if(!st) return {ok:0,maybe:0};
+  // free up anything previously matched to this statement so re-running is safe
+  C.slips.forEach(s=>{ if(s.match&&s.match.statementId===stmtId) s.match=null; });
+  const open=C.slips.filter(s=>!s.match);
+  const pairs=[];
+  open.forEach(s=>{
+    st.txns.forEach((t,i)=>{
+      if(+t.amount<=0) return;                       // payments/credits can't back a claim
+      const ad=Math.abs((+t.amount)-(+s.amount||0));
+      const tol=Math.max(0.05,(+s.amount||0)*0.02);  // a little slack for tips/rounding
+      if(ad>tol) return;
+      const dd=expDays(s.date,t.date);
+      if(dd>14) return;                              // settlement lag, but not a month
+      pairs.push({slipId:s.id,txnIdx:i,ad,dd,score:ad*100+dd});
+    });
+  });
+  pairs.sort((a,b)=>a.score-b.score);
+  const usedS=new Set(), usedT=new Set(); let ok=0,maybe=0;
+  pairs.forEach(p=>{
+    if(usedS.has(p.slipId)||usedT.has(p.txnIdx)) return;
+    usedS.add(p.slipId); usedT.add(p.txnIdx);
+    const conf=(p.ad<=0.02&&p.dd<=5)?'ok':'maybe';
+    if(conf==='ok') ok++; else maybe++;
+    const s=C.slips.find(x=>x.id===p.slipId);
+    s.match={statementId:stmtId,txnIdx:p.txnIdx,conf,ad:p.ad,dd:p.dd};
+  });
+  return {ok,maybe};
+}
+function expUnmatch(slipId){
+  const s=expCfg().slips.find(x=>x.id===slipId); if(!s) return;
+  s.match=null; save(); renderExpenses(); toast('Match cleared');
+}
+function expDeleteSlip(slipId){
+  const C=expCfg(); const i=C.slips.findIndex(x=>x.id===slipId); if(i<0) return;
+  if(!confirm('Delete this slip and its photo? This cannot be undone.')) return;
+  C.slips.splice(i,1); save();
+  const base=proxyBase();
+  if(base) fetch(base+'/expenses/slips/'+encodeURIComponent(slipId),{method:'DELETE'}).catch(()=>{});
+  delete _expImgs[slipId];
+  renderExpenses(); toast('Slip deleted');
+}
+function expDeleteStatement(stmtId){
+  const C=expCfg(); const i=C.statements.findIndex(x=>x.id===stmtId); if(i<0) return;
+  if(!confirm('Remove this statement? Slips matched to it become unmatched again.')) return;
+  C.slips.forEach(s=>{ if(s.match&&s.match.statementId===stmtId) s.match=null; });
+  C.statements.splice(i,1); save(); renderExpenses(); toast('Statement removed');
+}
+async function expZoom(slipId){
+  const url=await expLoadImg(slipId);
+  if(!url){ toast('Image unavailable'); return; }
+  showModal(`<div class="modal-head"><div><h2>Slip</h2></div><button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body" style="text-align:center"><img src="${url}" style="max-width:100%;border-radius:10px;border:1px solid var(--line)"></div>`);
+}
+
+/* --- pane --- */
+function renderExpenses(){
+  const P=document.getElementById('pane-expenses'); if(!P) return;
+  const C=expCfg();
+  const slips=C.slips.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.createdAt-a.createdAt);
+  const matched=slips.filter(s=>s.match), open=slips.filter(s=>!s.match);
+  const tot=v=>v.reduce((t,s)=>t+(+s.amount||0),0);
+  const stmtName=st=>(st.account||st.fileName||'Statement')+(st.periodEnd?' · to '+fmtDate(st.periodEnd):'');
+
+  const slipRow=s=>{
+    const st=s.match?C.statements.find(x=>x.id===s.match.statementId):null;
+    const t=st?st.txns[s.match.txnIdx]:null;
+    const pill=!s.match?'<span class="exp-pill none">unmatched</span>':
+      (s.match.conf==='ok'?'<span class="exp-pill ok">matched</span>':'<span class="exp-pill maybe">check match</span>');
+    return `<div class="exp-card">
+      <img class="exp-thumb" id="th-${s.id}" alt="" onclick="expZoom('${s.id}')">
+      <div style="flex:1;min-width:0">
+        <div class="exp-mer">${expEsc(s.merchant)}</div>
+        <div class="ms">${s.date?fmtDate(s.date):'no date'}</div>
+        <div class="exp-why">${expEsc(s.why)}</div>
+        ${pill}
+        ${t?`<div class="ms" style="margin-top:5px">↔ ${expEsc(t.description)} · ${fmtDate(t.date)} · ${expMoney(t.amount,t.currency)}</div>`:''}
+      </div>
+      <div class="exp-amt">${expMoney(s.amount,s.currency)}
+        <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
+          ${s.match?`<button class="btn" style="padding:4px 9px;font-size:12px" onclick="expUnmatch('${s.id}')">Unmatch</button>`:''}
+          <button class="btn" style="padding:4px 9px;font-size:12px" onclick="expDeleteSlip('${s.id}')">Delete</button>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  P.innerHTML=`
+    <div id="expWorkspace">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px">
+        <button class="btn primary" onclick="openSlipUpload()">+ Add slip</button>
+        <button class="btn" onclick="openStatementUpload()">Upload statement</button>
+        <button class="btn" onclick="expBuildReport()" ${matched.length?'':'disabled style="opacity:.45;cursor:not-allowed"'}>Build report</button>
+        <div style="margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-faint)">
+          ${slips.length} slip${slips.length===1?'':'s'} · ${expMoney(tot(slips))} · ${matched.length} matched
+        </div>
+      </div>
+
+      ${open.length?`<h3 style="font-family:var(--disp);font-size:18px;margin:0 0 10px">Awaiting a statement <span class="ms">${expMoney(tot(open))}</span></h3>
+        ${open.map(slipRow).join('')}`:''}
+
+      ${matched.length?`<h3 style="font-family:var(--disp);font-size:18px;margin:26px 0 10px">Matched <span class="ms">${expMoney(tot(matched))}</span></h3>
+        ${matched.map(slipRow).join('')}`:''}
+
+      ${!slips.length?`<div style="text-align:center;padding:56px 20px;color:var(--ink-faint)">
+        <div style="font-family:var(--disp);font-size:19px;margin-bottom:6px">No slips yet</div>
+        <div style="font-family:var(--serif);font-style:italic">Photograph a slip as you get it, say what it was for, and it will wait here for the statement.</div>
+      </div>`:''}
+
+      ${C.statements.length?`<h3 style="font-family:var(--disp);font-size:18px;margin:30px 0 10px">Statements</h3>
+        ${C.statements.slice().reverse().map(st=>{
+          const claimed=C.slips.filter(s=>s.match&&s.match.statementId===st.id);
+          const charges=st.txns.filter(t=>+t.amount>0);
+          return `<div class="exp-card">
+            <div style="flex:1">
+              <div class="exp-mer">${expEsc(stmtName(st))}</div>
+              <div class="ms">${charges.length} charges · ${claimed.length} backed by a slip</div>
+            </div>
+            <div class="exp-amt">${expMoney(charges.reduce((t,x)=>t+ +x.amount,0))}
+              <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
+                <button class="btn" style="padding:4px 9px;font-size:12px" onclick="expRematch('${st.id}')">Re-match</button>
+                <button class="btn" style="padding:4px 9px;font-size:12px" onclick="expDeleteStatement('${st.id}')">Remove</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}`:''}
+    </div>
+    <div id="expReport"></div>`;
+
+  // Thumbnails stream in from the volume once the layout is up — but only when
+  // the pane is actually on screen. renderAll() runs at startup, and pulling
+  // every slip photo down on a cold load (for a tab that may never be opened)
+  // is a lot of traffic for nothing. Opening the tab re-renders and fetches.
+  if(P.classList.contains('active'))
+    slips.forEach(s=>expLoadImg(s.id).then(u=>{ const el=document.getElementById('th-'+s.id); if(el&&u) el.src=u; }));
+}
+function expRematch(stmtId){ const n=expMatchStatement(stmtId); save(); renderExpenses(); toast(n.ok+' matched · '+n.maybe+' to check'); }
+/* The modal also closes on Escape and on a backdrop click, neither of which
+   routes through expCloseSlip — release the camera on those paths too, or the
+   phone keeps the lens (and the recording indicator) live after the sheet goes. */
+document.getElementById('overlay').addEventListener('click',e=>{ if(e.target.id==='overlay') expStopCam(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') expStopCam(); });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) expStopCam(); });
+
+/* --- report --- */
+async function expBuildReport(){
+  const C=expCfg();
+  const claimed=C.slips.filter(s=>s.match).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(!claimed.length){ toast('Nothing matched yet'); return; }
+  toast('Building report…');
+  const imgs={};
+  for(const s of claimed) imgs[s.id]=await expLoadImg(s.id);
+  const total=claimed.reduce((t,s)=>t+(+s.amount||0),0);
+  const vat=claimed.reduce((t,s)=>t+(+s.vat||0),0);
+  const unmatched=C.slips.filter(s=>!s.match);
+  const stmtOf=s=>C.statements.find(x=>x.id===s.match.statementId);
+  // statement charges with no slip behind them — the gap worth seeing
+  const bare=[];
+  C.statements.forEach(st=>st.txns.forEach((t,i)=>{
+    if(+t.amount<=0) return;
+    if(C.slips.some(s=>s.match&&s.match.statementId===st.id&&s.match.txnIdx===i)) return;
+    bare.push({st,t});
+  }));
+
+  const R=document.getElementById('expReport');
+  R.className='show';
+  R.innerHTML=`
+    <div class="exp-noprint" style="display:flex;gap:10px;margin-bottom:20px">
+      <button class="btn primary" onclick="window.print()">Print / Save as PDF</button>
+      <button class="btn" onclick="expCloseReport()">Back</button>
+    </div>
+    <div style="border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:20px">
+      <div style="font-family:var(--disp);font-weight:600;font-size:25px">Expense claim</div>
+      <div class="ms">${claimed.length} items · prepared ${fmtDate(new Date().toISOString().slice(0,10))}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:26px;font-family:var(--serif);font-size:13.5px">
+      <thead><tr style="border-bottom:1px solid var(--ink)">
+        <th style="text-align:left;padding:7px 0">Date</th><th style="text-align:left">Merchant</th>
+        <th style="text-align:left">Purpose</th><th style="text-align:right">VAT</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>
+        ${claimed.map(s=>`<tr style="border-bottom:1px solid var(--line)">
+          <td style="padding:6px 0;white-space:nowrap">${s.date?fmtDate(s.date):'—'}</td>
+          <td>${expEsc(s.merchant)}</td>
+          <td style="color:var(--ink-soft)">${expEsc(s.why)}</td>
+          <td style="text-align:right;font-family:var(--mono)">${(+s.vat||0).toFixed(2)}</td>
+          <td style="text-align:right;font-family:var(--mono)">${expMoney(s.amount,s.currency)}</td></tr>`).join('')}
+        <tr><td colspan="3" style="padding:10px 0;font-weight:600">Total claimed</td>
+          <td style="text-align:right;font-family:var(--mono);font-weight:600">${vat.toFixed(2)}</td>
+          <td style="text-align:right;font-family:var(--mono);font-weight:600">${expMoney(total)}</td></tr>
+      </tbody>
+    </table>
+    <div style="font-family:var(--disp);font-weight:600;font-size:19px;margin:0 0 6px">Slips</div>
+    ${claimed.map(s=>{
+      const st=stmtOf(s), t=st?st.txns[s.match.txnIdx]:null;
+      return `<div class="exp-rep-row">
+        ${imgs[s.id]?`<img class="exp-rep-img" src="${imgs[s.id]}">`:'<div class="exp-rep-img" style="height:110px"></div>'}
+        <div style="flex:1">
+          <div style="font-family:var(--disp);font-weight:600;font-size:16px">${expEsc(s.merchant)}</div>
+          <div class="ms">${s.date?fmtDate(s.date):'—'} · ${expMoney(s.amount,s.currency)}${(+s.vat)?' · VAT '+(+s.vat).toFixed(2):''}</div>
+          <div style="font-family:var(--serif);font-size:13.5px;margin-top:7px;line-height:1.55">${expEsc(s.why)}</div>
+          ${t?`<div class="ms" style="margin-top:7px">Statement: ${expEsc(t.description)} · ${fmtDate(t.date)} · ${expMoney(t.amount,t.currency)}${s.match.conf==='maybe'?' <strong>(verify)</strong>':''}</div>`:''}
+        </div></div>`;
+    }).join('')}
+    ${unmatched.length?`<div style="margin-top:26px">
+      <div style="font-family:var(--disp);font-weight:600;font-size:17px;margin-bottom:6px">Slips with no statement line (${unmatched.length})</div>
+      ${unmatched.map(s=>`<div class="ms">${s.date?fmtDate(s.date):'—'} · ${expEsc(s.merchant)} · ${expMoney(s.amount,s.currency)}</div>`).join('')}
+    </div>`:''}
+    ${bare.length?`<div style="margin-top:20px">
+      <div style="font-family:var(--disp);font-weight:600;font-size:17px;margin-bottom:6px">Statement charges with no slip (${bare.length})</div>
+      ${bare.map(b=>`<div class="ms">${fmtDate(b.t.date)} · ${expEsc(b.t.description)} · ${expMoney(b.t.amount,b.t.currency)}</div>`).join('')}
+    </div>`:''}`;
+  document.getElementById('expWorkspace').style.display='none';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function expCloseReport(){
+  const R=document.getElementById('expReport'); R.className=''; R.innerHTML='';
+  const W=document.getElementById('expWorkspace'); if(W) W.style.display='';
+}
+
+function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire();renderPairs();renderScenario();renderExpenses();renderCoach(); }
+/* Reminders + push state live on the server, so fetch them once at boot and
+   register the worker if permission was already granted on a previous visit. */
+initCoach();
 document.getElementById('todayStr').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 // Handle nav for wealth & retire panes (lazy render already done in renderAll)
 document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{
@@ -5691,6 +6617,9 @@ document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',(
   if(b.dataset.pane==='mail'){ const f=document.getElementById('mailFrame'); if(f && (!f.src || /about:blank/.test(f.src))) f.src=(proxyBase()||'')+'/mail/view'; }
   // lazy-load the family dashboard the first time Finance/Wealth is opened
   if(b.dataset.pane==='finance'){ const f=document.getElementById('famFrame'); if(f && (!f.src || /about:blank/.test(f.src))) finTab('sbh'); }
+  // re-render so slip thumbnails load now the pane is on screen
+  if(b.dataset.pane==='expenses') renderExpenses();
+  if(b.dataset.pane==='coach'){ loadReminders().then(refreshPushState).then(renderCoach); }
   if(b.dataset.pane==='pairs' && !window._pairsKicked){ window._pairsKicked=true; loadPairs(); }
   if(b.dataset.pane==='scenario' && !_scenKicked[_scenCtx]){ _scenKicked[_scenCtx]=true; loadScenario(_scenCtx); }
   window.scrollTo({top:0,behavior:'smooth'});

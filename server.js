@@ -35,6 +35,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import crypto from 'crypto';
+import webpush from 'web-push';
 import 'dotenv/config';
 import { mountMail } from './mail.js';
 
@@ -158,7 +159,11 @@ app.get('/logout', (req, res) => {
 
 // Gate protected routes. WHOOP OAuth callback + the login routes stay open so the
 // auth handshake and sign-in page work; everything else requires a valid session.
-const OPEN_PREFIXES = ['/login', '/logout', '/auth/', '/status'];
+// The manifest, service worker and icons must resolve before there's a session —
+// iOS won't treat the site as installable otherwise. None of them carry any data.
+// Everything that touches subscriptions or reminders stays behind the session.
+const OPEN_PREFIXES = ['/login', '/logout', '/auth/', '/status',
+                       '/manifest.webmanifest', '/sw.js', '/icon-', '/apple-touch-icon.png'];
 app.use((req, res, next) => {
   if (OPEN_PREFIXES.some(p => req.path === p || req.path.startsWith(p))) return next();
   if (isAuthed(req)) return next();
@@ -1251,6 +1256,16 @@ function mergeUserdata(incoming, existing) {
   into.morning.calendar = into.morning.calendar || [];
   const haveC = new Set(into.morning.calendar.map(e => e && ((e.time || '') + '|' + (e.title || ''))));
   (em.calendar || []).forEach(e => { if (e && e._manual && !haveC.has((e.time || '') + '|' + (e.title || ''))) into.morning.calendar.push(e); });
+  // expenses: slips + statements by id. A slip photographed on the phone must
+  // survive a push from the laptop that never saw it.
+  into.expenses = into.expenses || { slips: [], statements: [] };
+  const ee = existing.expenses || {};
+  into.expenses.slips = into.expenses.slips || [];
+  const haveSl = new Set(into.expenses.slips.map(s => s && s.id));
+  (ee.slips || []).forEach(s => { if (s && s.id && !haveSl.has(s.id)) into.expenses.slips.push(s); });
+  into.expenses.statements = into.expenses.statements || [];
+  const haveSt = new Set(into.expenses.statements.map(s => s && s.id));
+  (ee.statements || []).forEach(s => { if (s && s.id && !haveSt.has(s.id)) into.expenses.statements.push(s); });
   return into;
 }
 app.post('/userdata', (req, res) => {
@@ -1295,6 +1310,496 @@ app.post('/refswings', (req, res) => {
     res.json({ ok: true, bytes: payload.length, savedAt: new Date().toISOString() });
   } catch (e) { console.log('[REFSWINGS] write error', e.message); res.status(500).json({ error: e.message }); }
 });
+/* ============================================================
+   EXPENSE CLAIMS — credit-card slips + statement reconciliation.
+
+   Slip photos are full-res base64 and must stay OUT of the synced
+   userdata blob for the same reason reference swings do (the ~5MB
+   localStorage cap and the POST limit). Each slip image gets its own
+   file on the volume; the light metadata (merchant, amount, the
+   required explanation, match state) rides along in userdata so it
+   syncs across devices.
+
+   GET    /expenses/slips        → { ids: [...] } (index only, no images)
+   GET    /expenses/slips/:id    → { image, media_type }
+   POST   /expenses/slips        → { id, image, media_type } save one slip
+   DELETE /expenses/slips/:id    → remove one slip image
+   POST   /expenses/extract-slip → Claude reads a slip photo
+   POST   /expenses/statement    → Claude reads a statement PDF
+   ============================================================ */
+const EXP_DIR = DATA_DIR + '/expense-slips';
+const EXP_MODEL = process.env.EXPENSE_MODEL || 'claude-opus-5';
+const safeSlipId = id => /^[A-Za-z0-9_-]{1,64}$/.test(String(id || '')) ? String(id) : null;
+
+app.get('/expenses/slips', (req, res) => {
+  try {
+    if (!fs.existsSync(EXP_DIR)) return res.json({ ids: [] });
+    const ids = fs.readdirSync(EXP_DIR).filter(f => f.endsWith('.json')).map(f => f.slice(0, -5));
+    res.json({ ids });
+  } catch (e) { console.log('[EXPENSES] index error', e.message); res.json({ ids: [] }); }
+});
+
+app.get('/expenses/slips/:id', (req, res) => {
+  const id = safeSlipId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'bad id' });
+  try {
+    const f = EXP_DIR + '/' + id + '.json';
+    if (!fs.existsSync(f)) return res.status(404).json({ error: 'not found' });
+    res.type('json').send(fs.readFileSync(f, 'utf8'));
+  } catch (e) { console.log('[EXPENSES] read error', e.message); res.status(500).json({ error: e.message }); }
+});
+
+app.post('/expenses/slips', (req, res) => {
+  try {
+    const { id, image, media_type = 'image/jpeg' } = req.body || {};
+    const sid = safeSlipId(id);
+    if (!sid) return res.status(400).json({ error: 'id required (alphanumeric)' });
+    if (!image) return res.status(400).json({ error: 'image field required (base64)' });
+    fs.mkdirSync(EXP_DIR, { recursive: true });
+    const payload = JSON.stringify({ image, media_type, savedAt: new Date().toISOString() });
+    fs.writeFileSync(EXP_DIR + '/' + sid + '.json', payload);
+    res.json({ ok: true, id: sid, bytes: payload.length });
+  } catch (e) { console.log('[EXPENSES] write error', e.message); res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/expenses/slips/:id', (req, res) => {
+  const id = safeSlipId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'bad id' });
+  try {
+    const f = EXP_DIR + '/' + id + '.json';
+    if (fs.existsSync(f)) fs.unlinkSync(f);
+    res.json({ ok: true });
+  } catch (e) { console.log('[EXPENSES] delete error', e.message); res.status(500).json({ error: e.message }); }
+});
+
+/* Shared caller for the two extraction endpoints. Structured outputs pin the
+   reply to the schema, so the response is always parseable — no regex rescue.
+   Thinking is off at low effort: these are transcription jobs, and the schema
+   (not reasoning depth) is what keeps them honest. */
+async function claudeExtract({ content, schema, max_tokens }) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) { const e = new Error('ANTHROPIC_API_KEY not set on the proxy'); e.status = 501; throw e; }
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: EXP_MODEL,
+      max_tokens,
+      thinking: { type: 'disabled' },
+      output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+      messages: [{ role: 'user', content }]
+    })
+  });
+  const text = await r.text();
+  if (!r.ok) { console.log('[EXPENSES] API error', r.status, text.slice(0, 400)); const e = new Error(`Claude API ${r.status}`); e.status = 502; throw e; }
+  const j = JSON.parse(text);
+  if (j.stop_reason === 'refusal') { const e = new Error('request declined'); e.status = 502; throw e; }
+  const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+  return JSON.parse(reply);
+}
+
+const SLIP_SCHEMA = {
+  type: 'object',
+  properties: {
+    merchant:   { type: 'string', description: 'Trading name on the slip, or "" if illegible' },
+    date:       { type: 'string', description: 'Transaction date as YYYY-MM-DD, or "" if not visible' },
+    amount:     { type: 'number', description: 'Total actually paid, as a positive number. 0 if illegible' },
+    currency:   { type: 'string', description: 'ISO code, e.g. ZAR. Default ZAR if the slip shows R with no other clue' },
+    vat:        { type: 'number', description: 'VAT/tax portion of the total, 0 if not shown' },
+    cardLast4:  { type: 'string', description: 'Last 4 digits of the card if printed, else ""' },
+    lineItems:  { type: 'array', items: { type: 'string' }, description: 'Purchased items, up to 12. Empty if the slip only shows a total' },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'How legible the slip was' }
+  },
+  required: ['merchant', 'date', 'amount', 'currency', 'vat', 'cardLast4', 'lineItems', 'confidence'],
+  additionalProperties: false
+};
+
+app.post('/expenses/extract-slip', async (req, res) => {
+  try {
+    const { image, media_type = 'image/jpeg' } = req.body || {};
+    if (!image) return res.status(400).json({ error: 'image field required (base64)' });
+    const out = await claudeExtract({
+      max_tokens: 4000,
+      schema: SLIP_SCHEMA,
+      content: [
+        { type: 'image', source: { type: 'base64', media_type, data: image } },
+        { type: 'text', text: 'This is a photograph of a credit-card slip or till receipt. Transcribe exactly what is printed — do not infer, round, or invent values. If a field is genuinely not legible, return the empty/zero default for it rather than a guess. The amount must be the final total paid, not a subtotal.' }
+      ]
+    });
+    res.json(out);
+  } catch (e) { console.log('[EXPENSES] slip extract failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+});
+
+const STATEMENT_SCHEMA = {
+  type: 'object',
+  properties: {
+    account:     { type: 'string', description: 'Account or card description, masked as printed. "" if absent' },
+    periodStart: { type: 'string', description: 'Statement period start as YYYY-MM-DD, or ""' },
+    periodEnd:   { type: 'string', description: 'Statement period end as YYYY-MM-DD, or ""' },
+    transactions: {
+      type: 'array',
+      description: 'Every transaction line on the statement, in the order printed',
+      items: {
+        type: 'object',
+        properties: {
+          date:        { type: 'string', description: 'YYYY-MM-DD' },
+          description: { type: 'string', description: 'Narrative exactly as printed' },
+          amount:      { type: 'number', description: 'Positive for a purchase/charge, negative for a payment, credit or refund' },
+          currency:    { type: 'string', description: 'ISO code, e.g. ZAR' }
+        },
+        required: ['date', 'description', 'amount', 'currency'],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ['account', 'periodStart', 'periodEnd', 'transactions'],
+  additionalProperties: false
+};
+
+app.post('/expenses/statement', async (req, res) => {
+  try {
+    const { pdf } = req.body || {};
+    if (!pdf) return res.status(400).json({ error: 'pdf field required (base64)' });
+    const out = await claudeExtract({
+      max_tokens: 16000,
+      schema: STATEMENT_SCHEMA,
+      content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf } },
+        { type: 'text', text: 'This is a credit-card statement. Extract every transaction line exactly as printed — do not summarise, merge, skip, or reorder lines. Use the statement year to resolve dates printed without one. Purchases are positive; payments, credits and refunds are negative.' }
+      ]
+    });
+    res.json(out);
+  } catch (e) { console.log('[EXPENSES] statement extract failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+});
+
+/* ============================================================
+   PWA SHELL — manifest + service worker + icons.
+   iOS only delivers Web Push to a site installed to the Home
+   Screen as a real web app, which needs all three of these. A
+   plain "Add to Home Screen" bookmark will NOT receive pushes.
+   ============================================================ */
+const APP_TZ = process.env.TZ_NAME || 'Africa/Johannesburg';
+
+app.get('/manifest.webmanifest', (req, res) => {
+  res.type('application/manifest+json').json({
+    name: 'Stuart Harris · Life',
+    short_name: 'Life',
+    start_url: '/app',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#eef4f3',
+    theme_color: '#0a8a96',
+    icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    ]
+  });
+});
+const ICONS = { '/icon-192.png': 'icon-192.png', '/icon-512.png': 'icon-512.png', '/apple-touch-icon.png': 'apple-touch-icon.png' };
+Object.entries(ICONS).forEach(([route, file]) => {
+  app.get(route, (req, res) => {
+    try { res.type('image/png').set('Cache-Control', 'public, max-age=604800').send(fs.readFileSync(file)); }
+    catch (e) { res.status(404).end(); }
+  });
+});
+
+/* Deliberately cache nothing. The app is a single ~1MB HTML file that changes
+   on every deploy; a caching service worker would serve a stale build and be a
+   nightmare to invalidate. This exists purely to receive pushes. */
+const SW_JS = `
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+
+self.addEventListener('push', event => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch (e) { d = { body: event.data && event.data.text() }; }
+  const title = d.title || 'Life';
+  const opts = {
+    body: d.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: d.tag || undefined,
+    renotify: !!d.tag,
+    data: { url: d.url || '/app', id: d.id || null },
+    actions: d.actions || []
+  };
+  event.waitUntil(self.registration.showNotification(title, opts));
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || '/app';
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) {
+      if ('focus' in c) { try { await c.navigate(target); } catch (e) {} return c.focus(); }
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(target);
+  })());
+});
+`;
+app.get('/sw.js', (req, res) => {
+  res.type('application/javascript').set('Cache-Control', 'no-cache').send(SW_JS);
+});
+
+/* ============================================================
+   WEB PUSH — VAPID keys, subscriptions, delivery.
+   Keys come from env if set, otherwise they're generated once and
+   kept on the volume so subscriptions survive redeploys without
+   anyone having to paste keys into Railway.
+   ============================================================ */
+const VAPID_FILE = DATA_DIR + '/vapid.json';
+const SUBS_FILE  = DATA_DIR + '/push-subs.json';
+let VAPID = null;
+
+function initVapid() {
+  try {
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+      VAPID = { publicKey: process.env.VAPID_PUBLIC_KEY, privateKey: process.env.VAPID_PRIVATE_KEY };
+    } else if (fs.existsSync(VAPID_FILE)) {
+      VAPID = JSON.parse(fs.readFileSync(VAPID_FILE, 'utf8'));
+    } else {
+      VAPID = webpush.generateVAPIDKeys();
+      if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(VAPID_FILE, JSON.stringify(VAPID));
+      console.log('[PUSH] generated a new VAPID keypair on the volume');
+    }
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:stuarth@gerber.co.za', VAPID.publicKey, VAPID.privateKey);
+    console.log('[PUSH] VAPID ready');
+  } catch (e) { console.log('[PUSH] VAPID init failed', e.message); VAPID = null; }
+}
+initVapid();
+
+const readSubs  = () => { try { return JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8')); } catch (e) { return []; } };
+const writeSubs = s => { try { if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(SUBS_FILE, JSON.stringify(s)); } catch (e) { console.log('[PUSH] save failed', e.message); } };
+
+/* Fan a payload out to every registered device, pruning any the push service
+   has retired (410/404) so dead phones don't accumulate forever. */
+async function sendPush(payload) {
+  if (!VAPID) { console.log('[PUSH] no VAPID configured — skipping'); return { sent: 0, pruned: 0 }; }
+  const subs = readSubs();
+  if (!subs.length) return { sent: 0, pruned: 0 };
+  const body = JSON.stringify(payload);
+  let sent = 0; const dead = [];
+  await Promise.all(subs.map(async s => {
+    try { await webpush.sendNotification(s.sub, body); sent++; }
+    catch (e) {
+      const code = e && e.statusCode;
+      if (code === 404 || code === 410) dead.push(s.sub.endpoint);
+      else console.log('[PUSH] send failed', code || e.message);
+    }
+  }));
+  if (dead.length) writeSubs(subs.filter(s => !dead.includes(s.sub.endpoint)));
+  return { sent, pruned: dead.length };
+}
+
+app.get('/push/key', (req, res) => {
+  if (!VAPID) return res.status(501).json({ error: 'push not configured' });
+  res.json({ publicKey: VAPID.publicKey });
+});
+app.get('/push/status', (req, res) => {
+  res.json({ configured: !!VAPID, devices: readSubs().length });
+});
+app.post('/push/subscribe', (req, res) => {
+  const { subscription, label } = req.body || {};
+  if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'subscription required' });
+  const subs = readSubs().filter(s => s.sub.endpoint !== subscription.endpoint);
+  subs.push({ sub: subscription, label: label || 'device', addedAt: new Date().toISOString() });
+  writeSubs(subs);
+  res.json({ ok: true, devices: subs.length });
+});
+app.post('/push/unsubscribe', (req, res) => {
+  const { endpoint } = req.body || {};
+  const subs = readSubs().filter(s => s.sub.endpoint !== endpoint);
+  writeSubs(subs);
+  res.json({ ok: true, devices: subs.length });
+});
+app.post('/push/test', async (req, res) => {
+  const r = await sendPush({ title: 'Life', body: 'Notifications are working.', tag: 'test', url: '/app' });
+  res.json(r);
+});
+
+/* ============================================================
+   REMINDERS — stored server-side, not in the synced blob, because
+   they have to fire when the phone is asleep and the app is shut.
+   ============================================================ */
+const REM_FILE = DATA_DIR + '/reminders.json';
+const readRems  = () => { try { return JSON.parse(fs.readFileSync(REM_FILE, 'utf8')); } catch (e) { return []; } };
+const writeRems = r => { try { if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(REM_FILE, JSON.stringify(r)); } catch (e) { console.log('[REMIND] save failed', e.message); } };
+
+// Local wall-clock in the app's timezone, regardless of the server's TZ (Railway is UTC).
+function localParts(d = new Date()) {
+  const p = new Intl.DateTimeFormat('en-GB', { timeZone: APP_TZ, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short' })
+    .formatToParts(d).reduce((o, x) => (o[x.type] = x.value, o), {});
+  return { y: +p.year, mo: +p.month, d: +p.day, h: +p.hour, mi: +p.minute, dow: p.weekday };
+}
+// Quiet hours gate non-urgent COACH nudges only. An explicit reminder the user
+// asked for at 22:00 must still fire at 22:00 — silencing it would be a bug.
+function inQuietHours(d = new Date()) {
+  const { h, mi } = localParts(d);
+  const t = h * 60 + mi;
+  const from = +(process.env.QUIET_FROM_MIN || 21 * 60);
+  const to   = +(process.env.QUIET_TO_MIN   || 6 * 60 + 30);
+  return from > to ? (t >= from || t < to) : (t >= from && t < to);
+}
+const localDow = d => new Intl.DateTimeFormat('en-US', { timeZone: APP_TZ, weekday: 'short' }).format(d);
+function nextOccurrence(iso, repeat) {
+  const d = new Date(iso);
+  const addDays = n => new Date(d.getTime() + n * 86400000).toISOString();
+  switch (repeat) {
+    case 'daily':   return addDays(1);
+    case 'weekly':  return addDays(7);
+    case 'weekdays': {
+      let n = new Date(d);
+      do { n = new Date(n.getTime() + 86400000); } while (['Sat', 'Sun'].includes(localDow(n)));
+      return n.toISOString();
+    }
+    case 'monthly': { const n = new Date(d); n.setUTCMonth(n.getUTCMonth() + 1); return n.toISOString(); }
+    default:        return null;
+  }
+}
+
+app.get('/reminders', (req, res) => res.json(readRems()));
+app.post('/reminders', (req, res) => {
+  const { text, at, repeat = 'none', source = 'typed' } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ error: 'text required' });
+  if (!at || isNaN(new Date(at).getTime())) return res.status(400).json({ error: 'valid at (ISO) required' });
+  const rems = readRems();
+  const rem = { id: 'rem' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    text: String(text).trim().slice(0, 400), at: new Date(at).toISOString(),
+    repeat, source, done: false, firedAt: null, createdAt: new Date().toISOString() };
+  rems.push(rem); writeRems(rems);
+  res.json(rem);
+});
+app.patch('/reminders/:id', (req, res) => {
+  const rems = readRems(); const r = rems.find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: 'not found' });
+  const { done, snoozeMin, text, at } = req.body || {};
+  if (typeof done === 'boolean') r.done = done;
+  if (snoozeMin) { r.at = new Date(Date.now() + snoozeMin * 60000).toISOString(); r.done = false; r.firedAt = null; }
+  if (text) r.text = String(text).slice(0, 400);
+  if (at && !isNaN(new Date(at).getTime())) { r.at = new Date(at).toISOString(); r.firedAt = null; r.done = false; }
+  writeRems(rems); res.json(r);
+});
+app.delete('/reminders/:id', (req, res) => {
+  const rems = readRems(); const i = rems.findIndex(x => x.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: 'not found' });
+  rems.splice(i, 1); writeRems(rems); res.json({ ok: true });
+});
+
+// Tick: fire anything due. 30s granularity is plenty for minute-precision reminders.
+let _remTicking = false;
+setInterval(async () => {
+  if (_remTicking) return;
+  _remTicking = true;
+  try {
+    const rems = readRems();
+    const now = Date.now();
+    const due = rems.filter(r => !r.done && !r.firedAt && new Date(r.at).getTime() <= now);
+    if (due.length) {
+      for (const r of due) {
+        await sendPush({ title: 'Reminder', body: r.text, tag: r.id, url: '/app?remind=' + r.id, id: r.id });
+        r.firedAt = new Date().toISOString();
+        const nxt = nextOccurrence(r.at, r.repeat);
+        if (nxt) { r.at = nxt; r.firedAt = null; }   // recurring: re-arm rather than close out
+        else r.done = true;
+      }
+      writeRems(rems);
+      console.log('[REMIND] fired ' + due.length);
+    }
+  } catch (e) { console.log('[REMIND] tick failed', e.message); }
+  _remTicking = false;
+}, 30000);
+
+/* ============================================================
+   VOICE NOTES — speak an instruction, get a reminder.
+   Claude has no speech-to-text, so audio goes to Whisper first,
+   then the transcript goes to Claude to work out what was meant.
+   ============================================================ */
+const VOICE_SCHEMA = {
+  type: 'object',
+  properties: {
+    intent:  { type: 'string', enum: ['reminder', 'note', 'unclear'], description: 'reminder if a time or "remind me" is implied; note if it is just something to record; unclear if unusable' },
+    text:    { type: 'string', description: 'The reminder or note, rewritten in clean second person, e.g. "Call the plumber about the Ebony Cottage geyser"' },
+    at:      { type: 'string', description: 'Absolute local time as YYYY-MM-DDTHH:MM (no timezone suffix), or "" if none was given' },
+    repeat:  { type: 'string', enum: ['none', 'daily', 'weekdays', 'weekly', 'monthly'] },
+    reply:   { type: 'string', description: 'One short warm sentence confirming what you understood, in a coach voice' }
+  },
+  required: ['intent', 'text', 'at', 'repeat', 'reply'],
+  additionalProperties: false
+};
+
+app.post('/voice', async (req, res) => {
+  try {
+    const okey = process.env.OPENAI_API_KEY;
+    const akey = process.env.ANTHROPIC_API_KEY;
+    if (!okey) return res.status(501).json({ error: 'OPENAI_API_KEY not set on the proxy — needed to transcribe voice notes' });
+    if (!akey) return res.status(501).json({ error: 'ANTHROPIC_API_KEY not set on the proxy' });
+    const { audio, media_type = 'audio/webm', now } = req.body || {};
+    if (!audio) return res.status(400).json({ error: 'audio field required (base64)' });
+
+    // 1. transcribe
+    const ext = /mp4|m4a/.test(media_type) ? 'm4a' : /ogg/.test(media_type) ? 'ogg' : /wav/.test(media_type) ? 'wav' : 'webm';
+    const fd = new FormData();
+    fd.append('file', new Blob([Buffer.from(audio, 'base64')], { type: media_type }), 'note.' + ext);
+    fd.append('model', process.env.WHISPER_MODEL || 'whisper-1');
+    const wr = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST', headers: { authorization: 'Bearer ' + okey }, body: fd
+    });
+    const wtext = await wr.text();
+    if (!wr.ok) { console.log('[VOICE] whisper error', wr.status, wtext.slice(0, 300)); return res.status(502).json({ error: 'Transcription failed (' + wr.status + ')' }); }
+    const transcript = (JSON.parse(wtext).text || '').trim();
+    if (!transcript) return res.json({ transcript: '', intent: 'unclear', reply: "I couldn't hear anything in that." });
+
+    // 2. work out what it means. `now` is the phone's local clock so that
+    //    "tomorrow at 3" resolves against the user's day, not the server's.
+    const stamp = now && !isNaN(new Date(now).getTime()) ? new Date(now) : new Date();
+    const localNow = new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'long' }).format(stamp);
+    const ar = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': akey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: process.env.VOICE_MODEL || 'claude-opus-5',
+        max_tokens: 2000,
+        thinking: { type: 'disabled' },
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: VOICE_SCHEMA } },
+        system: 'You turn a spoken note from Stuart into a structured reminder for his personal dashboard. ' +
+                'It is currently ' + localNow + ' in ' + APP_TZ + '. Resolve relative times ("tomorrow", "in an hour", ' +
+                '"Friday morning") against that. Morning defaults to 08:00, afternoon to 14:00, evening to 18:00. ' +
+                'If no time at all is implied, return intent "note" with an empty at. Never invent a time that was not implied.',
+        messages: [{ role: 'user', content: 'Spoken note: "' + transcript + '"' }]
+      })
+    });
+    const atext = await ar.text();
+    if (!ar.ok) { console.log('[VOICE] claude error', ar.status, atext.slice(0, 300)); return res.status(502).json({ error: 'Could not interpret that note' }); }
+    const aj = JSON.parse(atext);
+    const parsed = JSON.parse((aj.content || []).filter(b => b.type === 'text').map(b => b.text).join(''));
+
+    // 3. local wall-clock -> absolute instant in the app's timezone
+    let atIso = null;
+    if (parsed.intent === 'reminder' && parsed.at) atIso = localToInstant(parsed.at);
+    res.json({ transcript, ...parsed, at: atIso, atLocal: parsed.at || '' });
+  } catch (e) { console.log('[VOICE] failed', e.message); res.status(500).json({ error: e.message }); }
+});
+
+/* "2026-08-18T15:00" in APP_TZ -> a real UTC instant. Works out the zone's
+   offset at that date (so it survives any future DST change) and subtracts it. */
+function localToInstant(local) {
+  const m = String(local).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m.map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  const asUtc = new Date(guess);
+  const p = new Intl.DateTimeFormat('en-GB', { timeZone: APP_TZ, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .formatToParts(asUtc).reduce((o, x) => (o[x.type] = x.value, o), {});
+  const back = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute);
+  return new Date(guess - (back - guess)).toISOString();
+}
+
 // redeploy Mon Jun 15 16:12:01 UTC 2026
 // redeploy pairs-live Mon Jun 15 16:28:54 UTC 2026
 // redeploy scenario Mon Jun 15 18:35:55 UTC 2026
