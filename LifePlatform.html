@@ -469,6 +469,47 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .hero-stat{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:13px 15px;backdrop-filter:blur(4px)}
 .hero-stat .v{font-family:var(--disp);font-weight:700;font-size:23px;letter-spacing:-.4px;line-height:1}
 .hero-stat .l{font-family:var(--mono);font-size:9px;letter-spacing:1.1px;text-transform:uppercase;opacity:.82;margin-top:6px}
+/* The creed and the daily line. This is the part of the page meant to land
+   before anything operational does, so it gets the air and the type size. */
+.creed{position:relative;font-family:var(--disp);font-weight:800;font-size:19px;letter-spacing:-.3px;line-height:1.25;
+  padding:14px 0 0;border-top:1px solid rgba(255,255,255,.22);margin-top:20px}
+.creed .mark{display:block;font-family:var(--mono);font-size:9px;letter-spacing:1.6px;text-transform:uppercase;opacity:.7;margin-bottom:9px}
+.daily{position:relative;margin-top:20px;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.19);
+  border-radius:16px;padding:20px 22px;backdrop-filter:blur(4px)}
+.daily .theme{font-family:var(--mono);font-size:9px;letter-spacing:1.6px;text-transform:uppercase;opacity:.78}
+.daily .q{font-family:var(--serif);font-style:italic;font-size:20px;line-height:1.45;margin:11px 0 0;letter-spacing:-.2px}
+.daily .by{font-family:var(--mono);font-size:10.5px;letter-spacing:.7px;opacity:.82;margin-top:12px}
+.daily .by em{font-style:normal;opacity:.62}
+.daily .more{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);
+  color:inherit;border-radius:9px;padding:5px 9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.8px;cursor:pointer;transition:.15s}
+.daily .more:hover{background:rgba(255,255,255,.24)}
+@media(max-width:560px){ .daily .q{font-size:17px} .creed{font-size:16.5px} }
+/* ---- the magazine ---- */
+.mag-mast{border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:8px}
+.mag-mast h2{font-family:var(--disp);font-weight:800;font-size:34px;letter-spacing:-1px;line-height:1}
+.mag-mast .sub{font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-faint);margin-top:8px}
+.mag-rail{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:18px 0 24px}
+.mag-chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.9px;text-transform:uppercase;border:1px solid var(--line2);
+  background:var(--card);color:var(--ink-soft);border-radius:999px;padding:7px 14px;cursor:pointer;transition:.15s}
+.mag-chip:hover{border-color:var(--terra);color:var(--terra-deep)}
+.mag-chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.mag-sec{margin-bottom:34px}
+.mag-sec-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:18px}
+.mag-sec-head .name{font-family:var(--disp);font-weight:700;font-size:21px;letter-spacing:-.4px}
+.mag-sec-head .meta{font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint)}
+.mag-lead{display:grid;grid-template-columns:1fr;gap:6px;padding:0 0 22px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.mag-lead .t{font-family:var(--disp);font-weight:800;font-size:27px;line-height:1.15;letter-spacing:-.7px}
+.mag-lead .s{font-family:var(--serif);font-size:15.5px;line-height:1.62;color:var(--ink-soft);margin-top:8px}
+.mag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:22px}
+.mag-art .t{font-family:var(--disp);font-weight:700;font-size:16.5px;line-height:1.3;letter-spacing:-.3px}
+.mag-art .s{font-family:var(--serif);font-size:13.5px;line-height:1.6;color:var(--ink-soft);margin-top:7px}
+.mag-line{font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:7px}
+.mag-take{font-family:var(--serif);font-style:italic;font-size:13px;line-height:1.55;color:var(--ink);
+  border-left:2px solid var(--terra);padding-left:11px;margin-top:11px}
+.mag-art a,.mag-lead a{color:inherit;text-decoration:none}
+.mag-art a:hover .t,.mag-lead a:hover .t{color:var(--terra-deep);text-decoration:underline;text-underline-offset:3px}
+@media(max-width:560px){ .mag-mast h2{font-size:27px} .mag-lead .t{font-size:22px} }
 @media(max-width:760px){ .hero-stats{grid-template-columns:repeat(2,1fr)} .hero{padding:24px 22px} .hero .h-hi{font-size:25px} }
 @media(max-width:560px){ .hero-stats{grid-template-columns:1fr 1fr;gap:10px} }
 
@@ -530,6 +571,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
     <button data-pane="goals"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4h12l-2.5 4L17 12H5"/></svg>Goals</button>
     <button data-pane="finance"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>Wealth</button>
     <button data-pane="coach"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a3 3 0 013 3v5a3 3 0 01-6 0V6a3 3 0 013-3z"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>Coach</button>
+    <button data-pane="read"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5a2 2 0 012-2h5v18H6a2 2 0 01-2-2z"/><path d="M20 5a2 2 0 00-2-2h-5v18h5a2 2 0 002-2z"/></svg>Read</button>
     <button data-pane="expenses"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg>Expenses</button>
     <button data-pane="pairs"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-6 4 3 5-7M16 7h3v3"/></svg>Pairs</button>
     <button data-pane="scenario"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg>Scenarios</button>
@@ -558,6 +600,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   <section id="pane-goals" class="pane"></section>
   <section id="pane-wealth" class="pane"></section>
   <section id="pane-coach" class="pane"></section>
+  <section id="pane-read" class="pane"></section>
   <section id="pane-expenses" class="pane"></section>
   <section id="pane-pairs" class="pane"></section>
   <section id="pane-scenario" class="pane"></section>
@@ -857,6 +900,82 @@ function proxyBase(){
   const w=DB.whoop&&DB.whoop.proxyUrl; return w? w.replace(/\/$/,''):'';
 }
 
+/* ============ THE DAILY LINE ============
+   A curated shelf rather than a quote API: it works offline, it never
+   serves something limp, and every line is one Stuart would actually
+   want on the wall. Attribution is deliberate — anything commonly
+   misattributed (the "Aristotle" excellence line, most of the Buddha
+   and Wilde internet canon) is either credited to whoever really wrote
+   it or left out. Themes: authenticity, strength, structure, focus,
+   routine — and belief, which is his own. */
+const CREED='I can achieve anything I set my mind to.';
+const QUOTES=[
+  // — AUTHENTICITY —
+  {t:'authenticity',q:'Trust thyself: every heart vibrates to that iron string.',a:'Ralph Waldo Emerson',s:'Self-Reliance'},
+  {t:'authenticity',q:'Whoso would be a man must be a nonconformist.',a:'Ralph Waldo Emerson',s:'Self-Reliance'},
+  {t:'authenticity',q:'No man for any considerable period can wear one face to himself and another to the multitude, without finally getting bewildered as to which may be the true.',a:'Nathaniel Hawthorne',s:'The Scarlet Letter'},
+  {t:'authenticity',q:'It is better to fail in originality than to succeed in imitation.',a:'Herman Melville'},
+  {t:'authenticity',q:'To thine own self be true.',a:'William Shakespeare',s:'Hamlet'},
+  {t:'authenticity',q:'Man is least himself when he talks in his own person. Give him a mask, and he will tell you the truth.',a:'Oscar Wilde',s:'The Critic as Artist'},
+  {t:'authenticity',q:'There is no passion to be found playing small — in settling for a life that is less than the one you are capable of living.',a:'Nelson Mandela'},
+  {t:'authenticity',q:'Care about what other people think and you will always be their prisoner.',a:'Lao Tzu'},
+  // — STRENGTH —
+  {t:'strength',q:'The impediment to action advances action. What stands in the way becomes the way.',a:'Marcus Aurelius',s:'Meditations'},
+  {t:'strength',q:'You have power over your mind — not outside events. Realise this, and you will find strength.',a:'Marcus Aurelius',s:'Meditations'},
+  {t:'strength',q:'Difficulties strengthen the mind, as labour does the body.',a:'Seneca'},
+  {t:'strength',q:'A man can be destroyed but not defeated.',a:'Ernest Hemingway',s:'The Old Man and the Sea'},
+  {t:'strength',q:'It is not the mountain we conquer, but ourselves.',a:'Sir Edmund Hillary'},
+  {t:'strength',q:'Fall seven times, stand up eight.',a:'Japanese proverb'},
+  {t:'strength',q:'Do not judge me by my successes; judge me by how many times I fell down and got back up again.',a:'Nelson Mandela'},
+  {t:'strength',q:'That which does not kill us makes us stronger.',a:'Friedrich Nietzsche',s:'Twilight of the Idols'},
+  {t:'strength',q:'The oak fought the wind and was broken; the willow bent and survived.',a:'Proverb'},
+  // — STRUCTURE —
+  {t:'structure',q:'We are what we repeatedly do. Excellence, then, is not an act but a habit.',a:'Will Durant',s:'summarising Aristotle'},
+  {t:'structure',q:'A schedule defends from chaos and whim.',a:'Annie Dillard',s:'The Writing Life'},
+  {t:'structure',q:'How we spend our days is, of course, how we spend our lives.',a:'Annie Dillard'},
+  {t:'structure',q:'You do not rise to the level of your goals. You fall to the level of your systems.',a:'James Clear',s:'Atomic Habits'},
+  {t:'structure',q:'Discipline equals freedom.',a:'Jocko Willink'},
+  {t:'structure',q:'Order and simplification are the first steps toward the mastery of a subject.',a:'Thomas Mann',s:'The Magic Mountain'},
+  {t:'structure',q:'For the want of a nail the shoe was lost; for the want of a shoe the horse was lost.',a:'George Herbert'},
+  {t:'structure',q:'Give me six hours to chop down a tree and I will spend the first four sharpening the axe.',a:'Attributed to Abraham Lincoln'},
+  // — FOCUS —
+  {t:'focus',q:'Concentrate all your thoughts upon the work at hand. The sun\'s rays do not burn until brought to a focus.',a:'Alexander Graham Bell'},
+  {t:'focus',q:'Focus means saying no to the hundred other good ideas.',a:'Steve Jobs'},
+  {t:'focus',q:'The main thing is to keep the main thing the main thing.',a:'Stephen Covey'},
+  {t:'focus',q:'You can do anything, but not everything.',a:'David Allen'},
+  {t:'focus',q:'To do two things at once is to do neither.',a:'Publilius Syrus'},
+  {t:'focus',q:'One cannot hunt two rabbits at the same time.',a:'Proverb'},
+  {t:'focus',q:'The successful man is the average man, focused.',a:'Proverb'},
+  {t:'focus',q:'Golf is a game played on a five-inch course — the distance between your ears.',a:'Bobby Jones'},
+  // — ROUTINE —
+  {t:'routine',q:'Routine, in an intelligent man, is a sign of ambition.',a:'W. H. Auden'},
+  {t:'routine',q:'Amateurs sit and wait for inspiration. The rest of us just get up and go to work.',a:'Stephen King',s:'On Writing'},
+  {t:'routine',q:'We first make our habits, and then our habits make us.',a:'John Dryden'},
+  {t:'routine',q:'The secret of your future is hidden in your daily routine.',a:'Mike Murdock'},
+  {t:'routine',q:'Motivation is what gets you started. Habit is what keeps you going.',a:'Jim Ryun'},
+  {t:'routine',q:'Small disciplines repeated with consistency every day lead to great achievements.',a:'John C. Maxwell'},
+  {t:'routine',q:'Little by little, a little becomes a lot.',a:'Tanzanian proverb'},
+  // — BELIEF (his own line, and its company) —
+  {t:'belief',q:'It always seems impossible until it\'s done.',a:'Nelson Mandela'},
+  {t:'belief',q:'Whether you think you can or you think you can\'t — you\'re right.',a:'Attributed to Henry Ford'},
+  {t:'belief',q:'May your choices reflect your hopes, not your fears.',a:'Nelson Mandela'},
+  {t:'belief',q:'Success in golf depends less on strength of body than upon strength of mind and character.',a:'Arnold Palmer'},
+  {t:'belief',q:'Argue for your limitations and, sure enough, they\'re yours.',a:'Richard Bach',s:'Illusions'},
+  {t:'belief',q:'What we achieve inwardly will change outer reality.',a:'Plutarch'}
+];
+const QUOTE_THEMES={authenticity:'Authenticity',strength:'Strength',structure:'Structure',focus:'Focus',routine:'Routine',belief:'Belief'};
+/* Same line all day, a different one tomorrow, and the whole shelf seen before
+   any repeat — a date-seeded stride through the list rather than a random pick. */
+function dayIndex(d){ return Math.floor((d||new Date()).setHours(0,0,0,0)/86400000); }
+function quoteOfTheDay(offset){
+  const n=QUOTES.length;
+  const stride=7;                       // coprime with the list length: full cycle, no clustering
+  const i=(((dayIndex()*stride)+(offset||_quoteNudge))%n+n)%n;
+  return QUOTES[i];
+}
+let _quoteNudge=0;
+function anotherQuote(){ _quoteNudge++; renderHome(); }
+
 function renderHome(){
   const m=morningCfg();
   const hour=new Date().getHours();
@@ -879,6 +998,7 @@ function renderHome(){
      ${cardTraining()}
    </div>
    ${cardTasks()}
+   ${cardReading()}
    <div style="margin-bottom:18px">${cardMail()}</div>
    ${cardProfessionalFocus()}
    <div class="grid g2" style="margin-bottom:18px">
@@ -5343,6 +5463,7 @@ function heroHome(){
   // One Thing
   const cfg=morningCfg();
   const oneThing=cfg.oneThing||'';
+  const dq=quoteOfTheDay();
   return `<div class="hero">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:18px">
       <div>
@@ -5353,7 +5474,14 @@ function heroHome(){
         ${weatherChip()}
       </div>
     </div>
-    <div style="font-family:var(--serif);font-size:15px;line-height:1.6;margin-bottom:20px;color:rgba(255,255,255,.92);position:relative">${status}</div>
+    <div class="creed"><span class="mark">What you hold to be true</span>${CREED}</div>
+    <div class="daily">
+      <button class="more" onclick="anotherQuote()" title="Show another — tomorrow's line is unaffected">Another</button>
+      <div class="theme">${QUOTE_THEMES[dq.t]||'Today'} · the daily line</div>
+      <div class="q">“${cEsc(dq.q)}”</div>
+      <div class="by">${cEsc(dq.a)}${dq.s?` <em>· ${cEsc(dq.s)}</em>`:''}</div>
+    </div>
+    <div style="font-family:var(--serif);font-size:15px;line-height:1.6;color:rgba(255,255,255,.92);position:relative;margin-top:20px">${status}</div>
     <div class="hero-stats">
       <div class="hero-stat">
         <div class="v" style="color:${recColor}">${recV!=null?recV+'%':'—'}</div>
@@ -6376,6 +6504,160 @@ async function initCoach(){
   renderCoach();
 }
 
+/* ============ THE MAGAZINE ============
+   Topics live on the proxy (they drive a server-side search, and they should
+   follow him between devices), so this pane is a thin reader over /magazine.
+   The last issue is served from the volume, which means opening this is
+   instant — a refresh is a deliberate act, not something that happens while
+   you're trying to read. */
+let _mag={topics:[],issues:{}}, _magFilter='all', _magBusy=null;
+async function loadMagazine(){
+  const base=proxyBase(); if(!base) return;
+  try{ _mag=await fetch(base+'/magazine').then(r=>r.json()); }catch(e){}
+}
+async function refreshMagTopic(id){
+  const base=proxyBase(); if(!base){ toast('Set the proxy URL in Settings first'); return; }
+  if(_magBusy){ toast('Already fetching '+_magBusy); return; }
+  const t=_mag.topics.find(x=>x.id===id);
+  _magBusy=t?t.label:id; renderMagazine();
+  try{
+    const r=await fetch(base+'/magazine/refresh',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Refresh failed');
+    _mag.issues[id]=j;
+    toast('New issue — '+j.items.length+' pieces');
+  }catch(e){ toast(e.message||'Could not refresh'); }
+  _magBusy=null; renderMagazine();
+}
+function openAddTopic(existing){
+  const t=existing?_mag.topics.find(x=>x.id===existing):null;
+  showModal(`<div class="modal-head">
+      <div><h2>${t?'Edit topic':'Add a topic'}</h2><div class="ms">Describe what you want to read about — the brief is what the editor searches on</div></div>
+      <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="kicker" style="margin-bottom:6px">Name</div>
+      <input id="mtLabel" class="exp-in" style="width:100%" maxlength="60" placeholder="e.g. Endurance training science" value="${t?cEsc(t.label):''}">
+      <div class="kicker" style="margin:16px 0 6px">What you want from it</div>
+      <textarea id="mtBrief" class="exp-in" rows="6" style="width:100%" maxlength="2000"
+        placeholder="Write it like a standing instruction to an editor. What counts as interesting, what to prefer, and what to leave out. e.g. “Research and practice on training after 50 — recovery, strength retention, injury prevention. Peer-reviewed work and serious coaching writing. No supplement marketing, no biohacking.”">${t?cEsc(t.brief):''}</textarea>
+      <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;margin-top:10px">
+        The more specific the brief, the better the shelf. Saying what you <b>don't</b> want matters as much as what you do.</div>
+      <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+        <button class="btn primary" onclick="saveTopic('${t?t.id:''}')">${t?'Save changes':'Add topic'}</button>
+        ${t?`<button class="btn" onclick="deleteTopic('${t.id}')">Remove topic</button>`:''}
+        <button class="btn" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>`);
+}
+async function saveTopic(id){
+  const base=proxyBase(); if(!base){ toast('Set the proxy URL in Settings first'); return; }
+  const label=(document.getElementById('mtLabel').value||'').trim();
+  const brief=(document.getElementById('mtBrief').value||'').trim();
+  if(!label){ toast('Give it a name'); return; }
+  if(brief.length<20){ toast('Say a bit more about what you want to read'); return; }
+  try{
+    const r=await fetch(base+'/magazine/topics'+(id?'/'+id:''),{method:id?'PATCH':'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({label,brief})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Could not save');
+    await loadMagazine(); closeModal(); renderMagazine();
+    toast(id?'Topic updated':'Topic added — fetching its first issue');
+    if(!id) refreshMagTopic(j.id);
+  }catch(e){ toast(e.message||'Could not save'); }
+}
+async function deleteTopic(id){
+  if(!confirm('Remove this topic and its saved issue?')) return;
+  const base=proxyBase(); if(!base) return;
+  try{
+    await fetch(base+'/magazine/topics/'+id,{method:'DELETE'});
+    await loadMagazine(); closeModal();
+    if(_magFilter===id) _magFilter='all';
+    renderMagazine(); toast('Topic removed');
+  }catch(e){ toast('Could not remove it'); }
+}
+function magWhen(iso){
+  if(!iso) return 'never';
+  const mins=Math.round((Date.now()-new Date(iso).getTime())/60000);
+  if(mins<60) return mins<=1?'just now':mins+' min ago';
+  const h=Math.round(mins/60); if(h<24) return h+'h ago';
+  const d=Math.round(h/24); return d===1?'yesterday':d+' days ago';
+}
+function magArticleHtml(a,lead){
+  const line=[a.source,a.date?fmtDate(a.date):'',a.readMinutes?a.readMinutes+' min read':''].filter(Boolean).join(' · ');
+  const href=cEsc(a.url);
+  return lead
+    ? `<div class="mag-lead"><div class="mag-line">${cEsc(line)}</div>
+        <a href="${href}" target="_blank" rel="noopener noreferrer"><div class="t">${cEsc(a.title)}</div></a>
+        <div class="s">${cEsc(a.summary)}</div>
+        ${a.takeaway?`<div class="mag-take">${cEsc(a.takeaway)}</div>`:''}
+        <div style="margin-top:14px"><a class="btn" href="${href}" target="_blank" rel="noopener noreferrer">Read it →</a></div></div>`
+    : `<div class="mag-art"><div class="mag-line">${cEsc(line)}</div>
+        <a href="${href}" target="_blank" rel="noopener noreferrer"><div class="t">${cEsc(a.title)}</div>
+        <div class="s">${cEsc(a.summary)}</div></a>
+        ${a.takeaway?`<div class="mag-take">${cEsc(a.takeaway)}</div>`:''}</div>`;
+}
+function magSectionHtml(t){
+  const iss=_mag.issues[t.id];
+  const busy=_magBusy===t.label;
+  const items=(iss&&iss.items)||[];
+  const body=busy
+    ? `<div class="empty">Reading the week for you — this takes a minute.</div>`
+    : items.length
+      ? `${magArticleHtml(items[0],true)}<div class="mag-grid">${items.slice(1).map(a=>magArticleHtml(a)).join('')}</div>`
+      : `<div class="empty">No issue yet. Tap <b>New issue</b> and the editor will go and read for you.</div>`;
+  return `<div class="mag-sec">
+    <div class="mag-sec-head">
+      <div><div class="name">${cEsc(t.label)}</div>
+        <div class="meta" style="margin-top:5px">${items.length?items.length+' pieces · ':''}updated ${magWhen(iss&&iss.updatedAt)}</div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="openAddTopic('${t.id}')">Edit brief</button>
+        <button class="btn primary" onclick="refreshMagTopic('${t.id}')" ${busy?'disabled':''}>${busy?'Reading…':'New issue'}</button>
+      </div>
+    </div>
+    ${body}</div>`;
+}
+function renderMagazine(){
+  const P=document.getElementById('pane-read'); if(!P) return;
+  if(!proxyBase()){
+    P.innerHTML=`<div class="mag-mast"><h2>The Reading Room</h2><div class="sub">Your magazine</div></div>
+      <div class="empty" style="margin-top:24px">The magazine is assembled by your proxy. Set the proxy URL in Settings and it will start reading.</div>`;
+    return;
+  }
+  const topics=_mag.topics||[];
+  const shown=_magFilter==='all'?topics:topics.filter(t=>t.id===_magFilter);
+  const total=topics.reduce((n,t)=>n+(((_mag.issues[t.id]||{}).items)||[]).length,0);
+  P.innerHTML=`
+    <div class="mag-mast">
+      <h2>The Reading Room</h2>
+      <div class="sub">${topics.length} ${topics.length===1?'section':'sections'} · ${total} pieces on the shelf · refreshed daily</div>
+    </div>
+    <div class="mag-rail">
+      <button class="mag-chip ${_magFilter==='all'?'on':''}" onclick="setMagFilter('all')">All</button>
+      ${topics.map(t=>`<button class="mag-chip ${_magFilter===t.id?'on':''}" onclick="setMagFilter('${t.id}')">${cEsc(t.label)}</button>`).join('')}
+      <button class="mag-chip" onclick="openAddTopic()" style="border-style:dashed">+ Add a topic</button>
+    </div>
+    ${topics.length?shown.map(magSectionHtml).join(''):`<div class="empty">No topics yet — add the first thing you want to read about.</div>`}`;
+}
+function setMagFilter(f){ _magFilter=f; renderMagazine(); }
+/* A single piece on the landing page — enough to pull him in, not a second feed. */
+function cardReading(){
+  const topics=_mag.topics||[];
+  let pick=null,from=null;
+  for(const t of topics){
+    const it=((_mag.issues[t.id]||{}).items)||[];
+    if(it.length){ const a=it[dayIndex()%it.length]; if(!pick){ pick=a; from=t.label; } }
+  }
+  if(!pick) return '';
+  return `<div class="card card-pad" style="margin-bottom:18px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <div><div class="kicker">From your magazine</div><div class="h-sec" style="margin-bottom:0">${cEsc(from)}</div></div>
+      <button class="btn" onclick="go('read')">Open the reading room</button>
+    </div>
+    <div style="margin-top:14px">${magArticleHtml(pick)}</div>
+  </div>`;
+}
+
 /* ============ EXPENSE CLAIMS ============
    Photograph a slip (an explanation of the spend is mandatory), upload the
    card statement PDF, let the server-side extraction + local matcher pair
@@ -6902,7 +7184,14 @@ function expCloseReport(){
   const W=document.getElementById('expWorkspace'); if(W) W.style.display='';
 }
 
-function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire();renderPairs();renderScenario();renderExpenses();renderCoach(); }
+function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire();renderPairs();renderScenario();renderExpenses();renderCoach();renderMagazine(); }
+/* The shelf is on the proxy; pull it once at boot so the landing page can show
+   a piece from it, and the Read tab opens with something already on it. */
+(async function initMagazine(){
+  if(!proxyBase()) return;
+  await loadMagazine();
+  renderMagazine(); renderHomeIfActive();
+})();
 /* Reminders + push state live on the server, so fetch them once at boot and
    register the worker if permission was already granted on a previous visit. */
 initCoach();
@@ -6922,6 +7211,7 @@ document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',(
   // re-render so slip thumbnails load now the pane is on screen
   if(b.dataset.pane==='expenses') renderExpenses();
   if(b.dataset.pane==='coach'){ loadReminders().then(refreshPushState).then(renderCoach); }
+  if(b.dataset.pane==='read'){ loadMagazine().then(renderMagazine); }
   if(b.dataset.pane==='pairs' && !window._pairsKicked){ window._pairsKicked=true; loadPairs(); }
   if(b.dataset.pane==='scenario' && !_scenKicked[_scenCtx]){ _scenKicked[_scenCtx]=true; loadScenario(_scenCtx); }
   window.scrollTo({top:0,behavior:'smooth'});
