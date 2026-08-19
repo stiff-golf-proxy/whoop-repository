@@ -1534,9 +1534,21 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_FILE = path.join(__dirname, 'LifePlatform.html');
+/* The whole app is this one file, so a stale copy means a phone quietly running
+   last week's build with no way to tell. Revalidate on every load: the ETag
+   still makes an unchanged file a 304, so freshness costs nothing. */
 function serveApp(req, res){
-  if (fs.existsSync(APP_FILE)) return res.sendFile(APP_FILE);
-  res.status(404).send('LifePlatform.html not found in the deploy. Upload it alongside server.js.');
+  if (!fs.existsSync(APP_FILE)) return res.status(404).send('LifePlatform.html not found in the deploy. Upload it alongside server.js.');
+  res.set('Cache-Control', 'no-cache, must-revalidate');
+  res.sendFile(APP_FILE);
+}
+/* Which build is actually live. /status is open, so this can be checked from a
+   phone without signing in — "is the fix deployed?" should not need guessing. */
+function appBuild(){
+  try {
+    const st = fs.statSync(APP_FILE);
+    return { builtAt: st.mtime.toISOString(), bytes: st.size };
+  } catch (e) { return { builtAt: null, bytes: 0 }; }
 }
 app.get('/', serveApp);
 app.get('/app', serveApp);
@@ -1551,6 +1563,7 @@ app.get('/status', (req, res) => {
   try { if (DATA_DIR && DATA_DIR !== '.') { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.accessSync(DATA_DIR, fs.constants.W_OK); persistent = true; } } catch (e) {}
   res.json({
     proxy: 'LifePlatform-v2',
+    app: appBuild(),
     whoopAuthenticated: !!tokens,
     tokenStorage: TOKEN_FILE,
     persistentStorage: persistent,
