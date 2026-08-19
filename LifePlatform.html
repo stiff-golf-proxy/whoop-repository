@@ -2563,21 +2563,54 @@ function clubsInBag(){
    a 25-handicap and a scratch player — so the disp factors run 1.0 → 4.2 while
    the distance factors only run 1.0 → 0.61. */
 const TOUR={
+  // Trackman PGA Tour averages, carry in yards, converted: driver 275, 4i 203,
+  // 5i 194, 6i 183, 7i 172, 8i 160, 9i 148, PW 136. The short irons and wedges
+  // used to sit 3-7 m under these, which dragged every derived tier down with
+  // them. Wedge carries below PW are interpolated — the tour tables stop at PW.
   'Driver':       {carry:251, chs:113, disp:13},
-  '3 Wood':       {carry:224, chs:107, disp:12},
-  '2 Iron':       {carry:201, chs:98,  disp:11},
-  '4 Iron':       {carry:188, chs:90,  disp:10},
-  '5 Iron':       {carry:178, chs:88,  disp:9},
+  '3 Wood':       {carry:222, chs:107, disp:12},
+  '2 Iron':       {carry:199, chs:98,  disp:11},
+  '4 Iron':       {carry:186, chs:90,  disp:10},
+  '5 Iron':       {carry:177, chs:88,  disp:9},
   '6 Iron':       {carry:167, chs:85,  disp:8.5},
-  '7 Iron':       {carry:155, chs:82,  disp:8},
-  '8 Iron':       {carry:143, chs:78,  disp:7},
-  '9 Iron':       {carry:130, chs:75,  disp:6.5},
-  'Pitching Wedge':{carry:117,chs:72,  disp:6},
-  'Gap Wedge':    {carry:104, chs:68,  disp:5.5},
-  '52° Wedge':    {carry:95,  chs:64,  disp:5},
-  '56° Wedge':    {carry:82,  chs:60,  disp:4.5},
-  '60° Wedge':    {carry:68,  chs:56,  disp:4}
+  '7 Iron':       {carry:157, chs:82,  disp:8},
+  '8 Iron':       {carry:146, chs:78,  disp:7},
+  '9 Iron':       {carry:135, chs:75,  disp:6.5},
+  'Pitching Wedge':{carry:124,chs:72,  disp:6},
+  'Gap Wedge':    {carry:108, chs:68,  disp:5.5},
+  '52° Wedge':    {carry:100, chs:64,  disp:5},
+  '56° Wedge':    {carry:89,  chs:60,  disp:4.5},
+  '60° Wedge':    {carry:80,  chs:56,  disp:4}
 };
+
+/* How much of a tier's distance deficit applies to each club.
+   The tier factors are anchored on DRIVER carry — tour 274 yd vs scratch 247 is
+   a 10% gap — but that gap does not hold across the bag. Driver distance is
+   almost pure speed, so a slower swing loses all of it; an 8 iron is loft- and
+   spin-limited, and the amateur is usually playing a stronger-lofted modern iron
+   than the tour player's blade, so the gap narrows as loft rises. Published
+   figures bear it out: tour-to-scratch is ~10% with driver and ~6% with an
+   8 iron. 0 = the full tier deficit applies (driver), 1 = no deficit at all.
+   Applying the driver's factor to a wedge is what made a scratch 8 iron come
+   out at 129 m — about a club and a half short of what a 0-handicap hits. */
+const LOFT_TAPER={
+  'Driver':0, '3 Wood':0.08, '2 Iron':0.15, '4 Iron':0.25, '5 Iron':0.30,
+  '6 Iron':0.36, '7 Iron':0.42, '8 Iron':0.50, '9 Iron':0.55,
+  'Pitching Wedge':0.60, 'Gap Wedge':0.65, '52° Wedge':0.68,
+  '56° Wedge':0.72, '60° Wedge':0.75
+};
+/* The tier's distance factor for one club, tapered by loft. Driver is unchanged,
+   so the published per-tier driver anchors in the comment above still hold. */
+function carryFactor(club,t){
+  const w=(LOFT_TAPER[club]==null?0.4:LOFT_TAPER[club]);
+  /* Scaled by the tier's own factor. The loft advantage is real for a player
+     who can already compress the ball — it is why a scratch 8 iron sits within
+     6% of tour — but a 25-handicapper is short with everything, wedges included,
+     because the deficit there is swing speed rather than loft. Without this a
+     bogey golfer's benchmark pitching wedge came out at 115 yd. */
+  return t.dist + (1-t.dist)*w*t.dist;
+}
+function benchCarry(club,t){ const base=TOUR[club]; return base?base.carry*carryFactor(club,t):null; }
 
 /* The ladder, strongest first. `dist`/`chs`/`disp` multiply the TOUR anchor.
    `hcp` is the playing standard the tier represents — shown to the user so the
@@ -2612,7 +2645,7 @@ function benchFor(club,tierId){
   const base=TOUR[club]; if(!base) return null;
   const t=tierById(tierId||benchTierId());
   return {
-    carry: Math.round(base.carry*t.dist),
+    carry: Math.round(benchCarry(club,t)),
     chs:   Math.round(base.chs*t.chs),
     disp:  Math.round(base.disp*t.disp*10)/10,
     tier:  t
@@ -2623,7 +2656,7 @@ function benchFor(club,tierId){
    ladder from a difficulty slider into an answer: "you drive it like a 10". */
 function tierForCarry(club,carry){
   if(carry==null||!TOUR[club]) return null;
-  for(const t of BENCH_TIERS){ if(carry >= TOUR[club].carry*t.dist) return t; }
+  for(const t of BENCH_TIERS){ if(carry >= benchCarry(club,t)) return t; }
   return null;                                   // below the bottom rung
 }
 function tierForDisp(club,sd){
@@ -2653,7 +2686,7 @@ function ladderPos(club,kind,val){
   const N=BENCH_TIERS.length;
   // thresholds ordered softest → strongest
   const th=BENCH_TIERS.slice().reverse().map(t=>
-    kind==='disp' ? base.disp*t.disp : (kind==='chs' ? base.chs*t.chs : base.carry*t.dist));
+    kind==='disp' ? base.disp*t.disp : (kind==='chs' ? base.chs*t.chs : benchCarry(club,t)));
   const better=(a,b)=> kind==='disp' ? a<=b : a>=b;   // is a at-or-past b?
   if(!better(val,th[0])) return {pos:0, below:true};   // short of the bottom rung
   for(let i=0;i<N-1;i++){
