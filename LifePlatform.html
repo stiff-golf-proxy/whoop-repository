@@ -2518,7 +2518,12 @@ const CLUB_ALIASES={
   'lob wedge':'60° Wedge','lw':'60° Wedge',             // default a generic LW to the 60°
   '50 degree':'Gap Wedge','52 degree':'52° Wedge','54 degree':'52° Wedge',
   '56 degree':'56° Wedge','58 degree':'56° Wedge','60 degree':'60° Wedge',
-  '52°':'52° Wedge','56°':'56° Wedge','60°':'60° Wedge','putter':'Putter'
+  '52°':'52° Wedge','56°':'56° Wedge','60°':'60° Wedge','putter':'Putter',
+  // GSPro's club codes. Anything it sends that isn't here still imports under
+  // its own name and can be reassigned from the dropdown before saving.
+  'dr':'Driver','w1':'Driver','w3':'3 Wood','3 iron':'3 Iron',
+  'i2':'2 Iron','i3':'3 Iron','i4':'4 Iron','i5':'5 Iron','i6':'6 Iron',
+  'i7':'7 Iron','i8':'8 Iron','i9':'9 Iron','pt':'Putter'
 };
 function canonicalClub(name){
   if(!name) return null;
@@ -2948,7 +2953,7 @@ function clubCommentary(club,a){
 function clubAgg(club){
   const sh=golf().shots.filter(s=>s.club===club);
   const byDate={};
-  sh.forEach(s=>{ const d=(s.date||'').slice(0,10)||'undated'; (byDate[d]=byDate[d]||[]).push(s); });
+  sh.forEach(s=>{ const d=((s.date||'').slice(0,10).replace(/\//g,'-'))||'undated'; (byDate[d]=byDate[d]||[]).push(s); });
   const sessionList=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0]))
     .map(([date,shots])=>({date,shots,stats:sessionStats(shots)}));
   const last = sessionList[0]?sessionList[0].stats:null;
@@ -3984,7 +3989,34 @@ function delSavedSwing(id){
 const GOLF_CSV_MAP={'date':'date','club type':'clubRaw','club name':'clubName','club speed':'clubSpeed','attack angle':'attackAngle',
   'club path':'clubPath','club face':'clubFace','ball speed':'ballSpeed','smash factor':'smash','launch angle':'launchAngle',
   'launch direction':'launchDir','backspin':'backspin','sidespin':'sidespin','spin rate':'spinRate','apex height':'apex',
-  'carry distance':'carry','carry deviation distance':'carryDev','total distance':'total','total deviation distance':'totalDev'};
+  'carry distance':'carry','carry deviation distance':'carryDev','total distance':'total','total deviation distance':'totalDev',
+  /* GSPro's simulator export writes its own shorter headers for the same
+     measurements. Offline is the lateral miss, which is what dispersion is
+     computed from; HLA/VLA are the horizontal and vertical launch angles. */
+  'carry':'carry','club':'clubRaw','totaldistance':'total','peakheight':'apex','offline':'carryDev',
+  'hla':'launchDir','vla':'launchAngle','path':'clubPath','aoa':'attackAngle','facetotarget':'clubFace'};
+/* Monitors differ on spacing and case only — "Ball Speed", "BallSpeed" and
+   "ball_speed" are one column — so match on letters and digits alone. */
+const csvKey=h=>String(h||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const GOLF_CSV_FIELDS={}; for(const k in GOLF_CSV_MAP) GOLF_CSV_FIELDS[csvKey(k)]=GOLF_CSV_MAP[k];
+/* GSPro ships no date column — its filename is the timestamp
+   (gsproexport MMDDYY HHMMSS). Read it if it's there, so successive imports
+   land in separate sessions instead of piling into one undated heap. */
+function csvDateFromName(name){
+  const m=String(name||'').match(/(\d{2})(\d{2})(\d{2})/);
+  if(!m) return null;
+  const a=+m[1], b=+m[2], yr=2000+ +m[3];
+  let mo,d;
+  if(a>=1&&a<=12&&b>=1&&b<=31){ mo=a; d=b; }          // MMDDYY
+  else if(b>=1&&b<=12&&a>=1&&a<=31){ mo=b; d=a; }     // DDMMYY
+  else return null;
+  const iso=yr+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  const t=new Date(iso).getTime();
+  if(isNaN(t)) return null;
+  // A filename can say anything; only trust a plausible one.
+  if(yr<2015 || t>Date.now()+7*86400000) return null;
+  return iso;
+}
 
 /* ---- Round entry via Garmin scorecard image (Claude vision) ---- */
 /* Where the round was played. Online rounds (simulator / virtual) are kept
@@ -4209,9 +4241,10 @@ function handleGolfCSV(file){
   reader.onload=e=>{ try{
     let txt=e.target.result.replace(/^\uFEFF/,'');
     const lines=txt.split(/\r?\n/).filter(l=>l.trim());
-    const header=parseCSVLine(lines[0]).map(h=>h.trim().toLowerCase());
-    const idx={}; header.forEach((h,i)=>{ if(GOLF_CSV_MAP[h]!==undefined) idx[GOLF_CSV_MAP[h]]=i; });
-    if(idx.carry===undefined && idx.clubRaw===undefined) throw new Error('Could not find Club Type / Carry Distance columns');
+    const header=parseCSVLine(lines[0]).map(h=>h.trim());
+    const idx={}; header.forEach((h,i)=>{ const f=GOLF_CSV_FIELDS[csvKey(h)]; if(f!==undefined) idx[f]=i; });
+    if(idx.carry===undefined && idx.clubRaw===undefined)
+      throw new Error('No club or carry column recognised. This file starts with: '+header.slice(0,10).join(', '));
     let start=1; const r2=parseCSVLine(lines[1]||''); if(r2[idx.carry]&&/^\s*\[/.test(r2[idx.carry])) start=2;
     const shots=[];
     for(let i=start;i<lines.length;i++){
@@ -4228,6 +4261,32 @@ function handleGolfCSV(file){
       shots.push(s);
     }
     if(!shots.length) throw new Error('No shots found in file');
+
+    /* Units. GSPro exports in whatever the simulator is set to and stamps the
+       unit into DistanceToPin ("11.47 mtrs" / "12.5 yds"). This app stores
+       distance in metres and speed in mph, and robustClubSpeed discards any
+       club speed above 135 as a junk reading — so an unconverted km/h session
+       imports with every speed silently thrown away. */
+    const dtp=header.findIndex(h=>csvKey(h)==='distancetopin');
+    let unit='';
+    if(dtp>=0) for(let i=start;i<lines.length&&!unit;i++){
+      const u=(parseCSVLine(lines[i])[dtp]||'').match(/[a-z]+/i); if(u) unit=u[0].toLowerCase(); }
+    const med=a=>{ const v=a.filter(x=>x!=null).sort((x,y)=>x-y); return v.length?v[Math.floor(v.length/2)]:null; };
+    const yards = unit ? /^y/.test(unit) : false;
+    // With no unit stamp, only convert speeds that are impossible in mph anyway,
+    // so a file that was already mph + metres is left exactly as it was.
+    const kmh = unit ? !yards : (med(shots.map(s=>s.clubSpeed))>130 || med(shots.map(s=>s.ballSpeed))>190);
+    if(kmh) shots.forEach(s=>['ballSpeed','clubSpeed'].forEach(k=>{ if(s[k]!=null) s[k]=Math.round(s[k]*0.621371*100)/100; }));
+    if(yards) shots.forEach(s=>['carry','total','apex','carryDev','totalDev'].forEach(k=>{ if(s[k]!=null) s[k]=Math.round(s[k]*0.9144*100)/100; }));
+
+    /* Undated shots all collapse into one bucket, so the bag's
+       last-session-vs-the-one-before comparison can never move. */
+    const stamped=csvDateFromName(file.name)||todayISO();
+    shots.forEach(s=>{ if(!s.date) s.date=stamped; });
+    // Report the dates the shots actually carry, not the fallback we'd have used.
+    const days=[...new Set(shots.map(s=>(s.date||'').slice(0,10).replace(/\//g,'-')))].filter(Boolean).sort();
+    const dateLabel=days.length?(days.length===1?fmtDate(days[0]):fmtDate(days[0])+' – '+fmtDate(days[days.length-1])):'undated';
+
     window._pendingGolf=shots;
     const byClub={}; shots.forEach(s=>{(byClub[s.club]=byClub[s.club]||[]).push(s);});
     const rows=Object.entries(byClub).map(([club,arr])=>{
@@ -4245,8 +4304,8 @@ function handleGolfCSV(file){
     }).join('');
     document.getElementById('gPreview').innerHTML=`
       <div style="margin-top:18px;padding:16px;background:var(--paper);border:1px solid var(--line2);border-radius:12px">
-        <div style="font-family:var(--mono);font-size:11px;color:var(--good);letter-spacing:1px;margin-bottom:6px">✓ ${shots.length} shots · ${Object.keys(byClub).length} club${Object.keys(byClub).length>1?'s':''}</div>
-        <div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-faint);margin-bottom:8px">Check the club mapping — adjust any dropdown if a club was matched wrong.</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--good);letter-spacing:1px;margin-bottom:6px">✓ ${shots.length} shots · ${Object.keys(byClub).length} club${Object.keys(byClub).length>1?'s':''} · ${dateLabel}</div>
+        <div style="font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-faint);margin-bottom:8px">Check the club mapping — adjust any dropdown if a club was matched wrong.${kmh?' Speeds were read as km/h and converted to mph.':''}${yards?' Distances were read as yards and converted to metres.':''}</div>
         ${rows}
         <button class="btn primary" style="width:100%;justify-content:center;margin-top:14px" onclick="commitGolf()">Add to bag</button>
       </div>`;
@@ -4270,7 +4329,7 @@ function commitGolf(){
 /* ---- CLUB DETAIL popup: full session-by-session summary ---- */
 function sessionsForClub(club){
   const byDate={};
-  golf().shots.filter(s=>s.club===club).forEach(s=>{ const d=(s.date||'').slice(0,10)||'undated'; (byDate[d]=byDate[d]||[]).push(s); });
+  golf().shots.filter(s=>s.club===club).forEach(s=>{ const d=((s.date||'').slice(0,10).replace(/\//g,'-'))||'undated'; (byDate[d]=byDate[d]||[]).push(s); });
   return Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0]))
     .map(([date,shots])=>({date,shots}));
 }
