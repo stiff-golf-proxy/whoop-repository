@@ -75,6 +75,37 @@ the tab is instant.
 
 Briefs work best when they say what to leave out as well as what to look for.
 
+## Insurance (Cover tab)
+Drop a policy schedule (PDF or photo) and the proxy extracts it into a structured
+policy: insurer, period, premium and frequency, then one row per insured item
+with its sum insured, basis, premium, excess and notes.
+
+The split that matters: **the model reads the document, the app does the
+arithmetic.** Every rate, total, median and comparison on the screen is computed
+in the browser from the extracted figures, so a misread sum insured shows up as
+a number you can see and correct rather than a confident sentence written around
+it. Extracted values are editable before saving.
+
+What it computes:
+- Annual premium and monthly equivalent, annualising monthly/quarterly premiums.
+- Sum insured split into asset cover and life/risk cover — never added together,
+  because they are not the same kind of number.
+- Rate per R1 000 of cover a year, per item and per category. Only shown where
+  the schedule actually splits the premium per item; where it doesn't, the app
+  says so rather than apportioning.
+- Items priced above their own category median — comparison is against his own
+  book, not an external table.
+- Excess exposure, renewals inside 90 days, categories with no cover on file,
+  and an aggregated list of what the schedules fail to state.
+
+`POST /insurance/review` sends the computed figures plus the policy structure to
+Claude for a written review — gaps, cost observations, questions for the broker.
+The prompt states that the arithmetic is already done and that no new number may
+be introduced.
+
+`INSURANCE_MODEL` overrides the model. Policies live in `insurance.json` on the
+volume, so they are not in the app's own backup file.
+
 ## Notes
 - Free tier may cold-start after idle; first request waits a few seconds.
 - Never commit `.env` or `tokens.json` (the .gitignore handles this).

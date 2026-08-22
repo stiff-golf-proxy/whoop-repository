@@ -570,6 +570,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
     <button data-pane="health"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg>Health</button>
     <button data-pane="goals"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4h12l-2.5 4L17 12H5"/></svg>Goals</button>
     <button data-pane="finance"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>Wealth</button>
+    <button data-pane="insure"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6z"/></svg>Cover</button>
     <button data-pane="coach"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a3 3 0 013 3v5a3 3 0 01-6 0V6a3 3 0 013-3z"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>Coach</button>
     <button data-pane="read"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5a2 2 0 012-2h5v18H6a2 2 0 01-2-2z"/><path d="M20 5a2 2 0 00-2-2h-5v18h5a2 2 0 002-2z"/></svg>Read</button>
     <button data-pane="expenses"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg>Expenses</button>
@@ -601,6 +602,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
   <section id="pane-wealth" class="pane"></section>
   <section id="pane-coach" class="pane"></section>
   <section id="pane-read" class="pane"></section>
+  <section id="pane-insure" class="pane"></section>
   <section id="pane-expenses" class="pane"></section>
   <section id="pane-pairs" class="pane"></section>
   <section id="pane-scenario" class="pane"></section>
@@ -6596,6 +6598,296 @@ async function initCoach(){
   renderCoach();
 }
 
+/* ============ INSURANCE ============
+   Policy schedules go to the proxy to be read; everything numeric on this
+   screen is computed here from the extracted figures. That split is the point:
+   a misread sum insured shows up as a wrong number you can see and correct,
+   not as a confident sentence written around it. */
+let _ins={policies:[]}, _insBusy=false, _insReview=null;
+
+const INS_CATS={
+  vehicle:'Vehicle', building:'Buildings', contents:'Contents', allRisks:'All risks',
+  liability:'Liability', life:'Life', disability:'Disability', criticalIllness:'Critical illness',
+  incomeProtection:'Income protection', medical:'Medical', travel:'Travel', other:'Other'
+};
+// Asset cover is priced against a replacement value; risk cover is priced against
+// a life event. Adding a R2m contents sum to R10m of life cover would produce a
+// "total cover" figure that means nothing, so they are never mixed.
+const INS_ASSET=['vehicle','building','contents','allRisks'];
+const INS_RISK=['life','disability','criticalIllness','incomeProtection'];
+// What a household at this stage would normally carry. Absence is a question,
+// not a verdict — he may hold cover elsewhere, or have decided against it.
+const INS_EXPECTED=['vehicle','building','contents','allRisks','liability','life','disability','incomeProtection'];
+
+const insAnnual=(amt,freq)=>{ const a=+amt||0;
+  return freq==='monthly'?a*12 : freq==='quarterly'?a*4 : freq==='single'?0 : a; };
+const insRate=(annualPremium,sum)=> (annualPremium>0&&sum>0)? annualPremium/sum*1000 : null;
+const insMedian=a=>{ const v=a.filter(x=>x!=null&&isFinite(x)).sort((x,y)=>x-y); if(!v.length)return null;
+  const m=Math.floor(v.length/2); return v.length%2?v[m]:(v[m-1]+v[m])/2; };
+
+/* One pass over the portfolio. Everything the screen shows comes from here. */
+function insAnalyse(policies){
+  const items=[]; let annualPremium=0, splitKnown=0;
+  (policies||[]).forEach(p=>{
+    const polAnnual=insAnnual(p.premiumTotal,p.premiumFrequency);
+    annualPremium+=polAnnual;
+    const itemAnnual=(p.items||[]).reduce((n,it)=>n+insAnnual(it.premium,it.premiumFrequency||p.premiumFrequency),0);
+    // Only trust a per-item split when it actually accounts for the policy.
+    const split = itemAnnual>0 && (polAnnual===0 || itemAnnual/polAnnual>0.5);
+    if(split) splitKnown+=polAnnual;
+    (p.items||[]).forEach(it=>{
+      const annual=split?insAnnual(it.premium,it.premiumFrequency||p.premiumFrequency):null;
+      items.push({...it, policyId:p.id, insurer:p.insurer, policyNumber:p.policyNumber,
+        annualPremium:annual, sumInsured:+it.sumInsured||0,
+        rate:split?insRate(annual,+it.sumInsured||0):null});
+    });
+  });
+  // Category rollup
+  const cats={};
+  items.forEach(it=>{ const c=cats[it.category]=cats[it.category]||{n:0,sum:0,premium:0,rated:[]};
+    c.n++; c.sum+=it.sumInsured; if(it.annualPremium!=null) c.premium+=it.annualPremium;
+    if(it.rate!=null) c.rated.push(it.rate); });
+  Object.values(cats).forEach(c=>{ c.median=insMedian(c.rated); });
+  // An item is only an outlier against its own category, and only when there are
+  // enough siblings for a median to mean anything.
+  const outliers=items.filter(it=>{ const c=cats[it.category];
+    return it.rate!=null && c && c.rated.length>=3 && c.median && it.rate>c.median*1.5; })
+    .sort((a,b)=>b.rate-a.rate);
+  const assetSum=items.filter(it=>INS_ASSET.includes(it.category)).reduce((n,i)=>n+i.sumInsured,0);
+  const riskSum =items.filter(it=>INS_RISK.includes(it.category)).reduce((n,i)=>n+i.sumInsured,0);
+  const assetPremium=INS_ASSET.reduce((n,c)=>n+((cats[c]||{}).premium||0),0);
+  const excesses=items.map(it=>+it.excessAmount||0).filter(v=>v>0);
+  const held=new Set(items.map(it=>it.category));
+  const today=todayISO();
+  const renewals=(policies||[]).filter(p=>p.renewalDate).map(p=>({...p, days:Math.round((new Date(p.renewalDate)-new Date(today))/86400000)}))
+    .sort((a,b)=>a.days-b.days);
+  return {
+    items, cats, outliers, renewals,
+    annualPremium, monthlyPremium:annualPremium/12,
+    // What share of the spend we can actually attribute to individual items.
+    splitShare: annualPremium>0?splitKnown/annualPremium:0,
+    assetSum, riskSum, assetPremium,
+    blendedRate: insRate(assetPremium,assetSum),
+    excessTotal: excesses.reduce((a,b)=>a+b,0), worstExcess: excesses.length?Math.max(...excesses):0,
+    gaps: INS_EXPECTED.filter(c=>!held.has(c)),
+    missing: (policies||[]).flatMap(p=>(p.missing||[]).map(m=>({policy:p.insurer||p.policyNumber||'policy', note:m})))
+  };
+}
+
+/* ---- loading, uploading, saving ---- */
+async function loadInsurance(){
+  const base=proxyBase(); if(!base) return;
+  try{ _ins=await fetch(base+'/insurance').then(r=>r.json()); }catch(e){}
+}
+function openInsUpload(){
+  showModal(`<div class="modal-head">
+      <div><h2>Add a policy</h2><div class="ms">Drop the schedule — the pages listing what is covered, for how much, at what premium</div></div>
+      <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="dz" id="idz" onclick="document.getElementById('insFile').click()">
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="1.5" style="margin-bottom:10px"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        <div class="dz-t">Drop the policy schedule or tap to browse</div>
+        <div class="dz-s">PDF, or a photo of the schedule · read on the proxy, nothing stored on the phone</div>
+      </div>
+      <input type="file" id="insFile" accept="application/pdf,image/*" style="display:none" onchange="handleInsFile(this.files[0])">
+      <div id="insPreview"></div>
+    </div>`);
+  const dz=document.getElementById('idz');
+  ['dragover','dragenter'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--terra)';}));
+  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--line2)';}));
+  dz.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0]) handleInsFile(ev.dataTransfer.files[0]); });
+}
+function insReadB64(file){ return new Promise((res,rej)=>{ const r=new FileReader();
+  r.onerror=()=>rej(new Error('Could not read that file')); r.onload=()=>res(String(r.result).split(',')[1]); r.readAsDataURL(file); }); }
+
+async function handleInsFile(file){
+  if(!file) return;
+  const base=proxyBase(); const prev=document.getElementById('insPreview');
+  if(!base){ prev.innerHTML='<div class="c-note bad" style="margin-top:16px">Set the proxy URL in Settings first.</div>'; return; }
+  prev.innerHTML='<div style="margin-top:16px;font-family:var(--serif);font-style:italic;color:var(--ink-faint)">Reading the schedule — a long one takes a minute.</div>';
+  try{
+    const b64=await insReadB64(file);
+    const isPdf=/pdf$/i.test(file.type)||/\.pdf$/i.test(file.name);
+    const body=isPdf?{pdf:b64}:{image:b64,media_type:file.type||'image/jpeg'};
+    const r=await fetch(base+'/insurance/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Could not read that document');
+    window._pendingPolicy=j;
+    prev.innerHTML=insExtractPreview(j);
+  }catch(e){ prev.innerHTML='<div class="c-note" style="margin-top:16px;color:var(--bad)">⚠ '+cEsc(e.message)+'</div>'; }
+}
+/* Show what was read before it is saved — with the figures editable in place,
+   because a schedule that scanned badly is worth correcting, not discarding. */
+function insExtractPreview(p){
+  const rows=(p.items||[]).map((it,i)=>`<tr>
+      <td><input class="exp-in" style="width:100%;font-size:12.5px" value="${cEsc(it.description)}" onchange="_pendingPolicy.items[${i}].description=this.value"></td>
+      <td><select class="exp-in" style="font-size:12px" onchange="_pendingPolicy.items[${i}].category=this.value">
+        ${Object.entries(INS_CATS).map(([k,v])=>`<option value="${k}" ${k===it.category?'selected':''}>${v}</option>`).join('')}</select></td>
+      <td class="r"><input class="exp-in r mono" style="width:110px;font-size:12.5px" value="${it.sumInsured||0}" onchange="_pendingPolicy.items[${i}].sumInsured=+this.value||0"></td>
+      <td class="r"><input class="exp-in r mono" style="width:90px;font-size:12.5px" value="${it.premium||0}" onchange="_pendingPolicy.items[${i}].premium=+this.value||0"></td>
+      <td style="font-size:11.5px;color:var(--ink-faint)">${cEsc(it.excess||'—')}</td>
+    </tr>`).join('');
+  const conf=p.confidence==='high'?'var(--good)':p.confidence==='medium'?'var(--warn)':'var(--bad)';
+  return `<div style="margin-top:18px;padding:16px;background:var(--paper);border:1px solid var(--line2);border-radius:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+      <div style="font-family:var(--disp);font-weight:700;font-size:17px">${cEsc(p.insurer||'Unknown insurer')}${p.policyNumber?` · ${cEsc(p.policyNumber)}`:''}</div>
+      <div class="mag-line" style="color:${conf}">${cEsc(p.confidence||'')} confidence</div>
+    </div>
+    <div class="c-note">${cEsc(INS_CATS[p.policyType]||p.policyType||'')} · ${ZAR(p.premiumTotal)} ${cEsc(p.premiumFrequency||'')}${p.renewalDate?' · renews '+fmtDate(p.renewalDate):''}</div>
+    <div class="scroll-x" style="margin-top:14px"><table class="clean"><thead><tr><th>Item</th><th>Category</th><th class="r">Sum insured</th><th class="r">Premium</th><th>Excess</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" style="color:var(--ink-faint)">No items were found on this document.</td></tr>'}</tbody></table></div>
+    ${(p.missing||[]).length?`<div class="mag-take" style="margin-top:14px">The schedule doesn't state: ${p.missing.map(cEsc).join('; ')}</div>`:''}
+    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12.5px;margin-top:12px">
+      Check the figures against the document before saving — anything you correct here is what gets stored.</div>
+    <button class="btn primary" style="width:100%;justify-content:center;margin-top:14px" onclick="saveInsPolicy()">Save policy</button>
+  </div>`;
+}
+async function saveInsPolicy(){
+  const base=proxyBase(); const p=window._pendingPolicy; if(!base||!p) return;
+  try{
+    const r=await fetch(base+'/insurance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+    if(!r.ok) throw new Error((await r.json()).error||'Could not save');
+    window._pendingPolicy=null; _insReview=null;
+    await loadInsurance(); closeModal(); renderInsurance();
+    toast('Policy saved');
+  }catch(e){ toast(e.message||'Could not save'); }
+}
+async function deleteInsPolicy(id){
+  if(!confirm('Remove this policy?')) return;
+  const base=proxyBase(); if(!base) return;
+  try{ await fetch(base+'/insurance/'+id,{method:'DELETE'}); _insReview=null; await loadInsurance(); renderInsurance(); toast('Policy removed'); }
+  catch(e){ toast('Could not remove it'); }
+}
+async function runInsReview(){
+  const base=proxyBase(); if(!base||_insBusy) return;
+  const A=insAnalyse(_ins.policies);
+  _insBusy=true; renderInsurance();
+  try{
+    const metrics={annualPremium:Math.round(A.annualPremium), monthlyPremium:Math.round(A.monthlyPremium),
+      assetSumInsured:Math.round(A.assetSum), riskCover:Math.round(A.riskSum),
+      blendedAssetRatePerThousand:A.blendedRate?+A.blendedRate.toFixed(2):null,
+      totalExcessExposure:Math.round(A.excessTotal), largestSingleExcess:Math.round(A.worstExcess),
+      categoriesHeld:Object.keys(A.cats), categoriesAbsent:A.gaps,
+      perCategory:Object.fromEntries(Object.entries(A.cats).map(([k,c])=>[k,{items:c.n,sumInsured:Math.round(c.sum),annualPremium:Math.round(c.premium),medianRatePerThousand:c.median?+c.median.toFixed(2):null}]))};
+    const r=await fetch(base+'/insurance/review',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({policies:_ins.policies,metrics})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Review failed');
+    _insReview=j;
+  }catch(e){ toast(e.message||'Could not run the review'); }
+  _insBusy=false; renderInsurance();
+}
+
+/* ---- the pane ---- */
+function insRateTxt(r){ return r==null?'—':'R'+r.toFixed(1); }
+function renderInsurance(){
+  const P=document.getElementById('pane-insure'); if(!P) return;
+  if(!proxyBase()){
+    P.innerHTML=`<div class="mag-mast"><h2>Cover</h2><div class="sub">Insurance</div></div>
+      <div class="empty" style="margin-top:24px">Policy documents are read by your proxy. Set the proxy URL in Settings to start.</div>`;
+    return;
+  }
+  const pols=_ins.policies||[];
+  const A=insAnalyse(pols);
+  const head=`<div class="mag-mast">
+      <h2>Cover</h2>
+      <div class="sub">${pols.length} ${pols.length===1?'policy':'policies'} · ${A.items.length} insured item${A.items.length===1?'':'s'} · every figure computed from your schedules</div>
+    </div>
+    <div class="mag-rail">
+      <button class="mag-chip on" onclick="openInsUpload()" style="border-style:dashed">+ Add a policy</button>
+      ${pols.length?`<button class="mag-chip" onclick="runInsReview()" ${_insBusy?'disabled':''}>${_insBusy?'Reviewing…':'Review my cover'}</button>`:''}
+    </div>`;
+  if(!pols.length){
+    P.innerHTML=head+`<div class="empty">Nothing here yet. Add a policy schedule and this becomes a picture of what you're covered for,
+      what it costs, and what each rand of premium is buying.</div>`;
+    return;
+  }
+  const tiles=`<div class="grid g4" style="margin-bottom:12px">
+    <div class="card tile"><div class="accent-bar" style="background:var(--terra)"></div><div class="lbl">Annual Premium</div><div class="num" style="font-size:27px">${ZAR(A.annualPremium)}</div><div class="foot">${ZAR(A.monthlyPremium)} a month</div></div>
+    <div class="card tile"><div class="accent-bar" style="background:var(--gold)"></div><div class="lbl">Assets Covered</div><div class="num">${ZARk(A.assetSum)}</div><div class="foot">vehicles, home, contents</div></div>
+    <div class="card tile"><div class="accent-bar" style="background:var(--sage)"></div><div class="lbl">Rate On Assets</div><div class="num">${insRateTxt(A.blendedRate)}</div><div class="foot">per R1 000 of cover, a year</div></div>
+    <div class="card tile"><div class="accent-bar" style="background:var(--sky)"></div><div class="lbl">Life &amp; Risk Cover</div><div class="num">${A.riskSum?ZARk(A.riskSum):'—'}</div><div class="foot">${A.riskSum?'lump sum benefits':'none on file'}</div></div>
+  </div>`;
+  // Category rollup — where the money goes and what it buys.
+  const catRows=Object.entries(A.cats).sort((a,b)=>b[1].premium-a[1].premium).map(([k,c])=>{
+    const share=A.annualPremium>0?c.premium/A.annualPremium*100:0;
+    return `<tr><td>${INS_CATS[k]||k}</td><td class="r mono">${c.n}</td>
+      <td class="r mono">${c.sum?ZARk(c.sum):'—'}</td>
+      <td class="r mono">${c.premium?ZARk(c.premium):'<span style="color:var(--ink-faint)">not split</span>'}</td>
+      <td class="r mono">${insRateTxt(c.median)}</td>
+      <td class="r mono" style="color:var(--ink-faint)">${c.premium?share.toFixed(0)+'%':'—'}</td></tr>`;
+  }).join('');
+  const splitNote = A.splitShare<0.99
+    ? `<div class="mag-take" style="margin-top:12px">${A.splitShare<0.01?'None':'Only '+Math.round(A.splitShare*100)+'%'} of your premium is broken down per item on the schedules,
+       so item-level rates can't be worked out for the rest. Ask the broker for a premium split — it is the only way to see which item is expensive.</div>`
+    : '';
+  const rollup=`<div class="card card-pad" style="margin-bottom:18px">
+    <div class="kicker">Where the money goes</div><div class="h-sec">Cover by category</div>
+    <div class="scroll-x"><table class="clean"><thead><tr><th>Category</th><th class="r">Items</th><th class="r">Sum insured</th><th class="r">Annual premium</th><th class="r">Rate /R1 000</th><th class="r">Share</th></tr></thead>
+      <tbody>${catRows}</tbody></table></div>
+    <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:12px">
+      A rate is only comparable within its own row. R37 per R1 000 on a car and R3 per R1 000 of life cover are
+      different things being priced — cars against cars, lives against lives.</div>${splitNote}</div>`;
+  // Findings the app can stand behind without asking anything.
+  const cards=[];
+  if(A.gaps.length) cards.push(`<div class="card card-pad"><div class="kicker">Not on any schedule</div><div class="h-sec">Cover you don't appear to hold</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${A.gaps.map(g=>`<span class="mag-chip" style="cursor:default">${INS_CATS[g]}</span>`).join('')}</div>
+    <div class="c-note" style="margin-top:10px">Nothing in the documents you've added covers these. You may hold them elsewhere — worth confirming rather than assuming.</div></div>`);
+  if(A.outliers.length) cards.push(`<div class="card card-pad"><div class="kicker">Priced against your own book</div><div class="h-sec">Costing more per rand of cover</div>
+    <div class="scroll-x" style="margin-top:12px"><table class="clean"><thead><tr><th>Item</th><th class="r">Rate /R1 000</th><th class="r">Category median</th></tr></thead><tbody>
+      ${A.outliers.slice(0,6).map(o=>`<tr><td>${cEsc(o.description)}<div class="ms">${cEsc(o.insurer||'')}</div></td>
+        <td class="r mono" style="color:var(--bad)">${insRateTxt(o.rate)}</td>
+        <td class="r mono">${insRateTxt(A.cats[o.category].median)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="c-note" style="margin-top:10px">Compared only against your other items in the same category — a higher rate can be right for an older car or a harder risk, but it's the first thing to question.</div></div>`);
+  if(A.excessTotal) cards.push(`<div class="card card-pad"><div class="kicker">What you carry yourself</div><div class="h-sec">Excess exposure</div>
+    <div style="display:flex;gap:26px;flex-wrap:wrap;margin-top:12px">
+      <div><div class="lbl">If everything claimed at once</div><div style="font-family:var(--disp);font-weight:700;font-size:26px">${ZARk(A.excessTotal)}</div></div>
+      <div><div class="lbl">Largest single excess</div><div style="font-family:var(--disp);font-weight:700;font-size:26px">${ZARk(A.worstExcess)}</div></div>
+    </div>
+    <div class="c-note" style="margin-top:10px">Only the excesses stated as a rand figure are counted. Percentage-based excesses are shown per item in the table below.</div></div>`);
+  const soon=A.renewals.filter(r=>r.days<=90);
+  if(soon.length) cards.push(`<div class="card card-pad"><div class="kicker">Diary</div><div class="h-sec">Renewals within 90 days</div>
+    ${soon.map(r=>`<div class="c-rem"><div style="flex:1"><div class="c-rem-t">${cEsc(r.insurer||r.policyNumber||'Policy')}</div>
+      <div class="c-note">${fmtDate(r.renewalDate)} · ${r.days<0?Math.abs(r.days)+' days ago':'in '+r.days+' days'}</div></div>
+      <div class="mono" style="color:${r.days<0?'var(--bad)':r.days<30?'var(--warn)':'var(--ink-faint)'}">${ZARk(insAnnual(r.premiumTotal,r.premiumFrequency))}/yr</div></div>`).join('')}</div>`);
+  if(A.missing.length) cards.push(`<div class="card card-pad"><div class="kicker">Read with care</div><div class="h-sec">What the documents don't say</div>
+    ${A.missing.slice(0,10).map(m=>`<div class="c-note" style="margin-top:6px">· ${cEsc(m.note)} <span style="opacity:.6">— ${cEsc(m.policy)}</span></div>`).join('')}</div>`);
+  const findings=cards.length?`<div class="grid g2" style="margin-bottom:18px">${cards.join('')}</div>`:'';
+  // The written review, when he's asked for one.
+  const sevColor={gap:'var(--bad)',cost:'var(--warn)',risk:'var(--warn)',admin:'var(--ink-faint)',good:'var(--good)'};
+  const review=_insReview?`<div class="card card-pad" style="margin-bottom:18px">
+      <div class="kicker">Reviewed against your figures</div><div class="h-sec">${cEsc(_insReview.headline||'')}</div>
+      ${(_insReview.findings||[]).map(f=>`<div style="border-left:2px solid ${sevColor[f.severity]||'var(--line2)'};padding-left:12px;margin-top:14px">
+        <div style="font-family:var(--disp);font-weight:700;font-size:15px">${cEsc(f.title)}</div>
+        <div class="c-note" style="margin-top:4px">${cEsc(f.detail)}</div>
+        <div class="mag-take" style="margin-top:6px">${cEsc(f.action)}</div></div>`).join('')}
+      ${(_insReview.askBroker||[]).length?`<div style="margin-top:18px"><div class="kicker">Ask the broker</div>
+        ${_insReview.askBroker.map(q=>`<div class="c-note" style="margin-top:5px">· ${cEsc(q)}</div>`).join('')}</div>`:''}
+    </div>`:'';
+  // Every item, in full.
+  const itemRows=A.items.map(it=>`<tr>
+      <td>${cEsc(it.description)}<div class="ms">${cEsc(it.insurer||'')}${it.notes?' · '+cEsc(it.notes.slice(0,80)):''}</div></td>
+      <td>${INS_CATS[it.category]||it.category}</td>
+      <td class="r mono">${it.sumInsured?ZARk(it.sumInsured):(it.basis==='unlimited'?'unlimited':'—')}</td>
+      <td class="mono" style="font-size:11.5px;color:var(--ink-faint)">${cEsc(it.basis||'')}</td>
+      <td class="r mono">${it.annualPremium!=null?ZARk(it.annualPremium):'—'}</td>
+      <td class="r mono">${insRateTxt(it.rate)}</td>
+      <td style="font-size:11.5px;color:var(--ink-faint)">${cEsc(it.excess||'—')}</td>
+    </tr>`).join('');
+  const policyList=pols.map(p=>`<div class="c-rem"><div style="flex:1;min-width:0">
+      <div class="c-rem-t">${cEsc(p.insurer||'Policy')}${p.policyNumber?' · '+cEsc(p.policyNumber):''}</div>
+      <div class="c-note">${(p.items||[]).length} item${(p.items||[]).length===1?'':'s'} · ${ZAR(p.premiumTotal)} ${cEsc(p.premiumFrequency||'')}${p.renewalDate?' · renews '+fmtDate(p.renewalDate):''}</div></div>
+      <button class="btn" style="padding:4px 8px;font-size:12px" onclick="deleteInsPolicy('${p.id}')">✕</button></div>`).join('');
+  P.innerHTML=head+tiles+rollup+findings+review+
+    `<div class="card card-pad" style="margin-bottom:18px"><div class="kicker">Line by line</div><div class="h-sec">Every insured item</div>
+      <div class="scroll-x" style="margin-top:12px"><table class="clean"><thead><tr><th>Item</th><th>Category</th><th class="r">Sum insured</th><th>Basis</th><th class="r">Annual premium</th><th class="r">Rate /R1 000</th><th>Excess</th></tr></thead>
+        <tbody>${itemRows}</tbody></table></div>
+      <div style="font-family:var(--serif);font-style:italic;color:var(--ink-faint);font-size:12px;margin-top:12px">
+        Rate is annual premium ÷ sum insured × 1 000 — what each thousand rand of cover costs you a year. It is only shown where the schedule splits the premium per item.</div></div>
+    <div class="card card-pad"><div class="kicker">On file</div><div class="h-sec">Policies</div>${policyList}</div>`;
+}
+
 /* ============ THE MAGAZINE ============
    Topics live on the proxy (they drive a server-side search, and they should
    follow him between devices), so this pane is a thin reader over /magazine.
@@ -7281,13 +7573,19 @@ function expCloseReport(){
   const W=document.getElementById('expWorkspace'); if(W) W.style.display='';
 }
 
-function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire();renderPairs();renderScenario();renderExpenses();renderCoach();renderMagazine(); }
+function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire();renderPairs();renderScenario();renderExpenses();renderCoach();renderMagazine();renderInsurance(); }
 /* The shelf is on the proxy; pull it once at boot so the landing page can show
    a piece from it, and the Read tab opens with something already on it. */
 (async function initMagazine(){
   if(!proxyBase()) return;
   await loadMagazine();
   renderMagazine(); renderHomeIfActive();
+})();
+/* Policies live on the proxy too — pull them once so the pane opens populated. */
+(async function initInsurance(){
+  if(!proxyBase()) return;
+  await loadInsurance();
+  renderInsurance();
 })();
 /* Reminders + push state live on the server, so fetch them once at boot and
    register the worker if permission was already granted on a previous visit. */
@@ -7309,6 +7607,7 @@ document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',(
   if(b.dataset.pane==='expenses') renderExpenses();
   if(b.dataset.pane==='coach'){ loadReminders().then(refreshPushState).then(renderCoach); }
   if(b.dataset.pane==='read'){ loadMagazine().then(renderMagazine); }
+  if(b.dataset.pane==='insure'){ loadInsurance().then(renderInsurance); }
   if(b.dataset.pane==='pairs' && !window._pairsKicked){ window._pairsKicked=true; loadPairs(); }
   if(b.dataset.pane==='scenario' && !_scenKicked[_scenCtx]){ _scenKicked[_scenCtx]=true; loadScenario(_scenCtx); }
   window.scrollTo({top:0,behavior:'smooth'});
