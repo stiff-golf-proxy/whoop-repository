@@ -1528,6 +1528,172 @@ setInterval(async () => {
   } catch (e) { console.log('[MAG/AUTO] failed', e.message); }
 }, 15 * 60 * 1000);
 
+/* ============================================================
+   INSURANCE — policy schedules in, a cover-and-cost picture out.
+   The model reads the document; it never does the arithmetic. Every
+   rate, total and comparison in the app is computed from the extracted
+   figures, so a misread number is visible as a number rather than
+   buried inside a sentence the model wrote about it.
+   ============================================================ */
+const INS_FILE = DATA_DIR + '/insurance.json';
+const INS_MODEL = process.env.INSURANCE_MODEL || 'claude-opus-5';
+
+const POLICY_SCHEMA = {
+  type: 'object',
+  properties: {
+    insurer:        { type: 'string', description: 'Underwriting insurer, e.g. Santam, Old Mutual. "" if not stated' },
+    brokerage:      { type: 'string', description: 'Broker or intermediary, "" if not stated' },
+    policyNumber:   { type: 'string', description: 'Policy number exactly as printed, "" if absent' },
+    insuredName:    { type: 'string', description: 'Name of the policyholder, "" if absent' },
+    policyType:     { type: 'string', enum: ['short-term','life','medical','travel','business','other'],
+                      description: 'short-term covers household, vehicle, all-risks and liability' },
+    currency:       { type: 'string', description: 'ISO code. ZAR when the document shows R with no other clue' },
+    inceptionDate:  { type: 'string', description: 'Cover start as YYYY-MM-DD, "" if absent' },
+    renewalDate:    { type: 'string', description: 'Renewal or anniversary date as YYYY-MM-DD, "" if absent' },
+    premiumTotal:   { type: 'number', description: 'Total premium for ONE period at premiumFrequency, including SASRIA and fees if they are inside the stated total. 0 if not stated' },
+    premiumFrequency: { type: 'string', enum: ['monthly','quarterly','annual','single','unknown'] },
+    sasria:         { type: 'number', description: 'SASRIA portion if separately shown, else 0' },
+    fees:           { type: 'number', description: 'Policy/admin fees if separately shown, else 0' },
+    items: {
+      type: 'array',
+      description: 'One entry per insured item or benefit on the schedule. Never merge two vehicles or two lives into one row.',
+      items: {
+        type: 'object',
+        properties: {
+          description: { type: 'string', description: 'As printed — "2021 VW Tiguan 2.0 TSI", "Buildings — 12 Main Rd", "Life cover — Stuart"' },
+          category: { type: 'string', enum: ['vehicle','building','contents','allRisks','liability','life','disability','criticalIllness','incomeProtection','medical','travel','other'] },
+          sumInsured: { type: 'number', description: 'Sum insured / cover amount for this item. 0 when the cover is unlimited or not stated' },
+          basis: { type: 'string', enum: ['retail','market','agreed','replacement','indemnity','firstLoss','unlimited','unknown'] },
+          premium: { type: 'number', description: 'Premium attributable to THIS item for one period, 0 if the schedule does not break it out' },
+          premiumFrequency: { type: 'string', enum: ['monthly','quarterly','annual','single','unknown'] },
+          excess: { type: 'string', description: 'Excess exactly as worded, e.g. "R5 000 or 5% of claim, whichever is greater". "" if absent' },
+          excessAmount: { type: 'number', description: 'Best-effort rand figure of the basic excess, 0 if only a percentage or nothing is given' },
+          notes: { type: 'string', description: 'Anything materially affecting cover — waivers, limits, listed drivers, exclusions specific to this item' }
+        },
+        required: ['description','category','sumInsured','basis','premium','premiumFrequency','excess','excessAmount','notes'],
+        additionalProperties: false
+      }
+    },
+    generalExclusions: { type: 'array', items: { type: 'string' }, description: 'Policy-wide exclusions worth knowing, up to 12' },
+    conditions:        { type: 'array', items: { type: 'string' }, description: 'Warranties or conditions the policyholder must satisfy (alarm, tracker, security gates), up to 12' },
+    missing:           { type: 'array', items: { type: 'string' }, description: 'Facts a reader would expect that this document does NOT state. Be specific: "no excess shown for contents", "premium not split per item"' },
+    confidence:        { type: 'string', enum: ['high','medium','low'] }
+  },
+  required: ['insurer','brokerage','policyNumber','insuredName','policyType','currency','inceptionDate','renewalDate',
+             'premiumTotal','premiumFrequency','sasria','fees','items','generalExclusions','conditions','missing','confidence'],
+  additionalProperties: false
+};
+
+const INS_PROMPT = 'This is an insurance policy schedule. Extract it exactly as printed.\n' +
+  '- One item per insured thing or benefit. Two cars are two items; never merge them.\n' +
+  '- Copy sums insured and premiums as figures, without rounding or converting.\n' +
+  '- If the schedule gives a total premium but no per-item split, set each item premium to 0 and say so in "missing". ' +
+  'Do NOT apportion, estimate or infer a premium that is not printed.\n' +
+  '- Record the excess wording verbatim, and only fill excessAmount when a rand figure is actually given.\n' +
+  '- "missing" is important: it is how the reader knows what the schedule does not tell them.';
+
+const readIns  = () => { try { if (fs.existsSync(INS_FILE)) { const j = JSON.parse(fs.readFileSync(INS_FILE,'utf8')); if (j && Array.isArray(j.policies)) return j; } } catch (e) { console.log('[INS] read failed', e.message); } return { policies: [] }; };
+const writeIns = j => { try { if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(INS_FILE, JSON.stringify(j)); } catch (e) { console.log('[INS] save failed', e.message); } };
+
+app.post('/insurance/extract', async (req, res) => {
+  try {
+    const { pdf, image, media_type } = req.body || {};
+    if (!pdf && !image) return res.status(400).json({ error: 'pdf or image field required (base64)' });
+    const doc = pdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf } }
+      : { type: 'image', source: { type: 'base64', media_type: media_type || 'image/jpeg', data: image } };
+    const out = await claudeExtract({
+      model: INS_MODEL,
+      // A schedule is dense, numeric and consequential — worth more than a till slip.
+      max_tokens: 16000,
+      effort: 'medium',
+      thinking: { type: 'adaptive' },
+      schema: POLICY_SCHEMA,
+      content: [doc, { type: 'text', text: INS_PROMPT }]
+    });
+    console.log('[INS] extracted ' + (out.items || []).length + ' item(s) from ' + (out.insurer || 'unknown insurer'));
+    res.json(out);
+  } catch (e) { console.log('[INS] extract failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+});
+
+const REVIEW_SCHEMA = {
+  type: 'object',
+  properties: {
+    headline: { type: 'string', description: 'One sentence on the state of the cover as a whole' },
+    findings: {
+      type: 'array',
+      description: '4-8 findings, most consequential first',
+      items: {
+        type: 'object',
+        properties: {
+          severity: { type: 'string', enum: ['gap','cost','risk','admin','good'] },
+          title:    { type: 'string', description: 'Short, specific: "No personal liability cover on any policy"' },
+          detail:   { type: 'string', description: '2-3 sentences. Quote the figures given to you; never compute new ones' },
+          action:   { type: 'string', description: 'The single next step, phrased as something he can do or ask' }
+        },
+        required: ['severity','title','detail','action'],
+        additionalProperties: false
+      }
+    },
+    askBroker: { type: 'array', items: { type: 'string' }, description: '3-6 precise questions to put to the broker at renewal' }
+  },
+  required: ['headline','findings','askBroker'],
+  additionalProperties: false
+};
+
+/* The client sends the figures it computed alongside the policy structure. The
+   model's job is judgement — what is missing, what looks expensive, what to ask
+   at renewal — not sums. It is told plainly that the arithmetic is already done. */
+app.post('/insurance/review', async (req, res) => {
+  try {
+    const { policies, metrics } = req.body || {};
+    if (!Array.isArray(policies) || !policies.length) return res.status(400).json({ error: 'policies required' });
+    const out = await claudeExtract({
+      model: INS_MODEL,
+      max_tokens: 8000,
+      effort: 'medium',
+      thinking: { type: 'adaptive' },
+      schema: REVIEW_SCHEMA,
+      content: [{ type: 'text', text:
+        'You are reviewing the personal insurance cover of Stuart — 54, South African, Cape Town, married with ' +
+        'family, a principal in a private-equity group, assets across vehicles, home and investments.\n\n' +
+        'The figures below were computed by the application from his policy schedules. They are correct. ' +
+        'Do not recalculate them, and do not introduce any number that is not in this brief.\n\n' +
+        'COMPUTED TOTALS:\n' + JSON.stringify(metrics || {}, null, 1) + '\n\n' +
+        'POLICIES AS EXTRACTED:\n' + JSON.stringify(policies).slice(0, 60000) + '\n\n' +
+        'Give him the review a good broker would give a client he respects: what is not covered that should be, ' +
+        'what looks expensive for what it buys, where an excess would hurt, what the schedules fail to state. ' +
+        'South African context — SASRIA, retail vs market value on vehicles, tracker and alarm warranties, ' +
+        'accidental damage limits, personal liability. Be specific and unsentimental. If the cover looks sound, ' +
+        'say so rather than inventing a problem.' }]
+    });
+    console.log('[INS] review — ' + (out.findings || []).length + ' finding(s)');
+    res.json(out);
+  } catch (e) { console.log('[INS] review failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+});
+
+app.get('/insurance', (req, res) => res.json(readIns()));
+app.post('/insurance', (req, res) => {
+  const p = req.body || {};
+  if (!p || typeof p !== 'object' || !Array.isArray(p.items)) return res.status(400).json({ error: 'a policy with an items array is required' });
+  const store = readIns();
+  const id = p.id || ('pol' + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+  const rec = Object.assign({}, p, { id, savedAt: new Date().toISOString() });
+  const i = store.policies.findIndex(x => x.id === id);
+  if (i >= 0) store.policies[i] = rec; else store.policies.push(rec);
+  writeIns(store);
+  console.log('[INS] saved ' + (rec.insurer || 'policy') + ' — ' + rec.items.length + ' item(s)');
+  res.json(rec);
+});
+app.delete('/insurance/:id', (req, res) => {
+  const store = readIns();
+  const i = store.policies.findIndex(x => x.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: 'not found' });
+  const [gone] = store.policies.splice(i, 1);
+  writeIns(store);
+  res.json({ ok: true, removed: gone.insurer || gone.policyNumber || 'policy' });
+});
+
 // Serve the LifePlatform dashboard itself at / and /app (same origin as the proxy,
 // so the platform auto-detects this URL and CORS is a non-issue).
 import path from 'path';
@@ -1757,17 +1923,17 @@ app.delete('/expenses/slips/:id', (req, res) => {
    reply to the schema, so the response is always parseable — no regex rescue.
    Thinking is off at low effort: these are transcription jobs, and the schema
    (not reasoning depth) is what keeps them honest. */
-async function claudeExtract({ content, schema, max_tokens }) {
+async function claudeExtract({ content, schema, max_tokens, model, effort, thinking }) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) { const e = new Error('ANTHROPIC_API_KEY not set on the proxy'); e.status = 501; throw e; }
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: EXP_MODEL,
+      model: model || EXP_MODEL,
       max_tokens,
-      thinking: { type: 'disabled' },
-      output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+      thinking: thinking || { type: 'disabled' },
+      output_config: { effort: effort || 'low', format: { type: 'json_schema', schema } },
       messages: [{ role: 'user', content }]
     })
   });
