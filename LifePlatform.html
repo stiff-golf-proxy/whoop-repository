@@ -736,6 +736,36 @@ function _mergeLost(into, from){
     ((from.goals||{}).journal||[]).forEach(j=>{ if(j&&j.id&&!haveJ.has(j.id)) into.goals.journal.push(j); });
     into.goals.journal.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
   }
+  /* expenses: slips and statements by id, and — the part that was missing —
+     the reconciliation decisions inside them, by recency. The server has
+     merged these since the claim rework; the browser never did. So allocating
+     slips on the phone and then opening the laptop showed nothing: the laptop
+     was the newer copy, took this branch, dropped every expense decision the
+     server held, and pushed its own version back. Both sides then agreed on a
+     copy the laptop had never seen the allocations in, and it stayed that way
+     because the timestamps now matched and no further adopt was triggered. */
+  into.expenses=into.expenses||{slips:[],statements:[]};
+  const fx=from.expenses||{};
+  into.expenses.slips=into.expenses.slips||[];
+  const xSlip=new Map(into.expenses.slips.filter(x=>x&&x.id).map(x=>[x.id,x]));
+  (fx.slips||[]).forEach(sl=>{
+    if(!sl||!sl.id) return;
+    const cur=xSlip.get(sl.id);
+    if(!cur){ into.expenses.slips.push(sl); return; }
+    if(sl.match&&(!cur.match||(+sl.match.ts||0)>(+(cur.match||{}).ts||0))) cur.match=sl.match;
+  });
+  into.expenses.statements=into.expenses.statements||[];
+  const xStmt=new Map(into.expenses.statements.filter(x=>x&&x.id).map(x=>[x.id,x]));
+  (fx.statements||[]).forEach(st=>{
+    if(!st||!st.id) return;
+    const cur=xStmt.get(st.id);
+    if(!cur){ into.expenses.statements.push(st); return; }
+    cur.claim=cur.claim||{};
+    Object.entries(st.claim||{}).forEach(([k,v])=>{
+      const mine=cur.claim[k];
+      if(!mine||(+(v&&v.ts)||0)>(+(mine.ts)||0)) cur.claim[k]=v;
+    });
+  });
 }
 let _lastPull=0;
 async function pullFromServer(){

@@ -160,7 +160,7 @@ Statements uploaded before this change have no PDF on file, so the pack says so
 and carries the schedule alone. Re-upload the statement to get its pages in.
 
 Line decisions live inside the statement and are **merged by recency** on both
-sides of the sync — an afternoon of reconciling on the laptop must not die the
+sides of the sync (`mergeUserdata` on the server, `_mergeLost` in the browser) — an afternoon of reconciling on the laptop must not die the
 next time the phone pushes. A slip's match merges the same way.
 
 ## Journal (Goals tab)
