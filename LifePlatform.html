@@ -7566,6 +7566,118 @@ async function handleStatementFile(file){
   }catch(e){ O.innerHTML='<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ '+expEsc(e.message)+'</div>'; }
 }
 
+/* --- dates ---
+   The schema asks for YYYY-MM-DD and mostly gets it, but a statement that
+   prints "05/07/2026" can come back that way, and new Date('05/07/2026') is
+   read as 5 July in some engines and 7 May in others. Normalise here, and
+   mark what could not be read rather than letting it silently become a gap
+   of nine hundred days. --- */
+const EXP_MON={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12};
+function expISO(v){
+  const s=String(v==null?'':v).trim();
+  if(!s) return '';
+  const p2=n=>String(n).padStart(2,'0');
+  let m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+  if(m) return m[1]+'-'+p2(m[2])+'-'+p2(m[3]);
+  // Day first: South African statements print 05/07/2026 for 5 July.
+  m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
+  if(m){ const y=m[3].length===2?('20'+m[3]):m[3]; return y+'-'+p2(m[2])+'-'+p2(m[1]); }
+  m=s.match(/^(\d{1,2})\s*([A-Za-z]{3,})\.?\s*(\d{2,4})$/);
+  if(m){ const mo=EXP_MON[m[2].toLowerCase().slice(0,3)];
+    if(mo){ const y=m[3].length===2?('20'+m[3]):m[3]; return y+'-'+p2(mo)+'-'+p2(m[1]); } }
+  m=s.match(/^([A-Za-z]{3,})\.?\s*(\d{1,2}),?\s*(\d{2,4})$/);
+  if(m){ const mo=EXP_MON[m[1].toLowerCase().slice(0,3)];
+    if(mo){ const y=m[3].length===2?('20'+m[3]):m[3]; return y+'-'+p2(mo)+'-'+p2(m[2]); } }
+  return '';
+}
+/* Money can arrive as "1 250.00", "R1,250.00" or "(1250.00)" depending on how
+   literally the page was transcribed. A number that silently becomes NaN is
+   worse than one that is obviously wrong. */
+function expNum(v){
+  if(typeof v==='number') return v;
+  let s=String(v==null?'':v).trim();
+  if(!s) return 0;
+  const paren=/^\(.*\)$/.test(s);
+  s=s.replace(/[()]/g,'').replace(/[A-Za-z\s ]/g,'').replace(/,(?=\d{3}\b)/g,'');
+  if(/,\d{1,2}$/.test(s)&&!/\./.test(s)) s=s.replace(/,(\d{1,2})$/,'.$1');
+  s=s.replace(/,/g,'');
+  const n=parseFloat(s);
+  if(!isFinite(n)) return NaN;
+  return paren?-n:n;
+}
+
+/* --- the diagnosis ---
+   When a run matches nothing, the question is never "how many" but "what did
+   you actually read off the page". This prints that, in full, in a form that
+   can be pasted somewhere else. --- */
+function expDiagnose(stmtId){
+  const C=expCfg(); const st=C.statements.find(x=>x.id===stmtId);
+  if(!st) return 'No statement selected.';
+  const L=[];
+  const money=n=>(isFinite(n)?n.toFixed(2):String(n));
+  L.push('LIFE · EXPENSE MATCH DIAGNOSIS');
+  L.push('app build bytes: '+(window._appBytes||'unknown')+'   generated '+new Date().toISOString());
+  L.push('');
+  L.push('STATEMENT  '+(st.account||'(no account)')+'  |  file: '+(st.fileName||'?'));
+  L.push('period: '+(st.periodStart||'?')+' .. '+(st.periodEnd||'?')+'   norm:'+(st.norm||0)+'   signsFlipped:'+(!!st.signFlipped));
+  const tx=st.txns||[];
+  const deb=tx.filter(t=>!t.credit), cre=tx.filter(t=>t.credit);
+  L.push('lines: '+tx.length+'  (debits '+deb.length+', credits '+cre.length+')');
+  const types=new Set(tx.map(t=>typeof t.amount)); L.push('amount types: '+[...types].join(',')+'   hasDirection:'+tx.some(t=>t.direction));
+  const badD=tx.filter(t=>!expISO(t.date)).length; L.push('unreadable dates: '+badD);
+  L.push('');
+  L.push('--- statement lines (idx | date | raw date | D/C | amount | narrative) ---');
+  tx.slice(0,60).forEach((t,i)=>{
+    const raw=(t.rawDate!==undefined?t.rawDate:t.date);
+    L.push(String(i).padStart(3)+' | '+(t.date||'??????????')+' | '+String(raw).slice(0,12).padEnd(12)+
+      ' | '+(t.credit?'C':'D')+' | '+money(+t.amount).padStart(11)+' | '+String(t.description||'').slice(0,44));
+  });
+  if(tx.length>60) L.push('... and '+(tx.length-60)+' more');
+  L.push('');
+  L.push('--- slips ('+C.slips.length+') ---');
+  C.slips.forEach(s=>{
+    const m=s.match&&s.match.statementId===st.id?(' -> line '+s.match.txnIdx+' ['+s.match.conf+(s.match.manual?',manual':'')+']'):'';
+    L.push((s.date||'??????????')+' | '+money(+s.amount).padStart(11)+' | '+String(s.merchant||'').slice(0,30).padEnd(30)+m);
+  });
+  L.push('');
+  const n=expMatchStatement(stmtId);
+  L.push('--- result: exact '+n.exact+' · likely '+n.likely+' · possible '+n.possible+' · loose '+n.unmatched+' ---');
+  (n.why||[]).forEach(w=>L.push('LOOSE  '+(w.merchant||'?')+'  '+money(+w.amount)+'  — '+w.reason));
+  L.push('');
+  L.push('--- first two raw lines, as stored ---');
+  L.push(JSON.stringify(tx.slice(0,2)));
+  return L.join('\n');
+}
+async function expShowDiag(stmtId){
+  // Which build is actually serving this page has been the answer before now,
+  // so it goes at the top of the diagnosis rather than being asked for later.
+  try{
+    const base=proxyBase();
+    if(base){ const r=await fetch(base+'/status',{cache:'no-store'});
+      if(r.ok){ const j=await r.json(); window._appBytes=(j.app&&j.app.bytes)+' bytes, built '+(j.app&&j.app.builtAt); } }
+  }catch(e){}
+  const txt=expDiagnose(stmtId);
+  showModal(`<div class="modal-head"><div><h2>What the app read</h2>
+      <div class="ms">Every line as it was understood, and why each slip did or didn't land</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn primary" onclick="expCopyDiag()">Copy all</button>
+        <button class="btn" onclick="closeModal()">Close</button>
+      </div>
+      <textarea id="diagTxt" readonly style="width:100%;height:56vh;font-family:var(--mono);font-size:11px;
+        line-height:1.5;background:var(--paper2);border:1px solid var(--line);border-radius:10px;padding:12px;
+        white-space:pre;overflow:auto">${expEsc(txt)}</textarea>
+    </div>`);
+}
+function expCopyDiag(){
+  const t=document.getElementById('diagTxt'); if(!t) return;
+  t.select(); t.setSelectionRange(0,999999);
+  const done=()=>toast('Diagnosis copied — paste it into the chat');
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(done,()=>{ document.execCommand('copy'); done(); });
+  else { document.execCommand('copy'); done(); }
+}
+
 /* --- statement normalisation ---------------------------------------------
    Nothing matched on the first real statement because every line was thrown
    away before it was ever compared. The matcher skipped anything that wasn't
@@ -7580,16 +7692,17 @@ async function handleStatementFile(file){
    for the bulk of its lines — a card statement is overwhelmingly purchases,
    so the majority sign is the debit sign. --- */
 function expNormaliseTxns(txns){
-  const list=(txns||[]).filter(t=>t&&+t.amount);
+  const list=(txns||[]).filter(t=>t&&expNum(t.amount));
+  list.forEach(t=>{ t.rawDate=t.date; const iso=expISO(t.date); t.dateBad=!iso; if(iso) t.date=iso; });
   const haveDir=list.some(t=>t.direction);
   let flipped=false;
   if(haveDir){
-    list.forEach(t=>{ t.credit=(t.direction==='credit'); t.amount=Math.abs(+t.amount||0); });
+    list.forEach(t=>{ t.credit=(t.direction==='credit'); t.amount=Math.abs(expNum(t.amount)||0); });
   }else{
-    const neg=list.filter(t=>+t.amount<0).length, pos=list.length-neg;
+    const neg=list.filter(t=>expNum(t.amount)<0).length, pos=list.length-neg;
     flipped=neg>pos;                       // the statement prints debits negative
     list.forEach(t=>{
-      const v=+t.amount||0;
+      const v=expNum(t.amount)||0;
       t.credit=flipped?(v>0):(v<0);
       t.amount=Math.abs(v);
     });
@@ -7600,10 +7713,23 @@ function expNormaliseTxns(txns){
    them in place the first time they are read, so an upload from last week
    starts matching without being uploaded again. */
 function expFixStatement(st){
-  if(!st||st.norm===2) return st;
-  const r=expNormaliseTxns(st.txns||[]);
-  st.txns=r.txns; st.signFlipped=r.flipped; st.norm=2;
+  if(!st||st.norm===3) return st;
   st.claim=st.claim||{};
+  if(!st.norm||st.norm<2){
+    // never been through it: settle the signs from the majority
+    const r=expNormaliseTxns(st.txns||[]);
+    st.txns=r.txns; st.signFlipped=r.flipped;
+  }else{
+    // signs are already settled — re-running the sign logic here would read
+    // "nothing is negative" as "nothing is a credit" and wipe every flag.
+    // Only the date and number parsing is redone.
+    (st.txns||[]).forEach(t=>{
+      if(t.rawDate===undefined) t.rawDate=t.date;
+      const iso=expISO(t.rawDate); t.dateBad=!iso; if(iso) t.date=iso;
+      const n=expNum(t.amount); if(isFinite(n)) t.amount=Math.abs(n);
+    });
+  }
+  st.norm=3;
   return st;
 }
 
@@ -8007,6 +8133,7 @@ function renderReconcile(P,tabs){
           ${C.statements.map(x=>`<option value="${x.id}" ${x.id===st.id?'selected':''}>${expEsc(x.account||x.fileName||'Statement')}</option>`).join('')}
         </select>`:''}
         <button class="btn" onclick="expRematch('${st.id}')">Re-run matching</button>
+        <button class="btn" onclick="expShowDiag('${st.id}')">What did it read?</button>
         <button class="btn primary" onclick="expPack('${st.id}')">Build claim pack</button>
       </div>
     </div>
