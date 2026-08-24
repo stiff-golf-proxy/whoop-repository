@@ -7581,6 +7581,13 @@ async function handleStatementFile(file){
     const st={id:expId('stmt'),account:d.account||'',periodStart:d.periodStart||'',periodEnd:d.periodEnd||'',
       fileName:file.name||'statement.pdf',txns:norm.txns,signFlipped:norm.flipped,norm:2,claim:{},createdAt:Date.now()};
     expCfg().statements.push(st);
+    // Save NOW, before storing the PDF and before matching. Both of those can
+    // throw, and until this change the save() sat after them inside the same
+    // try — so a statement that read perfectly well could be added to memory,
+    // die on the next step, and be gone on reload. Slips never had the problem
+    // because commitSlip() saves the moment the slip is added. That is exactly
+    // why slips persisted and statements did not.
+    save();
     // The pack has to be able to show the statement itself, so keep the file.
     O.innerHTML='<div style="margin-top:18px;font-family:var(--mono);font-size:12px;color:var(--ink-faint)">Storing the statement…</div>';
     try{
@@ -7725,10 +7732,8 @@ function expNormaliseTxns(txns){
   const list=(txns||[]).filter(t=>t&&expNum(t.amount));
   list.forEach(t=>{ t.rawDate=t.date; const iso=expISO(t.date); t.dateBad=!iso; if(iso) t.date=iso; });
   const haveDir=list.some(t=>t.direction);
-  let flipped=false;
-  if(haveDir){
-    list.forEach(t=>{ t.credit=(t.direction==='credit'); t.amount=Math.abs(expNum(t.amount)||0); });
-  }else{
+  let flipped=false, dirSuspect=false;
+  const bySign=()=>{
     const neg=list.filter(t=>expNum(t.amount)<0).length, pos=list.length-neg;
     flipped=neg>pos;                       // the statement prints debits negative
     list.forEach(t=>{
@@ -7736,8 +7741,18 @@ function expNormaliseTxns(txns){
       t.credit=flipped?(v>0):(v<0);
       t.amount=Math.abs(v);
     });
-  }
-  return {txns:list,flipped};
+  };
+  if(haveDir){
+    const cr=list.filter(t=>t.direction==='credit').length;
+    /* Trusting the extracted direction outright just swapped one silent zero
+       for another: get the direction wrong on every line and every line is a
+       credit, nothing is claimable, and the run reports 0 with no error. A
+       card statement is overwhelmingly purchases, so a reading that says
+       otherwise is the reading being wrong, not the statement. */
+    if(list.length>=3 && cr/list.length>0.7){ dirSuspect=true; bySign(); }
+    else list.forEach(t=>{ t.credit=(t.direction==='credit'); t.amount=Math.abs(expNum(t.amount)||0); });
+  } else bySign();
+  return {txns:list,flipped,dirSuspect};
 }
 /* Statements already on file were stored under the old convention. Repair
    them in place the first time they are read, so an upload from last week
@@ -7748,7 +7763,7 @@ function expFixStatement(st){
   if(!st.norm||st.norm<2){
     // never been through it: settle the signs from the majority
     const r=expNormaliseTxns(st.txns||[]);
-    st.txns=r.txns; st.signFlipped=r.flipped;
+    st.txns=r.txns; st.signFlipped=r.flipped; st.dirSuspect=r.dirSuspect;
   }else{
     // signs are already settled — re-running the sign logic here would read
     // "nothing is negative" as "nothing is a credit" and wipe every flag.
@@ -7789,20 +7804,21 @@ function expGap(slipDate,txnDate){
 }
 /* Score one slip against one statement line. Lower is better; null means the
    pair is not worth considering at all. */
-function expScore(s,t){
-  if(t.credit) return null;
+function expScore(s,t,rej){
+  const no=k=>{ if(rej) rej[k]=(rej[k]||0)+1; return null; };
+  if(t.credit) return no('credit');
   const sa=+s.amount||0, ta=+t.amount||0;
-  if(sa<=0||ta<=0) return null;
+  if(sa<=0||ta<=0) return no('zero');
   const diff=Math.abs(ta-sa), rel=diff/Math.max(sa,1);
   const name=expNameScore(s.merchant,t.description);
   const gap=expGap(s.date,t.date);
   // Amount: exact, or close enough to be a tip or a rounding, or — only when
   // the name agrees — meaningfully different.
-  if(diff>0.05 && rel>0.30) return null;
-  if(diff>0.05 && rel>0.12 && name<0.34) return null;
+  if(diff>0.05 && rel>0.30) return no('amount');
+  if(diff>0.05 && rel>0.12 && name<0.34) return no('amount');
   // Date: a purchase posts within a few weeks. Allow a day either side for
   // timezone and late-night slips. A slip with no date is judged on the rest.
-  if(gap!==null && (gap<-2||gap>35)) return null;
+  if(gap!==null && (gap<-2||gap>35)) return no('date');
   const dp=gap===null?9:Math.max(0,gap)*0.6+Math.max(0,-gap)*3;
   const score=rel*400 + dp - name*22 + (gap===null?6:0);
   let conf='possible';
@@ -7824,11 +7840,26 @@ function expMatchStatement(stmtId){
   C.slips.forEach(s=>{ if(s.match&&s.match.statementId===stmtId&&s.match.manual) locked.add(s.match.txnIdx); });
   const open=C.slips.filter(s=>!s.match);
   const pairs=[];
+  const rej={credit:0,zero:0,amount:0,date:0};
   open.forEach(s=>st.txns.forEach((t,i)=>{
     if(locked.has(i)) return;
-    const r=expScore(s,t);
+    const r=expScore(s,t,rej);
     if(r) pairs.push(Object.assign({slipId:s.id,txnIdx:i},r));
   }));
+  /* A wrong debit/credit reading must not look the same as a statement with
+     nothing on it. If the ONLY thing that stood between the slips and the
+     lines was the credit flag, run again without it and say so loudly, rather
+     than reporting a flat zero and leaving you to guess which of three gates
+     closed. */
+  let ignoredCredit=false;
+  if(!pairs.length && rej.credit>0 && open.length){
+    ignoredCredit=true;
+    open.forEach(s=>st.txns.forEach((t,i)=>{
+      if(locked.has(i)) return;
+      const r=expScore(s,Object.assign({},t,{credit:false}));
+      if(r) pairs.push(Object.assign({slipId:s.id,txnIdx:i},r,{conf:'possible'}));
+    }));
+  }
   pairs.sort((a,b)=>a.score-b.score);
   const usedS=new Set(),usedT=new Set();
   const n={exact:0,likely:0,possible:0};
@@ -7845,7 +7876,7 @@ function expMatchStatement(stmtId){
   C.slips.filter(s=>!s.match).forEach(s=>{
     let best=null;
     st.txns.forEach((t,i)=>{
-      if(t.credit) return;
+      if(t.credit&&!ignoredCredit) return;
       const diff=Math.abs((+t.amount||0)-(+s.amount||0));
       const gap=expGap(s.date,t.date);
       const cand={i,t,diff,gap,rel:diff/Math.max(+s.amount||1,1),name:expNameScore(s.merchant,t.description)};
@@ -7862,7 +7893,12 @@ function expMatchStatement(stmtId){
     why.push({slipId:s.id,merchant:s.merchant,amount:s.amount,reason:bits.join('; '),
       near:{description:best.t.description,date:best.t.date,amount:best.t.amount,currency:best.t.currency}});
   });
-  return {exact:n.exact,likely:n.likely,possible:n.possible,unmatched:why.length,why,flipped:!!st.signFlipped};
+  return {exact:n.exact,likely:n.likely,possible:n.possible,unmatched:why.length,why,
+    flipped:!!st.signFlipped,dirSuspect:!!st.dirSuspect,ignoredCredit,rej,
+    slips:C.slips.length,lines:(st.txns||[]).length,
+    debits:(st.txns||[]).filter(t=>!t.credit).length,
+    noAmount:C.slips.filter(s=>!(+s.amount>0)).length,
+    noDate:C.slips.filter(s=>!s.date).length};
 }
 
 function expUnmatch(slipId){
@@ -8170,6 +8206,12 @@ function renderReconcile(P,tabs){
     <div class="rec-totals" id="recTotals"></div>
     ${diag?`<div class="rec-diag">
       <div style="font-weight:600;margin-bottom:6px">${diag.exact+diag.likely+diag.possible} matched · ${diag.unmatched} slip${diag.unmatched===1?'':'s'} still loose</div>
+      <div class="ms" style="margin-bottom:6px">${diag.slips} slip${diag.slips===1?'':'s'} on file · ${diag.lines} lines read · ${diag.debits} of them purchases${diag.noAmount?' · '+diag.noAmount+' slip'+(diag.noAmount===1?'':'s')+' with no amount':''}${diag.noDate?' · '+diag.noDate+' with no date':''}</div>
+      ${!diag.slips?`<div style="color:var(--bad);margin-bottom:6px"><strong>There are no slips on this device.</strong> Nothing can match. If you added them on the phone, wait for the sync or reopen the app.</div>`:''}
+      ${!diag.debits?`<div style="color:var(--bad);margin-bottom:6px"><strong>Every line was read as a payment or credit.</strong> Nothing on this statement is claimable as read, which is a reading error, not a statement with no purchases on it.</div>`:''}
+      ${diag.dirSuspect?`<div style="color:var(--warn);margin-bottom:6px">The extractor marked most lines as credits, which is not what a card statement looks like — the debit/credit reading was overridden and the signs settled from the majority instead.</div>`:''}
+      ${diag.ignoredCredit?`<div style="color:var(--warn);margin-bottom:6px">Nothing matched until the debit/credit flag was ignored, so these matches were made against lines marked as credits. <strong>Check them before claiming.</strong></div>`:''}
+      ${(diag.rej&&!diag.exact&&!diag.likely&&!diag.possible)?`<div class="ms" style="margin-bottom:6px">Pairs rejected — credit flag ${diag.rej.credit||0} · amount too far ${diag.rej.amount||0} · date too far ${diag.rej.date||0} · zero amount ${diag.rej.zero||0}</div>`:''}
       ${diag.why.slice(0,8).map(w=>`<div class="ms">${expEsc(w.merchant||'Slip')} ${expMoney(w.amount)} — ${expEsc(w.reason)}</div>`).join('')}
       ${diag.why.length>8?`<div class="ms">and ${diag.why.length-8} more</div>`:''}
       <button class="btn rec-b" style="margin-top:8px" onclick="window._expDiag=null;renderExpenses()">Hide</button>
@@ -8188,7 +8230,9 @@ function expRematch(stmtId){
   const n=expMatchStatement(stmtId);
   window._expDiag=Object.assign({stmtId},n);
   save(); renderExpenses();
-  toast(n.exact+n.likely+' matched · '+n.possible+' to check · '+n.unmatched+' loose');
+  const hit=n.exact+n.likely+n.possible;
+  toast(hit? (n.exact+n.likely)+' matched · '+n.possible+' to check · '+n.unmatched+' loose'
+           : 'Nothing matched — '+n.slips+' slips, '+n.debits+' purchase lines. See the note above.');
 }
 
 /* --- the pack --------------------------------------------------------------
