@@ -1803,6 +1803,18 @@ function mergeUserdata(incoming, existing) {
   into.morning.calendar = into.morning.calendar || [];
   const haveC = new Set(into.morning.calendar.map(e => e && ((e.time || '') + '|' + (e.title || ''))));
   (em.calendar || []).forEach(e => { if (e && e._manual && !haveC.has((e.time || '') + '|' + (e.title || ''))) into.morning.calendar.push(e); });
+  /* goals: the journal is union-merged by id. Everything else in the goals blob
+     is scalar (newest push wins), but a journal entry written on the phone must
+     never be erased by a later push from a laptop that never saw it — that is
+     writing nobody can reconstruct. If the incoming push has no goals key at
+     all, keep what is on disk rather than replacing it with nothing. */
+  if (existing.goals && !into.goals) into.goals = existing.goals;
+  else if (into.goals) {
+    into.goals.journal = into.goals.journal || [];
+    const haveJ = new Set(into.goals.journal.map(j => j && j.id));
+    ((existing.goals || {}).journal || []).forEach(j => { if (j && j.id && !haveJ.has(j.id)) into.goals.journal.push(j); });
+    into.goals.journal.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  }
   // expenses: slips + statements by id. A slip photographed on the phone must
   // survive a push from the laptop that never saw it.
   into.expenses = into.expenses || { slips: [], statements: [] };
