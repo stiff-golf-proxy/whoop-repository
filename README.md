@@ -106,6 +106,19 @@ be introduced.
 `INSURANCE_MODEL` overrides the model. Policies live in `insurance.json` on the
 volume, so they are not in the app's own backup file.
 
+## Journal (Goals tab)
+A dated journal sits behind the same password as the goals, in the same synced
+blob. Entries carry a date, optional title, body, optional category and an
+optional link to a goal; the view groups them by month, newest first, with
+search across title, body and category.
+
+Journal entries are **union-merged by id** on both sides of the sync
+(`mergeUserdata` on the server, `_mergeLost` in the browser). The rest of the
+goals blob is scalar — newest push wins — but an entry written on a phone must
+not be erased by a later push from a laptop that never saw it. A push carrying
+no goals key at all now leaves what is on disk alone rather than replacing it
+with nothing.
+
 ## Notes
 - Free tier may cold-start after idle; first request waits a few seconds.
 - Never commit `.env` or `tokens.json` (the .gitignore handles this).

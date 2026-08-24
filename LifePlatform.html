@@ -450,6 +450,21 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .goal-cat{font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;padding:4px 10px;border-radius:20px;align-self:flex-start}
 .goal-title{font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:-.2px;line-height:1.2}
 .goal-meta{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+/* ---- journal ---- */
+.j-month{display:flex;align-items:center;gap:14px;margin:26px 0 14px}
+.j-month span{font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-faint);white-space:nowrap}
+.j-month::after{content:"";flex:1;height:1px;background:var(--line)}
+.j-entry{display:grid;grid-template-columns:88px 1fr;gap:18px;padding:16px 0;border-bottom:1px solid var(--line)}
+.j-date{padding-top:3px}
+.j-date .j-d{font-family:var(--mono);font-size:11px;letter-spacing:.6px;color:var(--terra-deep);text-transform:uppercase}
+.j-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.j-title{font-family:var(--disp);font-weight:700;font-size:17px;letter-spacing:-.2px;line-height:1.25}
+.j-tags{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.j-goal{font-family:var(--mono);font-size:9.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-faint)}
+.j-text{font-family:var(--serif);font-size:14.5px;line-height:1.68;color:var(--ink-soft);margin-top:7px;white-space:normal}
+.j-entry .goal-actions{margin-top:9px;opacity:0;transition:.15s}
+.j-entry:hover .goal-actions,.j-entry:focus-within .goal-actions{opacity:1}
+@media(max-width:620px){ .j-entry{grid-template-columns:1fr;gap:6px} .j-entry .goal-actions{opacity:1} }
 .goal-notes{font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);line-height:1.5}
 .goal-bar{height:8px;border-radius:8px;background:var(--line2);overflow:hidden}
 .goal-bar>i{display:block;height:100%;border-radius:8px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
@@ -683,6 +698,16 @@ function _mergeLost(into, from){
   // today's manual calendar entries by time+title
   const haveC=new Set((into.morning.calendar||[]).map(e=>e&&((e.time||'')+'|'+(e.title||''))));
   (fm.calendar||[]).forEach(e=>{ if(e&&e._manual&&!haveC.has((e.time||'')+'|'+(e.title||''))){ into.morning.calendar=into.morning.calendar||[]; into.morning.calendar.push(e); } });
+  /* goals: union the journal by id. The rest of the goals blob is scalar, but a
+     journal entry is irreplaceable writing — it must not vanish because another
+     device pushed later. No goals key incoming means keep what we already have. */
+  if(from.goals && !into.goals) into.goals=from.goals;
+  else if(into.goals){
+    into.goals.journal=into.goals.journal||[];
+    const haveJ=new Set(into.goals.journal.map(j=>j&&j.id));
+    ((from.goals||{}).journal||[]).forEach(j=>{ if(j&&j.id&&!haveJ.has(j.id)) into.goals.journal.push(j); });
+    into.goals.journal.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  }
 }
 let _lastPull=0;
 async function pullFromServer(){
@@ -5477,6 +5502,7 @@ function renderGoals(){
     setTimeout(()=>{const el=document.getElementById('g_pw');if(el)el.focus();},200);
     return;
   }
+  if(_goalsTab==='journal') return renderJournal(P);
   const items=g.items.slice().sort((a,b)=>(a.progress||0)-(b.progress||0));
   const active=items.filter(x=>(x.progress||0)<100), done=items.filter(x=>(x.progress||0)>=100);
   const card=x=>{ const c=GOAL_CATS[x.category]||'var(--ink-faint)';
@@ -5488,7 +5514,7 @@ function renderGoals(){
       <div class="goal-meta" style="display:flex;justify-content:space-between"><span>${x.progress||0}% complete</span>${(x.progress||0)>=100?'<span style="color:var(--good)">Achieved ✓</span>':''}</div>
       ${x.notes?`<div class="goal-notes">${tkEsc(x.notes)}</div>`:''}
       <div class="goal-actions"><a onclick="editGoal('${x.id}')">Edit</a><a onclick="delGoal('${x.id}')">Delete</a></div></div>`; };
-  P.innerHTML=`<div class="coach"><div class="q">Your goals</div><p>${goalsCoach(items)}</p></div>
+  P.innerHTML=`${goalsTabsHtml()}<div class="coach"><div class="q">Your goals</div><p>${goalsCoach(items)}</p></div>
     <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
       <button class="btn primary" onclick="addGoal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New goal</button>
       <button class="btn" onclick="lockGoals()">${lockSvg().replace('width="26" height="26"','width="15" height="15"')}Lock</button>
@@ -5506,6 +5532,157 @@ function goalsCoach(items){
   const done=items.filter(x=>(x.progress||0)>=100).length;
   return `You're tracking <b>${items.length}</b> goal${items.length>1?'s':''}, averaging <b>${avg}%</b>${done?`, with ${done} achieved`:''}. Pick the one that matters most this week and give it a concrete next action.`;
 }
+/* ============ JOURNAL ============
+   Lives inside the goals blob, so it sits behind the same password and syncs
+   with everything else. Entries are keyed by id and union-merged on both sides
+   of the sync, because a page written on the phone must survive a later push
+   from a laptop that never saw it. */
+function journal(){ const g=goalsCfg(); if(!Array.isArray(g.journal)) g.journal=[]; return g.journal; }
+let _goalsTab='goals', _jFilter='';
+function setGoalsTab(t){ _goalsTab=t; renderGoals(); }
+function setJFilter(v){ _jFilter=v; renderJournalList(); }
+
+const J_MONTH=d=>new Date(d+'T00:00:00').toLocaleDateString('en-ZA',{month:'long',year:'numeric'});
+const J_DAY=d=>new Date(d+'T00:00:00').toLocaleDateString('en-ZA',{weekday:'short',day:'numeric'});
+
+/* Consecutive days written, counting back from today or yesterday — so an
+   entry written last night still shows a live streak this morning. */
+function journalStreak(entries){
+  const days=new Set(entries.map(e=>(e.date||'').slice(0,10)));
+  if(!days.size) return 0;
+  const d=new Date(todayISO()+'T00:00:00');
+  const iso=x=>x.toISOString().slice(0,10);
+  if(!days.has(iso(d))){ d.setDate(d.getDate()-1); if(!days.has(iso(d))) return 0; }
+  let n=0;
+  while(days.has(iso(d))){ n++; d.setDate(d.getDate()-1); }
+  return n;
+}
+function journalStats(entries){
+  const today=todayISO(), month=today.slice(0,7);
+  const last=entries.map(e=>e.date).filter(Boolean).sort().pop();
+  return { total:entries.length, thisMonth:entries.filter(e=>(e.date||'').startsWith(month)).length,
+    streak:journalStreak(entries), last,
+    sinceLast: last?Math.round((new Date(today)-new Date(last))/86400000):null,
+    words: entries.reduce((n,e)=>n+String(e.body||'').trim().split(/\s+/).filter(Boolean).length,0) };
+}
+
+function jEntryHtml(e){
+  const g=goalsCfg();
+  const goal=e.goalId?(g.items||[]).find(x=>x.id===e.goalId):null;
+  const c=GOAL_CATS[e.category]||'var(--ink-faint)';
+  const body=String(e.body||'').trim();
+  return `<div class="j-entry">
+    <div class="j-date"><span class="j-d">${J_DAY(e.date)}</span></div>
+    <div class="j-body">
+      <div class="j-head">
+        ${e.title?`<div class="j-title">${tkEsc(e.title)}</div>`:''}
+        <div class="j-tags">
+          ${e.category?`<span class="goal-cat" style="background:${c}22;color:${c}">${tkEsc(e.category)}</span>`:''}
+          ${goal?`<span class="j-goal">↳ ${tkEsc(goal.title)}</span>`:''}
+        </div>
+      </div>
+      <div class="j-text">${tkEsc(body).replace(/\n/g,'<br>')}</div>
+      <div class="goal-actions"><a onclick="journalModal('${e.id}')">Edit</a><a onclick="delJournal('${e.id}')">Delete</a></div>
+    </div></div>`;
+}
+/* Only the list re-renders while filtering, so the search box keeps focus. */
+function renderJournalList(){
+  const host=document.getElementById('jList'); if(!host) return;
+  const q=_jFilter.trim().toLowerCase();
+  const entries=journal().slice()
+    .filter(e=>!q || (e.title||'').toLowerCase().includes(q) || (e.body||'').toLowerCase().includes(q) || (e.category||'').toLowerCase().includes(q))
+    .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')) || String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  if(!entries.length){
+    host.innerHTML=`<div class="empty" style="padding:40px">${q?'Nothing matches “'+tkEsc(_jFilter)+'”.':'No entries yet. The first one is the hard one.'}</div>`;
+    return;
+  }
+  // Grouped by month, newest first — the arrangement is the point of a journal.
+  let out='', month='';
+  entries.forEach(e=>{
+    const m=J_MONTH(e.date);
+    if(m!==month){ month=m; out+=`<div class="j-month"><span>${m}</span></div>`; }
+    out+=jEntryHtml(e);
+  });
+  host.innerHTML=out;
+}
+function renderJournal(P){
+  const st=journalStats(journal());
+  P.innerHTML=`${goalsTabsHtml()}
+    <div class="grid g4" style="margin-bottom:20px">
+      <div class="card tile"><div class="accent-bar" style="background:var(--terra)"></div><div class="lbl">Entries</div><div class="num">${st.total||'—'}</div><div class="foot">${st.thisMonth} this month</div></div>
+      <div class="card tile"><div class="accent-bar" style="background:var(--gold)"></div><div class="lbl">Streak</div><div class="num">${st.streak||'—'}</div><div class="foot">${st.streak===1?'day running':'days running'}</div></div>
+      <div class="card tile"><div class="accent-bar" style="background:var(--sage)"></div><div class="lbl">Last Written</div><div class="num" style="font-size:23px">${st.last?(st.sinceLast===0?'Today':st.sinceLast===1?'Yesterday':st.sinceLast+'d ago'):'—'}</div><div class="foot">${st.last?fmtDate(st.last):'nothing yet'}</div></div>
+      <div class="card tile"><div class="accent-bar" style="background:var(--sky)"></div><div class="lbl">Words</div><div class="num">${st.words?(st.words>9999?Math.round(st.words/1000)+'k':st.words):'—'}</div><div class="foot">written down</div></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+      <button class="btn primary" onclick="journalModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New entry</button>
+      <button class="btn" onclick="lockGoals()">${lockSvg().replace('width="26" height="26"','width="15" height="15"')}Lock</button>
+      <input class="exp-in" style="margin-left:auto;max-width:260px" placeholder="Search entries…" value="${tkEsc(_jFilter)}" oninput="setJFilter(this.value)">
+    </div>
+    <div id="jList"></div>`;
+  renderJournalList();
+}
+function journalModal(id){
+  const g=goalsCfg();
+  const e=id?journal().find(x=>x.id===id):null;
+  const cats=['',...Object.keys(GOAL_CATS)].map(c=>`<option value="${c}" ${e&&e.category===c?'selected':''}>${c||'— no category —'}</option>`).join('');
+  const goals=['',...(g.items||[]).map(x=>x.id)].map(gid=>{
+    const gx=(g.items||[]).find(x=>x.id===gid);
+    return `<option value="${gid}" ${e&&e.goalId===gid?'selected':''}>${gx?tkEsc(gx.title):'— not linked to a goal —'}</option>`;
+  }).join('');
+  showModal(`<div class="modal-head">
+      <div><h2>${e?'Edit entry':'New entry'}</h2><div class="ms">${e?fmtDate(e.date):'Today, unless you change the date'}</div></div>
+      <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div><div class="kicker" style="margin-bottom:6px">Date</div>
+          <input id="j_date" type="date" class="exp-in" value="${e?e.date:todayISO()}" max="${todayISO()}"></div>
+        <div style="flex:1;min-width:150px"><div class="kicker" style="margin-bottom:6px">Category</div>
+          <select id="j_cat" class="exp-in" style="width:100%">${cats}</select></div>
+      </div>
+      <div class="kicker" style="margin:16px 0 6px">Title <span style="text-transform:none;letter-spacing:0">— optional</span></div>
+      <input id="j_title" class="exp-in" style="width:100%" maxlength="120" placeholder="A line to find it by later" value="${e?tkEsc(e.title||''):''}">
+      <div class="kicker" style="margin:16px 0 6px">Entry</div>
+      <textarea id="j_body" class="exp-in" rows="12" style="width:100%;line-height:1.6" placeholder="What happened, what you decided, what you noticed.">${e?tkEsc(e.body||''):''}</textarea>
+      <div class="kicker" style="margin:16px 0 6px">Against a goal <span style="text-transform:none;letter-spacing:0">— optional</span></div>
+      <select id="j_goal" class="exp-in" style="width:100%">${goals}</select>
+      <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+        <button class="btn primary" onclick="saveJournal('${e?e.id:''}')">${e?'Save changes':'Save entry'}</button>
+        ${e?`<button class="btn" onclick="delJournal('${e.id}')">Delete</button>`:''}
+        <button class="btn" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>`);
+  setTimeout(()=>{ const el=document.getElementById(e?'j_body':'j_title'); if(el) el.focus(); },150);
+}
+function saveJournal(id){
+  const date=(document.getElementById('j_date').value||todayISO()).slice(0,10);
+  const body=(document.getElementById('j_body').value||'').trim();
+  const title=(document.getElementById('j_title').value||'').trim();
+  if(!body && !title){ toast('Write something first'); return; }
+  const now=new Date().toISOString();
+  const rec={ date, title, body,
+    category:document.getElementById('j_cat').value||'',
+    goalId:document.getElementById('j_goal').value||'' };
+  const list=journal();
+  const i=id?list.findIndex(x=>x.id===id):-1;
+  if(i>=0) list[i]=Object.assign(list[i],rec,{updatedAt:now});
+  else list.push(Object.assign({id:'j'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),createdAt:now,updatedAt:now},rec));
+  save(); closeModal(); renderGoals(); toast(i>=0?'Entry updated':'Entry saved');
+}
+function delJournal(id){
+  if(!confirm('Delete this entry? It cannot be recovered.')) return;
+  const list=journal(); const i=list.findIndex(x=>x.id===id);
+  if(i<0) return;
+  list.splice(i,1); save(); closeModal(); renderGoals(); toast('Entry deleted');
+}
+function goalsTabsHtml(){
+  const n=journal().length;
+  return `<div class="seg" style="margin-bottom:20px">
+    <button class="seg-btn ${_goalsTab==='goals'?'active':''}" onclick="setGoalsTab('goals')">Goals</button>
+    <button class="seg-btn ${_goalsTab==='journal'?'active':''}" onclick="setGoalsTab('journal')">Journal${n?' · '+n:''}</button>
+  </div>`;
+}
+
 function addGoal(){ goalModal(null); }
 function editGoal(id){ goalModal(id); }
 function goalModal(id){
