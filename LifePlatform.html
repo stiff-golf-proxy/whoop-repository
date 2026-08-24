@@ -203,15 +203,43 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 #expReport.show{display:block}
 .exp-rep-row{break-inside:avoid;page-break-inside:avoid;border-bottom:1px solid var(--line);padding:16px 0;display:flex;gap:18px;align-items:flex-start}
 .exp-rep-img{width:170px;flex:0 0 170px;border:1px solid var(--line);border-radius:8px}
+.rec-head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:14px}
+.rec-totals{display:flex;flex-wrap:wrap;gap:16px;font-family:var(--mono);font-size:12px;color:var(--ink-faint);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0;margin-bottom:16px}
+.rec-totals strong{color:var(--ink)}
+.rec-totals .warnish{color:var(--warn)}
+.rec-diag{background:var(--paper2);border:1px solid var(--line);border-left:3px solid var(--warn);
+  border-radius:10px;padding:12px 14px;margin-bottom:16px;font-family:var(--serif);font-size:13px}
+.rec-row{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line)}
+.rec-row.out{opacity:.42}
+.rec-tick{flex:0 0 22px;padding-top:2px}
+.rec-main{flex:1;min-width:0}
+.rec-top{display:flex;gap:10px;align-items:baseline}
+.rec-date{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);flex:0 0 88px;white-space:nowrap}
+.rec-desc{font-family:var(--disp);font-weight:600;font-size:14.5px;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rec-amt{font-family:var(--mono);font-size:14px;white-space:nowrap}
+.rec-why{background:transparent;border:none;border-bottom:1px dashed var(--line2);width:100%;
+  font-family:var(--serif);font-size:13.5px;color:var(--ink-soft);padding:4px 0;margin:5px 0 3px}
+.rec-why:focus{outline:none;border-bottom-color:var(--terra);color:var(--ink)}
+.rec-foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.rec-thumb{width:30px;height:30px;border-radius:6px;object-fit:cover;background:var(--paper2);
+  border:1px solid var(--line);cursor:zoom-in}
+.rec-b{padding:3px 9px;font-size:12px}
+.rec-pick{display:flex;gap:12px;align-items:flex-start;padding:10px 8px;border-radius:10px;cursor:pointer;
+  border:1px solid transparent}
+.rec-pick:hover{background:var(--paper2);border-color:var(--line)}
+@media(max-width:640px){
+  .rec-top{flex-wrap:wrap}
+  .rec-date{flex:0 0 auto}
+  .rec-desc{white-space:normal;flex:1 0 100%;order:3}
+}
 @media print{
   @page{margin:14mm}
   body{background:#fff}
   .nav,.topbar,#toast,.overlay,.exp-noprint{display:none!important}
   .pane{display:none!important}
   .pane#pane-expenses{display:block!important}
-  #expWorkspace{display:none!important}
-  #expReport{display:block!important}
-  .exp-rep-img{width:150px;flex:0 0 150px}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 .sw-strip{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px}
@@ -7519,47 +7547,168 @@ async function handleStatementFile(file){
     const d=await r.json();
     const txns=(d.transactions||[]).filter(t=>t&&+t.amount);
     if(!txns.length) throw new Error('No transactions found in that PDF');
+    const norm=expNormaliseTxns(txns);
     const st={id:expId('stmt'),account:d.account||'',periodStart:d.periodStart||'',periodEnd:d.periodEnd||'',
-      fileName:file.name||'statement.pdf',txns,createdAt:Date.now()};
+      fileName:file.name||'statement.pdf',txns:norm.txns,signFlipped:norm.flipped,norm:2,claim:{},createdAt:Date.now()};
     expCfg().statements.push(st);
+    // The pack has to be able to show the statement itself, so keep the file.
+    O.innerHTML='<div style="margin-top:18px;font-family:var(--mono);font-size:12px;color:var(--ink-faint)">Storing the statement…</div>';
+    try{
+      await fetch(base+'/expenses/statements',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:st.id,pdf:b64})});
+    }catch(e){ /* the schedule still works; the pack just won't carry the pages */ }
     const n=expMatchStatement(st.id);
+    window._expDiag=Object.assign({stmtId:st.id},n);
+    _expStmt=st.id; _expTab='reconcile';
     save(); closeModal();
-    toast(txns.length+' transactions · '+n.ok+' matched');
+    toast(norm.txns.length+' lines · '+(n.exact+n.likely)+' matched · '+n.unmatched+' loose');
     renderExpenses();
   }catch(e){ O.innerHTML='<div style="margin-top:16px;color:var(--bad);font-family:var(--mono);font-size:13px">⚠ '+expEsc(e.message)+'</div>'; }
 }
 
-/* --- matching: greedy best-first over amount closeness, then date distance.
-   Each statement line can back only one slip, and vice versa. --- */
+/* --- statement normalisation ---------------------------------------------
+   Nothing matched on the first real statement because every line was thrown
+   away before it was ever compared. The matcher skipped anything that wasn't
+   a positive amount, and the extractor had returned the purchases negative —
+   which is exactly how plenty of statements print them, since a purchase
+   makes a negative balance more negative.
+
+   So the sign is not a fact about the transaction, it is a fact about the
+   layout. Read it once, here, and let everything downstream work in
+   magnitudes plus an explicit credit flag. New extractions carry a direction
+   field; older ones are repaired by looking at which sign the statement uses
+   for the bulk of its lines — a card statement is overwhelmingly purchases,
+   so the majority sign is the debit sign. --- */
+function expNormaliseTxns(txns){
+  const list=(txns||[]).filter(t=>t&&+t.amount);
+  const haveDir=list.some(t=>t.direction);
+  let flipped=false;
+  if(haveDir){
+    list.forEach(t=>{ t.credit=(t.direction==='credit'); t.amount=Math.abs(+t.amount||0); });
+  }else{
+    const neg=list.filter(t=>+t.amount<0).length, pos=list.length-neg;
+    flipped=neg>pos;                       // the statement prints debits negative
+    list.forEach(t=>{
+      const v=+t.amount||0;
+      t.credit=flipped?(v>0):(v<0);
+      t.amount=Math.abs(v);
+    });
+  }
+  return {txns:list,flipped};
+}
+/* Statements already on file were stored under the old convention. Repair
+   them in place the first time they are read, so an upload from last week
+   starts matching without being uploaded again. */
+function expFixStatement(st){
+  if(!st||st.norm===2) return st;
+  const r=expNormaliseTxns(st.txns||[]);
+  st.txns=r.txns; st.signFlipped=r.flipped; st.norm=2;
+  st.claim=st.claim||{};
+  return st;
+}
+
+/* --- how alike are two names ---
+   "WOOLWORTHS CLAREMONT 4471" against a slip that says "Woolworths". Token
+   overlap on the words that carry meaning, so a store number or a city on
+   the statement narrative costs nothing. --- */
+const EXP_STOP=new Set(['the','and','ltd','pty','cc','inc','za','south','africa','card','purchase','payment','pos','ecom','www','com','co']);
+function expTokens(v){
+  return String(v||'').toLowerCase().replace(/[^a-z0-9 ]+/g,' ').split(/\s+/)
+    .filter(w=>w.length>2&&!EXP_STOP.has(w)&&!/^\d+$/.test(w));
+}
+function expNameScore(a,b){
+  const A=expTokens(a),B=expTokens(b);
+  if(!A.length||!B.length) return 0;
+  let hit=0;
+  A.forEach(x=>{ if(B.some(y=>y===x||(x.length>=4&&y.startsWith(x))||(y.length>=4&&x.startsWith(y)))) hit++; });
+  return hit/Math.min(A.length,B.length);
+}
+/* Signed day gap: positive means the statement line is dated after the slip,
+   which is the normal direction — you buy, then it posts. */
+function expGap(slipDate,txnDate){
+  if(!slipDate||!txnDate) return null;
+  const a=new Date(slipDate),b=new Date(txnDate);
+  if(isNaN(a)||isNaN(b)) return null;
+  return Math.round((b-a)/86400000);
+}
+/* Score one slip against one statement line. Lower is better; null means the
+   pair is not worth considering at all. */
+function expScore(s,t){
+  if(t.credit) return null;
+  const sa=+s.amount||0, ta=+t.amount||0;
+  if(sa<=0||ta<=0) return null;
+  const diff=Math.abs(ta-sa), rel=diff/Math.max(sa,1);
+  const name=expNameScore(s.merchant,t.description);
+  const gap=expGap(s.date,t.date);
+  // Amount: exact, or close enough to be a tip or a rounding, or — only when
+  // the name agrees — meaningfully different.
+  if(diff>0.05 && rel>0.30) return null;
+  if(diff>0.05 && rel>0.12 && name<0.34) return null;
+  // Date: a purchase posts within a few weeks. Allow a day either side for
+  // timezone and late-night slips. A slip with no date is judged on the rest.
+  if(gap!==null && (gap<-2||gap>35)) return null;
+  const dp=gap===null?9:Math.max(0,gap)*0.6+Math.max(0,-gap)*3;
+  const score=rel*400 + dp - name*22 + (gap===null?6:0);
+  let conf='possible';
+  if(diff<=0.05 && gap!==null && gap>=-1 && gap<=12) conf='exact';
+  else if(diff<=0.05 || (rel<=0.12&&name>=0.34)) conf='likely';
+  return {score,diff,rel,gap,name,conf};
+}
+/* --- matching ---
+   Greedy best-first, one slip per statement line and one line per slip. The
+   return value now says why, not just how many: a run that matches nothing
+   has to be able to explain itself, or you are left staring at a screen that
+   says 0 with no way in. --- */
 function expMatchStatement(stmtId){
-  const C=expCfg(); const st=C.statements.find(s=>s.id===stmtId); if(!st) return {ok:0,maybe:0};
-  // free up anything previously matched to this statement so re-running is safe
-  C.slips.forEach(s=>{ if(s.match&&s.match.statementId===stmtId) s.match=null; });
+  const C=expCfg(); const st=C.statements.find(s=>s.id===stmtId);
+  if(!st) return {exact:0,likely:0,possible:0,unmatched:0,why:[]};
+  expFixStatement(st);
+  C.slips.forEach(s=>{ if(s.match&&s.match.statementId===stmtId&&!s.match.manual) s.match=null; });
+  const locked=new Set();                       // lines a hand-made match already owns
+  C.slips.forEach(s=>{ if(s.match&&s.match.statementId===stmtId&&s.match.manual) locked.add(s.match.txnIdx); });
   const open=C.slips.filter(s=>!s.match);
   const pairs=[];
-  open.forEach(s=>{
-    st.txns.forEach((t,i)=>{
-      if(+t.amount<=0) return;                       // payments/credits can't back a claim
-      const ad=Math.abs((+t.amount)-(+s.amount||0));
-      const tol=Math.max(0.05,(+s.amount||0)*0.02);  // a little slack for tips/rounding
-      if(ad>tol) return;
-      const dd=expDays(s.date,t.date);
-      if(dd>14) return;                              // settlement lag, but not a month
-      pairs.push({slipId:s.id,txnIdx:i,ad,dd,score:ad*100+dd});
-    });
-  });
+  open.forEach(s=>st.txns.forEach((t,i)=>{
+    if(locked.has(i)) return;
+    const r=expScore(s,t);
+    if(r) pairs.push(Object.assign({slipId:s.id,txnIdx:i},r));
+  }));
   pairs.sort((a,b)=>a.score-b.score);
-  const usedS=new Set(), usedT=new Set(); let ok=0,maybe=0;
+  const usedS=new Set(),usedT=new Set();
+  const n={exact:0,likely:0,possible:0};
   pairs.forEach(p=>{
     if(usedS.has(p.slipId)||usedT.has(p.txnIdx)) return;
     usedS.add(p.slipId); usedT.add(p.txnIdx);
-    const conf=(p.ad<=0.02&&p.dd<=5)?'ok':'maybe';
-    if(conf==='ok') ok++; else maybe++;
+    n[p.conf]++;
     const s=C.slips.find(x=>x.id===p.slipId);
-    s.match={statementId:stmtId,txnIdx:p.txnIdx,conf,ad:p.ad,dd:p.dd};
+    s.match={statementId:stmtId,txnIdx:p.txnIdx,conf:p.conf,diff:p.diff,gap:p.gap,name:p.name,manual:false,ts:Date.now()};
   });
-  return {ok,maybe};
+  // For everything still open, say what the nearest line was and what stopped
+  // it. This is the part that was missing.
+  const why=[];
+  C.slips.filter(s=>!s.match).forEach(s=>{
+    let best=null;
+    st.txns.forEach((t,i)=>{
+      if(t.credit) return;
+      const diff=Math.abs((+t.amount||0)-(+s.amount||0));
+      const gap=expGap(s.date,t.date);
+      const cand={i,t,diff,gap,rel:diff/Math.max(+s.amount||1,1),name:expNameScore(s.merchant,t.description)};
+      if(!best||cand.diff<best.diff) best=cand;
+    });
+    if(!best){ why.push({slipId:s.id,reason:'this statement has no purchase lines on it at all'}); return; }
+    const bits=[];
+    if(best.diff>0.05) bits.push('closest line is '+expMoney(best.t.amount,best.t.currency)+', '+(best.rel*100).toFixed(1)+'% out');
+    if(!s.date) bits.push('the slip has no date');
+    else if(best.gap===null) bits.push('that line has no readable date');
+    else if(best.gap<-2) bits.push('that line is dated '+Math.abs(best.gap)+' days before the slip');
+    else if(best.gap>35) bits.push('that line is '+best.gap+' days after the slip');
+    if(!bits.length) bits.push('nearest line was already taken by a closer slip');
+    why.push({slipId:s.id,merchant:s.merchant,amount:s.amount,reason:bits.join('; '),
+      near:{description:best.t.description,date:best.t.date,amount:best.t.amount,currency:best.t.currency}});
+  });
+  return {exact:n.exact,likely:n.likely,possible:n.possible,unmatched:why.length,why,flipped:!!st.signFlipped};
 }
+
 function expUnmatch(slipId){
   const s=expCfg().slips.find(x=>x.id===slipId); if(!s) return;
   s.match=null; save(); renderExpenses(); toast('Match cleared');
@@ -7577,7 +7726,10 @@ function expDeleteStatement(stmtId){
   const C=expCfg(); const i=C.statements.findIndex(x=>x.id===stmtId); if(i<0) return;
   if(!confirm('Remove this statement? Slips matched to it become unmatched again.')) return;
   C.slips.forEach(s=>{ if(s.match&&s.match.statementId===stmtId) s.match=null; });
-  C.statements.splice(i,1); save(); renderExpenses(); toast('Statement removed');
+  C.statements.splice(i,1); save();
+  const base=proxyBase();
+  if(base) fetch(base+'/expenses/statements/'+encodeURIComponent(stmtId),{method:'DELETE'}).catch(()=>{});
+  renderExpenses(); toast('Statement removed');
 }
 async function expZoom(slipId){
   const url=await expLoadImg(slipId);
@@ -7586,20 +7738,177 @@ async function expZoom(slipId){
     <div class="modal-body" style="text-align:center"><img src="${url}" style="max-width:100%;border-radius:10px;border:1px solid var(--line)"></div>`);
 }
 
-/* --- pane --- */
+/* --- claim state -----------------------------------------------------------
+   A claim is a set of decisions about statement lines, so it is stored on the
+   statement, keyed by line: is it claimed, what was it for, and if there is no
+   slip, why not. Each decision carries a timestamp because these get typed on
+   whichever device is to hand and the sync merges them by recency. --- */
+let _expTab='reconcile', _expStmt=null;
+function expClaim(st,i){
+  st.claim=st.claim||{};
+  if(!st.claim[i]) st.claim[i]={include:!st.txns[i].credit,purpose:'',noSlipReason:'',ts:0};
+  return st.claim[i];
+}
+function expSetClaim(stId,i,patch){
+  const st=expCfg().statements.find(x=>x.id===stId); if(!st) return null;
+  const c=expClaim(st,i);
+  Object.assign(c,patch,{ts:Date.now()});
+  save(); return c;
+}
+function expLineSlip(st,i){
+  return expCfg().slips.find(s=>s.match&&s.match.statementId===st.id&&s.match.txnIdx===i)||null;
+}
+function expLinePurpose(st,i){
+  const c=expClaim(st,i); if(c.purpose) return c.purpose;
+  const s=expLineSlip(st,i); return s?(s.why||''):'';
+}
+function expCurStmt(){
+  const C=expCfg();
+  C.statements.forEach(expFixStatement);
+  if(_expStmt){ const f=C.statements.find(s=>s.id===_expStmt); if(f) return f; }
+  return C.statements.length?C.statements[C.statements.length-1]:null;
+}
+function expTotals(st){
+  const T={claimed:0,supported:0,unsupported:0,excluded:0,vat:0,count:0,lines:0,credits:0};
+  (st.txns||[]).forEach((t,i)=>{
+    if(t.credit){ T.credits+= +t.amount||0; return; }
+    T.lines++;
+    const c=expClaim(st,i), amt=+t.amount||0;
+    if(c.include===false){ T.excluded+=amt; return; }
+    T.claimed+=amt; T.count++;
+    const s=expLineSlip(st,i);
+    if(s){ T.supported+=amt; T.vat+= +s.vat||0; } else T.unsupported+=amt;
+  });
+  return T;
+}
+function expSetTab(t){ _expTab=t; renderExpenses(); }
+function expPickStmt(id){ _expStmt=id; renderExpenses(); }
+function expToggleLine(stId,i,on){
+  expSetClaim(stId,i,{include:!!on});
+  const st=expCfg().statements.find(x=>x.id===stId);
+  const row=document.getElementById('rec-'+i); if(row) row.classList.toggle('out',!on);
+  expPaintTotals(st);
+}
+function expSetPurpose(stId,i,v){
+  expSetClaim(stId,i,{purpose:v});
+  const st=expCfg().statements.find(x=>x.id===stId);
+  const chip=document.getElementById('recst-'+i);
+  if(chip) chip.outerHTML=expLineStatus(st,i);
+}
+function expNoSlip(stId,i){
+  const st=expCfg().statements.find(x=>x.id===stId); if(!st) return;
+  const cur=expClaim(st,i).noSlipReason||'';
+  const v=prompt('There is no slip for this line. What was it, and why is there no slip?\n\nThis is printed in the pack beside the line.',cur);
+  if(v===null) return;
+  expSetClaim(stId,i,{noSlipReason:v.trim()});
+  renderExpenses();
+}
+function expDetach(stId,i){
+  const s=expLineSlip(expCfg().statements.find(x=>x.id===stId),i);
+  if(s){ s.match=null; save(); }
+  renderExpenses(); toast('Slip detached');
+}
+/* Attaching by hand is the whole point of the screen, so the picker ranks the
+   slips by how well they fit this line and says what is off about each — the
+   ones the matcher rejected are still listed, with the reason. */
+function expAttachOpen(stId,i){
+  const C=expCfg(); const st=C.statements.find(x=>x.id===stId); if(!st) return;
+  const t=st.txns[i];
+  const rows=C.slips.map(s=>{
+    const taken=s.match&&!(s.match.statementId===st.id&&s.match.txnIdx===i);
+    const r=expScore(s,t);
+    const diff=Math.abs((+t.amount||0)-(+s.amount||0));
+    const gap=expGap(s.date,t.date);
+    const bits=[];
+    if(diff<=0.05) bits.push('same amount'); else bits.push(expMoney(diff)+' out');
+    if(gap===null) bits.push('no date'); else if(gap===0) bits.push('same day'); else bits.push(gap>0?gap+'d later':Math.abs(gap)+'d earlier');
+    const nm=expNameScore(s.merchant,t.description);
+    if(nm>=0.34) bits.push('name agrees');
+    // Plausible first, then the rest by how far off they are, and anything
+    // already spoken for at the bottom — it is still listed, because taking a
+    // slip off one line to put it on another is a legitimate correction.
+    return {s,r,taken,sort:(taken?1e9:0)+(r?r.score:(1e6+diff)),note:bits.join(' · ')};
+  }).sort((a,b)=>a.sort-b.sort);
+  showModal(`<div class="modal-head"><div><h2>Attach a slip</h2>
+      <div class="ms">${expEsc(t.description)} · ${fmtDate(t.date)} · ${expMoney(t.amount,t.currency)}</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <input class="exp-in" style="width:100%;margin-bottom:12px" placeholder="Filter by merchant…" oninput="expAttachFilter(this.value)">
+      <div id="attList">${rows.map(r=>`
+        <div class="rec-pick" data-mer="${expEsc((r.s.merchant||'').toLowerCase())}" onclick="expAttach('${stId}',${i},'${r.s.id}')">
+          <div style="flex:1;min-width:0">
+            <div class="exp-mer">${expEsc(r.s.merchant)}${r.taken?' <span class="exp-pill maybe">taken</span>':''}</div>
+            <div class="ms">${r.s.date?fmtDate(r.s.date):'no date'} · ${r.note}</div>
+            <div class="exp-why" style="margin-top:2px">${expEsc(r.s.why||'')}</div>
+          </div>
+          <div class="exp-amt">${expMoney(r.s.amount,r.s.currency)}</div>
+        </div>`).join('')||'<div class="ms">No slips on file yet.</div>'}</div>
+    </div>`);
+}
+function expAttachFilter(v){
+  const q=(v||'').toLowerCase().trim();
+  document.querySelectorAll('#attList .rec-pick').forEach(el=>{
+    el.style.display=(!q||(el.dataset.mer||'').includes(q))?'':'none';
+  });
+}
+function expAttach(stId,i,slipId){
+  const C=expCfg();
+  // one line, one slip: clear whatever else held either end
+  C.slips.forEach(s=>{ if(s.match&&s.match.statementId===stId&&s.match.txnIdx===i) s.match=null; });
+  const s=C.slips.find(x=>x.id===slipId); if(!s) return;
+  const st=C.statements.find(x=>x.id===stId);
+  const r=expScore(s,st.txns[i]);
+  s.match={statementId:stId,txnIdx:i,conf:r?r.conf:'manual',diff:r?r.diff:null,gap:r?r.gap:null,manual:true,ts:Date.now()};
+  save(); closeModal(); renderExpenses(); toast('Attached');
+}
+function expLineStatus(st,i){
+  const t=st.txns[i], c=expClaim(st,i), s=expLineSlip(st,i);
+  let cls='none',txt='no slip';
+  if(c.include===false){ cls='';txt='not claimed'; }
+  else if(s) { cls=(s.match.manual?'ok':(s.match.conf==='exact'?'ok':'maybe'));
+               txt=s.match.manual?'attached by you':(s.match.conf==='exact'?'matched':'check match'); }
+  else if(c.noSlipReason) { cls='maybe'; txt='no slip — explained'; }
+  const need=(c.include!==false&&!s&&!c.noSlipReason&&!expLinePurpose(st,i))?
+    '<span class="exp-pill none" style="margin-left:6px">needs a purpose</span>':'';
+  return `<span id="recst-${i}"><span class="exp-pill ${cls}">${txt}</span>${need}</span>`;
+}
+function expPaintTotals(st){
+  const el=document.getElementById('recTotals'); if(!el) return;
+  const T=expTotals(st);
+  el.innerHTML=`<span>${T.count} of ${T.lines} lines</span>
+    <span>supported ${expMoney(T.supported)}</span>
+    ${T.unsupported?`<span class="warnish">no slip ${expMoney(T.unsupported)}</span>`:''}
+    ${T.excluded?`<span>excluded ${expMoney(T.excluded)}</span>`:''}
+    <strong>claiming ${expMoney(T.claimed)}</strong>`;
+}
+
+/* --- pane ------------------------------------------------------------------
+   Two views. Slips is the capture side — photograph it, say what it was for.
+   Reconcile is the claim itself, and it is driven by the statement rather
+   than by the slips: every line the bank charged you is a row, and the
+   question against each is whether it is claimed and what backs it. That is
+   the shape the claim gets reviewed in, so it is the shape you edit. --- */
 function renderExpenses(){
   const P=document.getElementById('pane-expenses'); if(!P) return;
   const C=expCfg();
+  C.statements.forEach(expFixStatement);
+  const tab=(C.statements.length&&_expTab==='reconcile')?'reconcile':'slips';
+  const tabs=`<div class="seg">
+    <button class="seg-btn ${tab==='reconcile'?'active':''}" onclick="expSetTab('reconcile')" ${C.statements.length?'':'disabled style="opacity:.4;cursor:not-allowed"'}>Reconcile</button>
+    <button class="seg-btn ${tab==='slips'?'active':''}" onclick="expSetTab('slips')">Slips</button>
+  </div>`;
+  if(tab==='reconcile') return renderReconcile(P,tabs);
+
   const slips=C.slips.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.createdAt-a.createdAt);
   const matched=slips.filter(s=>s.match), open=slips.filter(s=>!s.match);
   const tot=v=>v.reduce((t,s)=>t+(+s.amount||0),0);
   const stmtName=st=>(st.account||st.fileName||'Statement')+(st.periodEnd?' · to '+fmtDate(st.periodEnd):'');
-
   const slipRow=s=>{
     const st=s.match?C.statements.find(x=>x.id===s.match.statementId):null;
     const t=st?st.txns[s.match.txnIdx]:null;
     const pill=!s.match?'<span class="exp-pill none">unmatched</span>':
-      (s.match.conf==='ok'?'<span class="exp-pill ok">matched</span>':'<span class="exp-pill maybe">check match</span>');
+      (s.match.manual?'<span class="exp-pill ok">attached by you</span>':
+       s.match.conf==='exact'?'<span class="exp-pill ok">matched</span>':'<span class="exp-pill maybe">check match</span>');
     return `<div class="exp-card">
       <img class="exp-thumb" id="th-${s.id}" alt="" onclick="expZoom('${s.id}')">
       <div style="flex:1;min-width:0">
@@ -7617,138 +7926,208 @@ function renderExpenses(){
       </div>
     </div>`;
   };
-
-  P.innerHTML=`
-    <div id="expWorkspace">
-      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px">
-        <button class="btn primary" onclick="openSlipUpload()">+ Add slip</button>
-        <button class="btn" onclick="openStatementUpload()">Upload statement</button>
-        <button class="btn" onclick="expBuildReport()" ${matched.length?'':'disabled style="opacity:.45;cursor:not-allowed"'}>Build report</button>
-        <div style="margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-faint)">
-          ${slips.length} slip${slips.length===1?'':'s'} · ${expMoney(tot(slips))} · ${matched.length} matched
-        </div>
+  P.innerHTML=`${tabs}
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px">
+      <button class="btn primary" onclick="openSlipUpload()">+ Add slip</button>
+      <button class="btn" onclick="openStatementUpload()">Upload statement</button>
+      <div style="margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-faint)">
+        ${slips.length} slip${slips.length===1?'':'s'} · ${expMoney(tot(slips))} · ${matched.length} matched
       </div>
-
-      ${open.length?`<h3 style="font-family:var(--disp);font-size:18px;margin:0 0 10px">Awaiting a statement <span class="ms">${expMoney(tot(open))}</span></h3>
-        ${open.map(slipRow).join('')}`:''}
-
-      ${matched.length?`<h3 style="font-family:var(--disp);font-size:18px;margin:26px 0 10px">Matched <span class="ms">${expMoney(tot(matched))}</span></h3>
-        ${matched.map(slipRow).join('')}`:''}
-
-      ${!slips.length?`<div style="text-align:center;padding:56px 20px;color:var(--ink-faint)">
-        <div style="font-family:var(--disp);font-size:19px;margin-bottom:6px">No slips yet</div>
-        <div style="font-family:var(--serif);font-style:italic">Photograph a slip as you get it, say what it was for, and it will wait here for the statement.</div>
-      </div>`:''}
-
-      ${C.statements.length?`<h3 style="font-family:var(--disp);font-size:18px;margin:30px 0 10px">Statements</h3>
-        ${C.statements.slice().reverse().map(st=>{
-          const claimed=C.slips.filter(s=>s.match&&s.match.statementId===st.id);
-          const charges=st.txns.filter(t=>+t.amount>0);
-          return `<div class="exp-card">
-            <div style="flex:1">
-              <div class="exp-mer">${expEsc(stmtName(st))}</div>
-              <div class="ms">${charges.length} charges · ${claimed.length} backed by a slip</div>
-            </div>
-            <div class="exp-amt">${expMoney(charges.reduce((t,x)=>t+ +x.amount,0))}
-              <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
-                <button class="btn" style="padding:4px 9px;font-size:12px" onclick="expRematch('${st.id}')">Re-match</button>
-                <button class="btn" style="padding:4px 9px;font-size:12px" onclick="expDeleteStatement('${st.id}')">Remove</button>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}`:''}
     </div>
-    <div id="expReport"></div>`;
-
-  // Thumbnails stream in from the volume once the layout is up — but only when
-  // the pane is actually on screen. renderAll() runs at startup, and pulling
-  // every slip photo down on a cold load (for a tab that may never be opened)
-  // is a lot of traffic for nothing. Opening the tab re-renders and fetches.
+    ${open.length?`<h3 style="font-family:var(--disp);font-size:18px;margin:0 0 10px">Not on a statement yet <span class="ms">${expMoney(tot(open))}</span></h3>
+      ${open.map(slipRow).join('')}`:''}
+    ${matched.length?`<h3 style="font-family:var(--disp);font-size:18px;margin:26px 0 10px">Matched <span class="ms">${expMoney(tot(matched))}</span></h3>
+      ${matched.map(slipRow).join('')}`:''}
+    ${!slips.length?`<div style="text-align:center;padding:56px 20px;color:var(--ink-faint)">
+      <div style="font-family:var(--disp);font-size:19px;margin-bottom:6px">No slips yet</div>
+      <div style="font-family:var(--serif);font-style:italic">Photograph a slip as you get it, say what it was for, and it will wait here for the statement.</div>
+    </div>`:''}
+    ${C.statements.length?`<h3 style="font-family:var(--disp);font-size:18px;margin:30px 0 10px">Statements</h3>
+      ${C.statements.slice().reverse().map(st=>{
+        const T=expTotals(st);
+        return `<div class="exp-card">
+          <div style="flex:1">
+            <div class="exp-mer">${expEsc(stmtName(st))}</div>
+            <div class="ms">${T.lines} charges · ${T.count} claimed${st.signFlipped?' · signs corrected on import':''}</div>
+          </div>
+          <div class="exp-amt">${expMoney(T.claimed)}
+            <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
+              <button class="btn" style="padding:4px 9px;font-size:12px" onclick="expPickStmt('${st.id}');expSetTab('reconcile')">Open</button>
+              <button class="btn" style="padding:4px 9px;font-size:12px" onclick="expDeleteStatement('${st.id}')">Remove</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}`:''}`;
   if(P.classList.contains('active'))
     slips.forEach(s=>expLoadImg(s.id).then(u=>{ const el=document.getElementById('th-'+s.id); if(el&&u) el.src=u; }));
 }
-function expRematch(stmtId){ const n=expMatchStatement(stmtId); save(); renderExpenses(); toast(n.ok+' matched · '+n.maybe+' to check'); }
+
+function renderReconcile(P,tabs){
+  const C=expCfg(); const st=expCurStmt();
+  if(!st){ _expTab='slips'; return renderExpenses(); }
+  const T=expTotals(st);
+  const period=[st.periodStart&&fmtDate(st.periodStart),st.periodEnd&&fmtDate(st.periodEnd)].filter(Boolean).join(' – ');
+  const diag=window._expDiag&&window._expDiag.stmtId===st.id?window._expDiag:null;
+
+  const row=(t,i)=>{
+    const c=expClaim(st,i), s=expLineSlip(st,i), out=c.include===false;
+    return `<div class="rec-row${out?' out':''}" id="rec-${i}">
+      <label class="rec-tick"><input type="checkbox" ${out?'':'checked'} onchange="expToggleLine('${st.id}',${i},this.checked)"></label>
+      <div class="rec-main">
+        <div class="rec-top">
+          <span class="rec-date">${fmtDate(t.date)}</span>
+          <span class="rec-desc">${expEsc(t.description)}</span>
+          <span class="rec-amt">${expMoney(t.amount,t.currency)}</span>
+        </div>
+        <input class="rec-why" placeholder="What was this for? — printed on the claim"
+          value="${expEsc(expLinePurpose(st,i))}" oninput="expSetPurpose('${st.id}',${i},this.value)">
+        <div class="rec-foot">
+          ${s?`<img class="rec-thumb" id="rth-${s.id}" alt="" onclick="expZoom('${s.id}')">
+              <span class="ms">${expEsc(s.merchant)} · ${s.date?fmtDate(s.date):'no date'} · ${expMoney(s.amount,s.currency)}</span>
+              <button class="btn rec-b" onclick="expDetach('${st.id}',${i})">Detach</button>`
+            :`<button class="btn rec-b" onclick="expAttachOpen('${st.id}',${i})">Attach slip</button>
+              <button class="btn rec-b" onclick="expNoSlip('${st.id}',${i})">${c.noSlipReason?'Edit reason':'No slip'}</button>
+              ${c.noSlipReason?`<span class="ms" style="font-style:italic">${expEsc(c.noSlipReason)}</span>`:''}`}
+          ${expLineStatus(st,i)}
+        </div>
+      </div>
+    </div>`;
+  };
+  const debits=[],credits=[];
+  st.txns.forEach((t,i)=>(t.credit?credits:debits).push({t,i}));
+
+  P.innerHTML=`${tabs}
+    <div class="rec-head">
+      <div>
+        <div style="font-family:var(--disp);font-weight:600;font-size:20px">${expEsc(st.account||st.fileName||'Statement')}</div>
+        <div class="ms">${period||'period not stated'} · ${T.lines} charges${st.signFlipped?' · signs corrected on import':''}</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        ${C.statements.length>1?`<select class="exp-in" style="padding:7px 10px" onchange="expPickStmt(this.value)">
+          ${C.statements.map(x=>`<option value="${x.id}" ${x.id===st.id?'selected':''}>${expEsc(x.account||x.fileName||'Statement')}</option>`).join('')}
+        </select>`:''}
+        <button class="btn" onclick="expRematch('${st.id}')">Re-run matching</button>
+        <button class="btn primary" onclick="expPack('${st.id}')">Build claim pack</button>
+      </div>
+    </div>
+    <div class="rec-totals" id="recTotals"></div>
+    ${diag?`<div class="rec-diag">
+      <div style="font-weight:600;margin-bottom:6px">${diag.exact+diag.likely+diag.possible} matched · ${diag.unmatched} slip${diag.unmatched===1?'':'s'} still loose</div>
+      ${diag.why.slice(0,8).map(w=>`<div class="ms">${expEsc(w.merchant||'Slip')} ${expMoney(w.amount)} — ${expEsc(w.reason)}</div>`).join('')}
+      ${diag.why.length>8?`<div class="ms">and ${diag.why.length-8} more</div>`:''}
+      <button class="btn rec-b" style="margin-top:8px" onclick="window._expDiag=null;renderExpenses()">Hide</button>
+    </div>`:''}
+    ${debits.map(d=>row(d.t,d.i)).join('')}
+    ${credits.length?`<h3 style="font-family:var(--disp);font-size:16px;margin:24px 0 8px">Payments and credits <span class="ms">not claimable — ${expMoney(T.credits)}</span></h3>
+      ${credits.map(d=>`<div class="rec-row out"><div class="rec-tick"></div><div class="rec-main"><div class="rec-top">
+        <span class="rec-date">${fmtDate(d.t.date)}</span><span class="rec-desc">${expEsc(d.t.description)}</span>
+        <span class="rec-amt">−${expMoney(d.t.amount,d.t.currency)}</span></div></div></div>`).join('')}`:''}`;
+  expPaintTotals(st);
+  if(P.classList.contains('active'))
+    st.txns.forEach((t,i)=>{ const s=expLineSlip(st,i); if(!s) return;
+      expLoadImg(s.id).then(u=>{ const el=document.getElementById('rth-'+s.id); if(el&&u) el.src=u; }); });
+}
+function expRematch(stmtId){
+  const n=expMatchStatement(stmtId);
+  window._expDiag=Object.assign({stmtId},n);
+  save(); renderExpenses();
+  toast(n.exact+n.likely+' matched · '+n.possible+' to check · '+n.unmatched+' loose');
+}
+
+/* --- the pack --------------------------------------------------------------
+   Low resolution is the requirement, not an afterthought: a claim with twenty
+   slips at phone resolution is 60MB and bounces off every mail server. The
+   photographs are re-encoded here, in the browser, before they are ever sent
+   — 1100px at q0.55 keeps a till slip readable and lands the pack at a few
+   hundred KB a page. --- */
+function expLowRes(dataUrl,max,q){
+  return new Promise(res=>{
+    const img=new Image();
+    img.onerror=()=>res(null);
+    img.onload=()=>{
+      const sc=Math.min(1,(max||1100)/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      res(c.toDataURL('image/jpeg',q||0.55).split(',')[1]);
+    };
+    img.src=dataUrl;
+  });
+}
+async function expPack(stId){
+  const C=expCfg(); const st=C.statements.find(x=>x.id===stId); if(!st) return;
+  const base=proxyBase(); if(!base){ toast('Set the proxy URL in Settings first'); return; }
+  const T=expTotals(st);
+  if(!T.count){ toast('Nothing is ticked to claim'); return; }
+  const blank=[];
+  st.txns.forEach((t,i)=>{ const c=expClaim(st,i);
+    if(t.credit||c.include===false) return;
+    if(!expLineSlip(st,i)&&!c.noSlipReason&&!expLinePurpose(st,i)) blank.push(i); });
+  if(blank.length&&!confirm(blank.length+' claimed line'+(blank.length===1?' has':'s have')+' neither a slip nor a word about what it was.\n\nBuild the pack anyway?')) return;
+
+  const step=m=>{ const e=document.getElementById('packStep'); if(e) e.textContent=m; };
+  showModal(`<div class="modal-head"><div><h2>Building the claim pack</h2></div></div>
+    <div class="modal-body"><div id="packStep" class="ms" style="padding:16px 0">Gathering…</div></div>`);
+  try{
+    const lines=[],slips=[]; let ref=0;
+    const ordered=[];
+    st.txns.forEach((t,i)=>{ if(!t.credit&&expClaim(st,i).include!==false) ordered.push({t,i}); });
+    ordered.sort((a,b)=>String(a.t.date||'').localeCompare(String(b.t.date||'')));
+    for(let n=0;n<ordered.length;n++){
+      const {t,i}=ordered[n];
+      const s=expLineSlip(st,i);
+      let slipRef=null;
+      if(s){
+        ref++; slipRef=ref;
+        step('Compressing slip '+ref+' of '+ordered.filter(o=>expLineSlip(st,o.i)).length+'…');
+        const url=await expLoadImg(s.id);
+        slips.push({ref,id:s.id,merchant:s.merchant,date:s.date?fmtDate(s.date):'',
+          amount:s.amount,vat:s.vat,currency:s.currency,purpose:expLinePurpose(st,i),
+          lineNo:n+1,image:url?await expLowRes(url,1100,0.55):null,media_type:'image/jpeg'});
+      }
+      lines.push({n:n+1,date:t.date?fmtDate(t.date):'',description:t.description,
+        amount:t.amount,currency:t.currency,purpose:expLinePurpose(st,i),
+        slipRef,noSlipReason:expClaim(st,i).noSlipReason||''});
+    }
+    step('Fetching the statement…');
+    let statementPdf=null;
+    try{
+      const r=await fetch(base+'/expenses/statements/'+encodeURIComponent(st.id));
+      if(r.ok) statementPdf=(await r.json()).pdf||null;
+    }catch(e){}
+    step('Laying out the pack…');
+    const period=[st.periodStart&&fmtDate(st.periodStart),st.periodEnd&&fmtDate(st.periodEnd)].filter(Boolean).join(' – ');
+    const body={title:'Expense claim',claimant:'Stuart Harris',
+      account:st.account||st.fileName||'',period:period,
+      preparedOn:fmtDate(new Date().toISOString().slice(0,10)),
+      currency:'ZAR',statementPdf,statementFile:st.fileName||'',
+      fileName:'expense-claim-'+(st.periodEnd||new Date().toISOString().slice(0,10))+'.pdf',
+      totals:{claimed:T.claimed,supported:T.supported,unsupported:T.unsupported,
+              excluded:T.excluded,vat:T.vat,count:T.count},
+      note:statementPdf?'':'The original statement PDF is not on file for this claim, so only the schedule appears here.',
+      lines,slips};
+    const r=await fetch(base+'/expenses/pack',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok){ let m='HTTP '+r.status; try{ m=(await r.json()).error||m; }catch(e){} throw new Error(m); }
+    const blob=await r.blob();
+    step('Done — '+Math.round(blob.size/1024)+' KB');
+    const u=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=u; a.download=body.fileName; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(()=>URL.revokeObjectURL(u),20000);
+    setTimeout(closeModal,900);
+    toast('Claim pack ready · '+Math.round(blob.size/1024)+' KB');
+  }catch(e){
+    const el=document.getElementById('packStep');
+    if(el) el.innerHTML='<span style="color:var(--bad)">⚠ '+expEsc(e.message)+'</span>'+
+      '<div style="margin-top:12px"><button class="btn" onclick="closeModal()">Close</button></div>';
+  }
+}
+
 /* The modal also closes on Escape and on a backdrop click, neither of which
    routes through expCloseSlip — release the camera on those paths too, or the
    phone keeps the lens (and the recording indicator) live after the sheet goes. */
 document.getElementById('overlay').addEventListener('click',e=>{ if(e.target.id==='overlay') expStopCam(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') expStopCam(); });
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) expStopCam(); });
-
-/* --- report --- */
-async function expBuildReport(){
-  const C=expCfg();
-  const claimed=C.slips.filter(s=>s.match).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  if(!claimed.length){ toast('Nothing matched yet'); return; }
-  toast('Building report…');
-  const imgs={};
-  for(const s of claimed) imgs[s.id]=await expLoadImg(s.id);
-  const total=claimed.reduce((t,s)=>t+(+s.amount||0),0);
-  const vat=claimed.reduce((t,s)=>t+(+s.vat||0),0);
-  const unmatched=C.slips.filter(s=>!s.match);
-  const stmtOf=s=>C.statements.find(x=>x.id===s.match.statementId);
-  // statement charges with no slip behind them — the gap worth seeing
-  const bare=[];
-  C.statements.forEach(st=>st.txns.forEach((t,i)=>{
-    if(+t.amount<=0) return;
-    if(C.slips.some(s=>s.match&&s.match.statementId===st.id&&s.match.txnIdx===i)) return;
-    bare.push({st,t});
-  }));
-
-  const R=document.getElementById('expReport');
-  R.className='show';
-  R.innerHTML=`
-    <div class="exp-noprint" style="display:flex;gap:10px;margin-bottom:20px">
-      <button class="btn primary" onclick="window.print()">Print / Save as PDF</button>
-      <button class="btn" onclick="expCloseReport()">Back</button>
-    </div>
-    <div style="border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:20px">
-      <div style="font-family:var(--disp);font-weight:600;font-size:25px">Expense claim</div>
-      <div class="ms">${claimed.length} items · prepared ${fmtDate(new Date().toISOString().slice(0,10))}</div>
-    </div>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:26px;font-family:var(--serif);font-size:13.5px">
-      <thead><tr style="border-bottom:1px solid var(--ink)">
-        <th style="text-align:left;padding:7px 0">Date</th><th style="text-align:left">Merchant</th>
-        <th style="text-align:left">Purpose</th><th style="text-align:right">VAT</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody>
-        ${claimed.map(s=>`<tr style="border-bottom:1px solid var(--line)">
-          <td style="padding:6px 0;white-space:nowrap">${s.date?fmtDate(s.date):'—'}</td>
-          <td>${expEsc(s.merchant)}</td>
-          <td style="color:var(--ink-soft)">${expEsc(s.why)}</td>
-          <td style="text-align:right;font-family:var(--mono)">${(+s.vat||0).toFixed(2)}</td>
-          <td style="text-align:right;font-family:var(--mono)">${expMoney(s.amount,s.currency)}</td></tr>`).join('')}
-        <tr><td colspan="3" style="padding:10px 0;font-weight:600">Total claimed</td>
-          <td style="text-align:right;font-family:var(--mono);font-weight:600">${vat.toFixed(2)}</td>
-          <td style="text-align:right;font-family:var(--mono);font-weight:600">${expMoney(total)}</td></tr>
-      </tbody>
-    </table>
-    <div style="font-family:var(--disp);font-weight:600;font-size:19px;margin:0 0 6px">Slips</div>
-    ${claimed.map(s=>{
-      const st=stmtOf(s), t=st?st.txns[s.match.txnIdx]:null;
-      return `<div class="exp-rep-row">
-        ${imgs[s.id]?`<img class="exp-rep-img" src="${imgs[s.id]}">`:'<div class="exp-rep-img" style="height:110px"></div>'}
-        <div style="flex:1">
-          <div style="font-family:var(--disp);font-weight:600;font-size:16px">${expEsc(s.merchant)}</div>
-          <div class="ms">${s.date?fmtDate(s.date):'—'} · ${expMoney(s.amount,s.currency)}${(+s.vat)?' · VAT '+(+s.vat).toFixed(2):''}</div>
-          <div style="font-family:var(--serif);font-size:13.5px;margin-top:7px;line-height:1.55">${expEsc(s.why)}</div>
-          ${t?`<div class="ms" style="margin-top:7px">Statement: ${expEsc(t.description)} · ${fmtDate(t.date)} · ${expMoney(t.amount,t.currency)}${s.match.conf==='maybe'?' <strong>(verify)</strong>':''}</div>`:''}
-        </div></div>`;
-    }).join('')}
-    ${unmatched.length?`<div style="margin-top:26px">
-      <div style="font-family:var(--disp);font-weight:600;font-size:17px;margin-bottom:6px">Slips with no statement line (${unmatched.length})</div>
-      ${unmatched.map(s=>`<div class="ms">${s.date?fmtDate(s.date):'—'} · ${expEsc(s.merchant)} · ${expMoney(s.amount,s.currency)}</div>`).join('')}
-    </div>`:''}
-    ${bare.length?`<div style="margin-top:20px">
-      <div style="font-family:var(--disp);font-weight:600;font-size:17px;margin-bottom:6px">Statement charges with no slip (${bare.length})</div>
-      ${bare.map(b=>`<div class="ms">${fmtDate(b.t.date)} · ${expEsc(b.t.description)} · ${expMoney(b.t.amount,b.t.currency)}</div>`).join('')}
-    </div>`:''}`;
-  document.getElementById('expWorkspace').style.display='none';
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-function expCloseReport(){
-  const R=document.getElementById('expReport'); R.className=''; R.innerHTML='';
-  const W=document.getElementById('expWorkspace'); if(W) W.style.display='';
-}
 
 function renderAll(){ renderHome();renderGolf();renderRun();renderHealth();renderWhoop();renderGoals();renderWealth();renderRetire();renderPairs();renderScenario();renderExpenses();renderCoach();renderMagazine();renderInsurance(); }
 /* The shelf is on the proxy; pull it once at boot so the landing page can show

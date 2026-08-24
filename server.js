@@ -38,6 +38,7 @@ import crypto from 'crypto';
 import webpush from 'web-push';
 import 'dotenv/config';
 import { mountMail } from './mail.js';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 const {
   WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET,
@@ -1744,7 +1745,7 @@ app.get('/status', (req, res) => {
     // deliberately no device/reminder counts here: /status is unauthenticated
     expenses: process.env.ANTHROPIC_API_KEY ? ('configured (' + EXP_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
     routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing','/pairs','/pairs/refresh','/scenario','/scenario/run','/scenario/status','/scenario/profiles',
-      '/expenses/slips','/expenses/extract-slip','/expenses/statement',
+      '/expenses/slips','/expenses/extract-slip','/expenses/statement','/expenses/statements','/expenses/pack',
       '/voice','/reminders','/push/key','/push/subscribe','/manifest.webmanifest','/sw.js'],
     connect: '/auth/login'
   });
@@ -1823,8 +1824,31 @@ function mergeUserdata(incoming, existing) {
   const haveSl = new Set(into.expenses.slips.map(s => s && s.id));
   (ee.slips || []).forEach(s => { if (s && s.id && !haveSl.has(s.id)) into.expenses.slips.push(s); });
   into.expenses.statements = into.expenses.statements || [];
-  const haveSt = new Set(into.expenses.statements.map(s => s && s.id));
-  (ee.statements || []).forEach(s => { if (s && s.id && !haveSt.has(s.id)) into.expenses.statements.push(s); });
+  // A statement that exists on both sides is NOT simply replaced. The
+  // reconciliation decisions live inside it — which lines are claimed, what
+  // each was for, why one has no slip — and those are typed on whichever
+  // device is to hand. Merge them line by line, newest edit winning, or an
+  // afternoon of reconciling on the laptop dies the next time the phone syncs.
+  const stById = new Map(into.expenses.statements.filter(x => x && x.id).map(x => [x.id, x]));
+  (ee.statements || []).forEach(s => {
+    if (!s || !s.id) return;
+    const cur = stById.get(s.id);
+    if (!cur) { into.expenses.statements.push(s); return; }
+    cur.claim = cur.claim || {};
+    Object.entries(s.claim || {}).forEach(([k, v]) => {
+      const mine = cur.claim[k];
+      if (!mine || (+(v && v.ts) || 0) > (+(mine.ts) || 0)) cur.claim[k] = v;
+    });
+  });
+  // Same for a slip's match: the link is a decision too, and re-matching on
+  // the phone must not be undone by a stale laptop push.
+  const slById = new Map(into.expenses.slips.filter(x => x && x.id).map(x => [x.id, x]));
+  (ee.slips || []).forEach(s => {
+    if (!s || !s.id) return;
+    const cur = slById.get(s.id);
+    if (!cur || !s.match) return;
+    if (!cur.match || (+s.match.ts || 0) > (+(cur.match.ts) || 0)) cur.match = s.match;
+  });
   return into;
 }
 app.post('/userdata', (req, res) => {
@@ -2003,10 +2027,11 @@ const STATEMENT_SCHEMA = {
         properties: {
           date:        { type: 'string', description: 'YYYY-MM-DD' },
           description: { type: 'string', description: 'Narrative exactly as printed' },
-          amount:      { type: 'number', description: 'Positive for a purchase/charge, negative for a payment, credit or refund' },
+          amount:      { type: 'number', description: 'The amount as printed, always POSITIVE. Never negate it — say which way it goes in "direction" instead' },
+          direction:   { type: 'string', enum: ['debit', 'credit'], description: 'debit = a purchase or fee that increases what is owed. credit = a payment, refund or reversal that reduces it. Decide from the column the figure sits in, or from a Cr/-/( ) marker, NOT from the merchant name' },
           currency:    { type: 'string', description: 'ISO code, e.g. ZAR' }
         },
-        required: ['date', 'description', 'amount', 'currency'],
+        required: ['date', 'description', 'amount', 'direction', 'currency'],
         additionalProperties: false
       }
     }
@@ -2024,11 +2049,286 @@ app.post('/expenses/statement', async (req, res) => {
       schema: STATEMENT_SCHEMA,
       content: [
         { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf } },
-        { type: 'text', text: 'This is a credit-card statement. Extract every transaction line exactly as printed — do not summarise, merge, skip, or reorder lines. Use the statement year to resolve dates printed without one. Purchases are positive; payments, credits and refunds are negative.' }
+        { type: 'text', text: 'This is a credit-card statement. Extract every transaction line exactly as printed — do not summarise, merge, skip, or reorder lines. Use the statement year to resolve dates printed without one.\n\nAmounts: always report the figure as a POSITIVE number, exactly as printed, and put the direction in the direction field. Statements differ — some print credits with a minus, some with "Cr", some in a separate column, some show purchases as negative because they increase a negative balance. Read the layout and decide; do not assume a sign convention.' }
       ]
     });
     res.json(out);
   } catch (e) { console.log('[EXPENSES] statement extract failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
+});
+
+/* ============================================================
+   CLAIM PACK — the statement, the summary and the slips as one
+   low-resolution PDF that can be emailed.
+
+   The browser decides what is in the claim and downscales the
+   slip photographs; this only lays out what it is handed. That
+   keeps the arithmetic and the judgement in one place (the app)
+   rather than split across two.
+
+   POST   /expenses/statements     → { id, pdf } keep the original statement
+   GET    /expenses/statements/:id → { pdf, bytes }
+   DELETE /expenses/statements/:id
+   POST   /expenses/pack           → application/pdf
+   ============================================================ */
+const EXP_STMT_DIR = DATA_DIR + '/expense-statements';
+
+app.post('/expenses/statements', (req, res) => {
+  try {
+    const { id, pdf } = req.body || {};
+    const sid = safeSlipId(id);
+    if (!sid || !pdf) return res.status(400).json({ error: 'id and pdf required' });
+    fs.mkdirSync(EXP_STMT_DIR, { recursive: true });
+    fs.writeFileSync(EXP_STMT_DIR + '/' + sid + '.json', JSON.stringify({ pdf }));
+    res.json({ ok: true, id: sid });
+  } catch (e) { console.log('[EXPENSES] statement store error', e.message); res.status(500).json({ error: e.message }); }
+});
+
+app.get('/expenses/statements/:id', (req, res) => {
+  const id = safeSlipId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'bad id' });
+  try {
+    const f = EXP_STMT_DIR + '/' + id + '.json';
+    if (!fs.existsSync(f)) return res.status(404).json({ error: 'not found' });
+    const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+    res.json({ pdf: j.pdf, bytes: Math.round((j.pdf || '').length * 0.75) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/expenses/statements/:id', (req, res) => {
+  const id = safeSlipId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'bad id' });
+  try {
+    const f = EXP_STMT_DIR + '/' + id + '.json';
+    if (fs.existsSync(f)) fs.unlinkSync(f);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* pdf-lib's standard fonts are WinAnsi — a stray en dash or tick from a
+   merchant name throws mid-render and loses the whole pack. Fold the ones
+   that actually turn up and drop anything else rather than fail. */
+const PACK_FOLD = {
+  '–': '-', '—': '-', '‘': "'", '’': "'", '“': '"', '”': '"',
+  '•': '-', '…': '...', ' ': ' ', '→': '->', '✓': 'v', '×': 'x'
+};
+const packSan = v => String(v == null ? '' : v)
+  .replace(/[–—‘’“”•… →✓×]/g, c => PACK_FOLD[c])
+  .replace(/[^\x20-\x7E]/g, '');
+const packMoney = (n, cur) => (cur && cur !== 'ZAR' ? cur + ' ' : 'R ') +
+  (Math.round((+n || 0) * 100) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
+app.post('/expenses/pack', async (req, res) => {
+  try {
+    const B = req.body || {};
+    const lines = Array.isArray(B.lines) ? B.lines : [];
+    const slips = Array.isArray(B.slips) ? B.slips : [];
+    if (!lines.length && !slips.length) return res.status(400).json({ error: 'nothing to include in the pack' });
+
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const W = 595.28, H = 841.89, M = 46;
+    const INK = rgb(0.09, 0.11, 0.12), SOFT = rgb(0.42, 0.45, 0.47), LINE = rgb(0.80, 0.82, 0.83);
+    const WARN = rgb(0.62, 0.36, 0.05);
+
+    let page = null, y = 0;
+    const addPage = () => { page = doc.addPage([W, H]); y = H - M; };
+    const room = h => { if (!page || y - h < M + 26) addPage(); };
+    const wrap = (str, f, size, maxW) => {
+      const words = packSan(str).split(/\s+/).filter(Boolean);
+      if (!words.length) return [''];
+      const out = []; let cur = '';
+      words.forEach(w => {
+        const t = cur ? cur + ' ' + w : w;
+        if (f.widthOfTextAtSize(t, size) <= maxW) cur = t;
+        else { if (cur) out.push(cur); cur = w; }
+      });
+      if (cur) out.push(cur);
+      return out;
+    };
+    const draw = (str, x, size, f, color) =>
+      page.drawText(packSan(str), { x, y, size, font: f || font, color: color || INK });
+    const rightOf = (str, xRight, size, f, color) => {
+      const t = packSan(str);
+      const fo = f || font;
+      page.drawText(t, { x: xRight - fo.widthOfTextAtSize(t, size), y, size, font: fo, color: color || INK });
+    };
+
+    /* ---------- 1. summary ---------- */
+    addPage();
+    draw(B.title || 'Expense claim', M, 21, bold); y -= 26;
+    if (B.claimant) { draw(B.claimant, M, 11, font, SOFT); y -= 15; }
+    y -= 6;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1.2, color: INK });
+    y -= 22;
+
+    const facts = [
+      ['Account', B.account || '-'],
+      ['Statement period', B.period || '-'],
+      ['Prepared', B.preparedOn || ''],
+      ['Lines claimed', String(B.totals && B.totals.count != null ? B.totals.count : lines.length)]
+    ];
+    facts.forEach(([k, v]) => {
+      room(16);
+      draw(k, M, 9.5, font, SOFT);
+      draw(v, M + 122, 10.5, font);
+      y -= 16;
+    });
+    y -= 12;
+
+    const T = B.totals || {};
+    const totalRow = (label, val, strong) => {
+      room(19);
+      draw(label, M, strong ? 12 : 10.5, strong ? bold : font, strong ? INK : SOFT);
+      rightOf(packMoney(val, B.currency), W - M, strong ? 12 : 10.5, strong ? bold : font);
+      y -= 18;
+    };
+    page.drawLine({ start: { x: M, y: y + 10 }, end: { x: W - M, y: y + 10 }, thickness: 0.6, color: LINE });
+    y -= 6;
+    totalRow('Claimed, supported by a slip', T.supported || 0);
+    if (T.unsupported) totalRow('Claimed, no slip attached', T.unsupported);
+    totalRow('Total claimed', T.claimed || 0, true);
+    if (T.vat) totalRow('VAT included in the above', T.vat);
+    if (T.excluded) { y -= 4; totalRow('Not claimed (personal / excluded)', T.excluded); }
+
+    if (B.note) {
+      y -= 14;
+      wrap(B.note, font, 10, W - 2 * M).forEach(l => { room(14); draw(l, M, 10, font, SOFT); y -= 14; });
+    }
+
+    const missing = lines.filter(l => !l.slipRef);
+    if (missing.length) {
+      y -= 16; room(20);
+      draw(missing.length + (missing.length === 1 ? ' claimed line has no slip behind it' : ' claimed lines have no slip behind them'), M, 10.5, bold, WARN);
+      y -= 16;
+      missing.slice(0, 14).forEach(l => {
+        room(13);
+        draw((l.date || '') + '   ' + (l.description || ''), M + 10, 9.5, font, SOFT);
+        rightOf(packMoney(l.amount, l.currency), W - M, 9.5, font, SOFT);
+        y -= 13;
+      });
+      if (missing.length > 14) { room(13); draw('and ' + (missing.length - 14) + ' more', M + 10, 9.5, font, SOFT); y -= 13; }
+    }
+
+    /* ---------- 2. the schedule ---------- */
+    const COL = { n: M, date: M + 22, desc: M + 78, why: M + 228, sup: M + 400, amt: W - M };
+    const WID = { desc: 144, why: 166 };
+    const head = () => {
+      addPage();
+      draw('Claim schedule', M, 15, bold); y -= 20;
+      draw('#', COL.n, 8.5, bold, SOFT);
+      draw('Date', COL.date, 8.5, bold, SOFT);
+      draw('Statement narrative', COL.desc, 8.5, bold, SOFT);
+      draw('Purpose', COL.why, 8.5, bold, SOFT);
+      draw('Support', COL.sup, 8.5, bold, SOFT);
+      rightOf('Amount', COL.amt, 8.5, bold, SOFT);
+      y -= 6;
+      page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.8, color: INK });
+      y -= 13;
+    };
+    if (lines.length) {
+      head();
+      lines.forEach((l, i) => {
+        const dl = wrap(l.description || '', font, 9, WID.desc);
+        const wl = wrap(l.purpose || '', font, 9, WID.why);
+        const rows = Math.max(dl.length, wl.length, 1);
+        const h = rows * 11 + 20;
+        if (y - h < M + 26) { head(); }
+        const top = y;
+        draw(String(l.n != null ? l.n : i + 1), COL.n, 9, font, SOFT);
+        draw(l.date || '', COL.date, 9, font);
+        draw(l.slipRef ? 'Slip ' + l.slipRef : (l.noSlipReason ? 'stated' : 'none'),
+          COL.sup, 9, font, l.slipRef ? INK : WARN);
+        rightOf(packMoney(l.amount, l.currency), COL.amt, 9.5, font);
+        dl.forEach((t, k) => { y = top - k * 11; draw(t, COL.desc, 9, font); });
+        wl.forEach((t, k) => { y = top - k * 11; draw(t, COL.why, 9, font, SOFT); });
+        y = top - (rows - 1) * 11;
+        if (!l.slipRef && l.noSlipReason) {
+          y -= 11;
+          wrap('No slip: ' + l.noSlipReason, font, 8.5, W - 2 * M - 90).forEach(t => { draw(t, COL.desc, 8.5, font, WARN); y -= 10; });
+          y += 10;
+        }
+        // The rule belongs in the gap between this row's last baseline and the
+        // next row's, not on top of either of them.
+        y -= 7;
+        page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.4, color: LINE });
+        y -= 13;
+      });
+      room(26);
+      y -= 6;
+      draw('Total claimed', COL.why, 11, bold);
+      rightOf(packMoney(T.claimed || 0, B.currency), COL.amt, 11, bold);
+      y -= 18;
+    }
+
+    /* ---------- 3. the statement itself ---------- */
+    if (B.statementPdf) {
+      try {
+        const src = await PDFDocument.load(Buffer.from(B.statementPdf, 'base64'), { ignoreEncryption: true });
+        const idx = src.getPageIndices();
+        const copied = await doc.copyPages(src, idx);
+        addPage();
+        draw('The statement', M, 15, bold); y -= 19;
+        draw(packSan((B.statementFile || '') + '  ' + idx.length + (idx.length === 1 ? ' page' : ' pages')), M, 9.5, font, SOFT);
+        copied.forEach(p => doc.addPage(p));
+        page = null;
+      } catch (e) {
+        console.log('[EXPENSES] statement pages not embeddable:', e.message);
+        addPage();
+        draw('The statement', M, 15, bold); y -= 19;
+        draw('The original PDF could not be embedded (' + packSan(e.message) + ').', M, 10, font, WARN);
+        y -= 14;
+        draw('The schedule above was read from it and is unaffected.', M, 10, font, SOFT);
+      }
+    }
+
+    /* ---------- 4. the slips ---------- */
+    for (const sl of slips) {
+      addPage();
+      draw('Slip ' + (sl.ref != null ? sl.ref : '') + (sl.lineNo ? '   supports line ' + sl.lineNo : '   no statement line'),
+        M, 13, bold);
+      y -= 18;
+      draw(packSan(sl.merchant || 'Unknown merchant'), M, 11.5, bold);
+      y -= 15;
+      draw([sl.date || 'no date', packMoney(sl.amount, sl.currency), (+sl.vat ? 'VAT ' + (+sl.vat).toFixed(2) : '')]
+        .filter(Boolean).join('   '), M, 10, font, SOFT);
+      y -= 15;
+      if (sl.purpose) wrap(sl.purpose, font, 10, W - 2 * M).forEach(t => { draw(t, M, 10, font); y -= 13; });
+      y -= 8;
+      if (sl.image) {
+        try {
+          const bytes = Buffer.from(sl.image, 'base64');
+          const img = /png/i.test(sl.media_type || '') ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+          const maxW = W - 2 * M, maxH = y - M;
+          const sc = Math.min(maxW / img.width, maxH / img.height, 1);
+          const w = img.width * sc, h = img.height * sc;
+          page.drawImage(img, { x: M + (maxW - w) / 2, y: y - h, width: w, height: h });
+        } catch (e) {
+          draw('The photograph could not be embedded (' + packSan(e.message) + ').', M, 10, font, WARN);
+        }
+      } else {
+        draw('No photograph stored for this slip.', M, 10, font, WARN);
+      }
+    }
+
+    /* footer on every page, once the count is known */
+    const pages = doc.getPages();
+    pages.forEach((p, i) => {
+      p.drawText(packSan((B.title || 'Expense claim') + '   ' + (B.period || '')), {
+        x: M, y: 26, size: 8, font, color: SOFT
+      });
+      const lab = (i + 1) + ' / ' + pages.length;
+      p.drawText(lab, { x: W - M - font.widthOfTextAtSize(lab, 8), y: 26, size: 8, font, color: SOFT });
+    });
+
+    const out = await doc.save();
+    res.set('Content-Type', 'application/pdf')
+      .set('Content-Disposition', 'attachment; filename="' + (B.fileName || 'expense-claim.pdf') + '"')
+      .send(Buffer.from(out));
+  } catch (e) {
+    console.log('[EXPENSES] pack failed', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 /* ============================================================

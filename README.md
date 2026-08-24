@@ -106,6 +106,63 @@ be introduced.
 `INSURANCE_MODEL` overrides the model. Policies live in `insurance.json` on the
 volume, so they are not in the app's own backup file.
 
+## Expense claims (Expenses tab)
+Two views. **Slips** is capture — photograph a till slip, say what it was for.
+**Reconcile** is the claim, and it is driven by the statement rather than by
+the slips: every line the bank charged is a row, and the question against each
+is whether it is claimed and what backs it. That is the shape a claim gets
+reviewed in, so it is the shape you edit.
+
+### The sign is a fact about the layout, not the transaction
+Matching used to find nothing on a real statement. The matcher skipped any
+line that wasn't a positive amount, and the extractor had returned purchases
+negative — which is how plenty of statements print them, since a purchase
+makes a negative balance more negative. Every line was discarded before it was
+ever compared.
+
+Extraction now asks for the amount as printed and always positive, with a
+separate `direction` of debit or credit decided from the column or the Cr
+marker. Statements already on file are repaired on read: whichever sign the
+bulk of the lines carry is taken as the debit sign, because a card statement
+is overwhelmingly purchases. `signs corrected on import` on the statement says
+when that happened.
+
+### Matching, and why it says what it did
+Amount closeness, date gap and merchant-name agreement against the statement
+narrative, scored together, then assigned greedily — one slip per line, one
+line per slip. A tip that makes the charge larger than the slip still matches
+when the name agrees.
+
+A run reports `exact / likely / possible / loose`, and every slip left loose
+comes with the nearest line and what stopped it: *closest line is R 399.00,
+353.4% out; that line is 50 days after the slip*. A screen that says 0 with no
+way in is what this replaces.
+
+### Fixing it by hand
+Attach any slip to any line. The picker ranks by fit and annotates each slip
+with what is off about it — `R 949.00 out · 9d later`, `same amount · same day
+· name agrees` — with slips already spoken for sorted to the bottom rather
+than hidden, because moving one is a legitimate correction. A hand-made match
+is marked `manual` and re-running the matcher will not disturb it.
+
+Per line you can also edit the purpose, exclude the line from the claim, or
+record why there is no slip for it. Payments and credits are listed separately
+and cannot be claimed.
+
+### The pack
+**Build claim pack** produces one PDF: a summary, the claim schedule, the
+statement's own pages, then one page per slip captioned with the line it
+supports. Photographs are re-encoded in the browser to 1100px at q0.55 before
+they are ever uploaded — a twenty-slip claim at phone resolution is 60MB and
+bounces off every mail server; this lands around 60KB a page.
+
+Statements uploaded before this change have no PDF on file, so the pack says so
+and carries the schedule alone. Re-upload the statement to get its pages in.
+
+Line decisions live inside the statement and are **merged by recency** on both
+sides of the sync — an afternoon of reconciling on the laptop must not die the
+next time the phone pushes. A slip's match merges the same way.
+
 ## Journal (Goals tab)
 A dated journal sits behind the same password as the goals, in the same synced
 blob. Entries carry a date, optional title, body, optional category and an
