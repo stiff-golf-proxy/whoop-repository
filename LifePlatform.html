@@ -8232,7 +8232,11 @@ function expRematch(stmtId){
   save(); renderExpenses();
   const hit=n.exact+n.likely+n.possible;
   toast(hit? (n.exact+n.likely)+' matched · '+n.possible+' to check · '+n.unmatched+' loose'
-           : 'Nothing matched — '+n.slips+' slips, '+n.debits+' purchase lines. See the note above.');
+           : 'Nothing matched — '+n.slips+' slips, '+n.debits+' purchase lines');
+  /* A zero is the case that most needs explaining and the one least likely to
+     be investigated, because there is nothing on screen to click. Put the
+     reading in front of you instead of leaving a banner to be found. */
+  if(!hit) expShowDiag(stmtId);
 }
 
 /* --- the pack --------------------------------------------------------------
