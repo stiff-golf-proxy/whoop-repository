@@ -5620,6 +5620,38 @@ function buildCoachContext(){
     parts.push('=== DNA / GENETICS (3X4 Blueprint v4.0.2) ===\n'+impacts+'\n\nEXPERT READ:\n'+read);
   }catch(e){}
 
+  /* Blood results. The comment above has claimed for a long time that the DNA
+     read sits "alongside the live bloods" — it never did. DB.blood was never
+     put in front of the coach at all, so being asked about it produced an
+     honest "I can't see any". Latest reading per marker, with its reference
+     range, an explicit flag when it sits outside, and the previous reading so
+     direction is visible: a marker moving the wrong way inside its range is
+     worth more than one sitting still outside it. */
+  try{
+    const rows=(DB.blood||[]).filter(r=>r&&r.marker&&r.value!=null);
+    if(rows.length){
+      const byM={};
+      rows.forEach(r=>{ (byM[r.marker]=byM[r.marker]||[]).push(r); });
+      const lines=Object.keys(byM).sort().map(k=>{
+        const h=byM[k].slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+        const last=h[h.length-1], prev=h.length>1?h[h.length-2]:null;
+        const unit=last.unit?' '+last.unit:'';
+        let out=k+': '+last.value+unit;
+        if(last.low!=null||last.high!=null){
+          out+=' [ref '+(last.low!=null?last.low:'')+'-'+(last.high!=null?last.high:'')+']';
+          if(last.low!=null&&+last.value<+last.low) out+=' — BELOW RANGE';
+          else if(last.high!=null&&+last.value>+last.high) out+=' — ABOVE RANGE';
+        }
+        out+=' ('+(last.date||'undated')+')';
+        if(prev) out+='; previous '+prev.value+unit+' on '+(prev.date||'undated');
+        return out;
+      });
+      const dates=[...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
+      parts.push('=== BLOOD RESULTS ('+lines.length+' markers, '+dates.length+' panel'+(dates.length===1?'':'s')+
+        ', latest '+(dates[dates.length-1]||'undated')+') ===\n'+lines.join('\n'));
+    }
+  }catch(e){}
+
   // Recent session log (last 8 entries, most recent first)
   const recentLog=(m.log||[]).slice(-8).reverse();
   if(recentLog.length){
@@ -5733,74 +5765,6 @@ async function coachSend(){
   _coachBusy=false; send.disabled=false;
   setTimeout(()=>{const el=document.getElementById('coachText'); if(el)el.focus();},50);
 }
-function openCoach(){
-  const dr=document.getElementById('coachDrawer');
-  dr.classList.add('open'); document.getElementById('coachBackdrop').classList.add('show'); dr.setAttribute('aria-hidden','false');
-  if(!_coachHistory.length) coachGreeting();
-  setTimeout(()=>{const t=document.getElementById('coachText'); if(t)t.focus();},300);
-}
-function closeCoach(){
-  document.getElementById('coachDrawer').classList.remove('open');
-  document.getElementById('coachBackdrop').classList.remove('show');
-  document.getElementById('coachDrawer').setAttribute('aria-hidden','true');
-}
-function coachAutogrow(el){ el.style.height='auto'; el.style.height=Math.min(120,el.scrollHeight)+'px'; }
-function coachKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); coachSend(); } }
-function coachFmt(s){ return tkEsc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>'); }
-function coachPush(role,text){
-  const box=document.getElementById('coachMsgs');
-  const d=document.createElement('div'); d.className='cm '+(role==='user'?'user':'bot'); d.innerHTML=coachFmt(text);
-  box.appendChild(d); box.scrollTop=box.scrollHeight;
-}
-function coachGreeting(){
-  coachPush('bot',`Hi Stuart — I'm your coach. I can see your recovery, sleep, training, tasks and finances, so I can give you specific, grounded advice. What's on your mind today?`);
-  const sugg=['How should I train today given my recovery?','Help me prioritise today’s tasks','Am I on track for retirement?','I’m feeling stretched — help me reset'];
-  document.getElementById('coachSugg').innerHTML=sugg.map(s=>`<button onclick="coachQuick(this)">${tkEsc(s)}</button>`).join('');
-}
-function coachQuick(btn){ document.getElementById('coachText').value=btn.textContent; coachSend(); }
-function coachContext(){
-  try{
-    const w=(DB.whoop||{}); const rec=w.recovery||[], slp=w.sleep||[], wk=w.workouts||[];
-    const lastRec=rec[rec.length-1]||{};
-    const r7=avgKey(recent(rec,7),'recovery'), s7=avgKey(recent(slp,7),'performance');
-    const m=morningCfg(); const tasks=(m.tasks||[]); const openT=tasks.filter(t=>!t.done);
-    const today=todayISO(); const overdue=openT.filter(t=>t.due&&t.due<today).length;
-    const topTasks=openT.slice().sort(tkSortOpen).slice(0,6).map(t=>t.text);
-    const thisW=(typeof whoopWeekAgg==='function')?whoopWeekAgg(wk,0):null;
-    const L=[];
-    L.push(`Today is ${new Date().toDateString()}.`);
-    if(lastRec.recovery!=null) L.push(`WHOOP recovery today ${Math.round(lastRec.recovery)}%${r7!=null?` (7-day avg ${Math.round(r7)}%)`:''}.`);
-    if(lastRec.hrv!=null) L.push(`HRV ${Math.round(lastRec.hrv)}ms, resting HR ${lastRec.rhr??'—'}bpm.`);
-    if(s7!=null) L.push(`Sleep performance 7-day avg ${Math.round(s7)}%.`);
-    if(thisW) L.push(`Training this week ${thisW.count} sessions, total strain ${thisW.strain.toFixed(1)}.`);
-    L.push(`Tasks ${openT.length} open${overdue?`, ${overdue} overdue`:''}.${topTasks.length?` Top: ${topTasks.join('; ')}.`:''}`);
-    try{ const nw=netWorth(); if(nw) L.push(`Net worth approx ${ZARk(nw)}.`); }catch(e){}
-    L.push(`Context: Stuart, 54, Cape Town; runs and plays golf; values longevity and a comfortable retirement.`);
-    return L.join(' ');
-  }catch(e){ return ''; }
-}
-async function coachSend(){
-  const t=document.getElementById('coachText'); const text=(t.value||'').trim();
-  if(!text||_coachBusy) return;
-  const base=proxyBase();
-  coachPush('user',text); _coachHistory.push({role:'user',content:text});
-  t.value=''; coachAutogrow(t); document.getElementById('coachSugg').innerHTML='';
-  if(!base){ coachPush('bot','I need your proxy connected to reach Claude. Open the WHOOP tab → Settings, set your proxy URL, then try again.'); return; }
-  _coachBusy=true; const send=document.getElementById('coachSend'); send.disabled=true;
-  const box=document.getElementById('coachMsgs');
-  const typing=document.createElement('div'); typing.className='cm-typing'; typing.textContent='Coach is thinking…'; box.appendChild(typing); box.scrollTop=box.scrollHeight;
-  try{
-    const r=await fetch(base+'/coach',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({messages:_coachHistory.slice(-12), context:coachContext()})});
-    let j={}; try{ j=await r.json(); }catch(e){}
-    typing.remove();
-    if(!r.ok||j.error){ coachPush('bot', j.error?('Coach unavailable: '+j.error):'Coach is unavailable right now. Make sure ANTHROPIC_API_KEY is set on the proxy.'); }
-    else { const reply=j.reply||'(no reply)'; coachPush('bot',reply); _coachHistory.push({role:'assistant',content:reply}); }
-  }catch(e){ typing.remove(); coachPush('bot','Could not reach the coach (network). Try again in a moment.'); }
-  _coachBusy=false; send.disabled=false;
-  setTimeout(()=>{const el=document.getElementById('coachText'); if(el)el.focus();},50);
-}
-
 /* ============================================================
    GOALS — structured goals behind a screen-privacy password gate.
    NOTE: this is screen-privacy (deters over-the-shoulder viewing),
