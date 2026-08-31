@@ -163,6 +163,52 @@ Line decisions live inside the statement and are **merged by recency** on both
 sides of the sync (`mergeUserdata` on the server, `_mergeLost` in the browser) — an afternoon of reconciling on the laptop must not die the
 next time the phone pushes. A slip's match merges the same way.
 
+## Cropping a slip
+Drag a box over the photograph and everything outside it is discarded. Crop
+before saving, from the add-slip sheet, and the extractor reads the tighter
+frame — usually the difference between a slip that reads badly and one that
+reads clean. Slips already on file can be cropped in place: same id, same
+match, new image.
+
+The cut is always taken from the pixels handed to the cropper, so cropping
+twice does not compound the JPEG loss.
+
+## Capture from the Back Tap
+Two taps on the back of the phone, speak, done — the app never opens.
+
+An iOS Shortcut (Dictate Text → Get Contents of URL) posts to `POST /capture`
+with a shared token. The words are interpreted into a task if they look like
+one, queued in `capture-inbox.json`, and the app drains the inbox on its next
+sync and acknowledges only what it took.
+
+Nothing is written into the userdata blob from the server side — the browser
+owns that file and two writers would race. `Tasks → Back Tap` shows the recipe
+with the real URL and token filled in.
+
+The token is generated once and kept on the volume, or set `CAPTURE_TOKEN`.
+`/capture`, `/capture/inbox` and `/capture/inbox/ack` authenticate on it rather
+than the session cookie, because a Shortcut has no cookie jar; they are matched
+on the **exact** path, never by prefix, so `/capture/token` — which hands the
+secret out — stays behind the session like everything else.
+
+If interpretation fails, the capture is still kept. Losing a thought because a
+model was unavailable would defeat the point of the feature.
+
+## Notes on a task, and the knowledge they build
+A task is a line of text; what you know about it is everything you said while
+doing it. Notes hang off the task, carry their date, and survive the task being
+ticked off — so `Tasks → Knowledge` searches everything ever said, across open
+and completed work.
+
+The note box is a plain textarea on purpose. Wispr Flow, iOS dictation and a
+keyboard all write into it identically, so the best transcription available is
+always usable without integrating with any of them. **Record** is the
+hands-full fallback: it captures audio, sends it to `/voice` with `raw: true`
+for the words alone rather than an interpretation, and drops them in the same
+box to be corrected before anything is saved. Audio lives on the volume under
+`note-audio/`, never in the synced blob — the same rule the slip photographs
+follow.
+
 ## Journal (Goals tab)
 A dated journal sits behind the same password as the goals, in the same synced
 blob. Entries carry a date, optional title, body, optional category and an

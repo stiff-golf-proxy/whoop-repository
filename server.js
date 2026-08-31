@@ -165,8 +165,14 @@ app.get('/logout', (req, res) => {
 // Everything that touches subscriptions or reminders stays behind the session.
 const OPEN_PREFIXES = ['/login', '/logout', '/auth/', '/status',
                        '/manifest.webmanifest', '/sw.js', '/icon-', '/apple-touch-icon.png'];
+// Quick capture carries its own shared secret instead of a session, because
+// the caller is an iOS Shortcut with no cookie jar. Matched on the EXACT path,
+// never by prefix — /capture/token hands out that secret and must stay behind
+// the session like everything else.
+const TOKEN_PATHS = ['/capture', '/capture/inbox', '/capture/inbox/ack'];
 app.use((req, res, next) => {
   if (OPEN_PREFIXES.some(p => req.path === p || req.path.startsWith(p))) return next();
+  if (TOKEN_PATHS.includes(req.path)) return next();
   if (isAuthed(req)) return next();
   // Browsers navigating to a page get the login screen; API/XHR callers get 401.
   const wantsHtml = (req.headers.accept || '').includes('text/html');
@@ -1746,6 +1752,7 @@ app.get('/status', (req, res) => {
     expenses: process.env.ANTHROPIC_API_KEY ? ('configured (' + EXP_MODEL + ')') : 'OFF — set ANTHROPIC_API_KEY',
     routes: ['/whoop/recovery','/whoop/sleep','/whoop/workouts','/whoop/cycles','/whoop/profile','/news','/traffic','/calendar','/research','/research/run','/research/params','/vision','/swing','/pairs','/pairs/refresh','/scenario','/scenario/run','/scenario/status','/scenario/profiles',
       '/expenses/slips','/expenses/extract-slip','/expenses/statement','/expenses/statements','/expenses/pack',
+      '/capture','/capture/inbox','/capture/token','/notes/audio',
       '/voice','/reminders','/push/key','/push/subscribe','/manifest.webmanifest','/sw.js'],
     connect: '/auth/login'
   });
@@ -2332,6 +2339,124 @@ app.post('/expenses/pack', async (req, res) => {
 });
 
 /* ============================================================
+   QUICK CAPTURE — a task or a note from outside the app.
+
+   The point is to remove every step between having the thought
+   and it being recorded. An iOS Back Tap fires a Shortcut, the
+   Shortcut posts text here, and the app picks it up on its next
+   sync. The phone never has to open.
+
+   Nothing is written into the userdata blob from this side: the
+   browser owns that file, and two writers would race. Captures
+   land in an inbox and the app drains it.
+
+   GET  /capture/token            → the shared secret (gated)
+   POST /capture {token,text}     → interpret and queue
+   GET  /capture/inbox?token=     → pending items
+   POST /capture/inbox/ack {ids}  → drop the ones taken
+   ============================================================ */
+const CAP_FILE = DATA_DIR + '/capture-inbox.json';
+const CAP_TOKEN_FILE = DATA_DIR + '/capture-token.txt';
+
+function capToken() {
+  if (process.env.CAPTURE_TOKEN) return process.env.CAPTURE_TOKEN;
+  try { const v = fs.readFileSync(CAP_TOKEN_FILE, 'utf8').trim(); if (v) return v; } catch (e) {}
+  const v = crypto.randomBytes(18).toString('base64url');
+  try { fs.writeFileSync(CAP_TOKEN_FILE, v); } catch (e) { console.log('[CAPTURE] token not persisted:', e.message); }
+  return v;
+}
+const capRead = () => { try { return JSON.parse(fs.readFileSync(CAP_FILE, 'utf8')); } catch (e) { return { items: [] }; } };
+const capWrite = d => { try { fs.writeFileSync(CAP_FILE, JSON.stringify(d)); } catch (e) { console.log('[CAPTURE] write failed', e.message); } };
+/* Compare in constant time so the token cannot be recovered a byte at a time. */
+function capAuth(given) {
+  const a = Buffer.from(String(given || ''), 'utf8'), b = Buffer.from(capToken(), 'utf8');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+app.get('/capture/token', (req, res) => {
+  if (!isAuthed(req)) return res.status(401).json({ error: 'sign in first' });
+  res.json({ token: capToken(), url: '/capture', persistent: !!process.env.CAPTURE_TOKEN || fs.existsSync(CAP_TOKEN_FILE) });
+});
+
+app.post('/capture', async (req, res) => {
+  try {
+    const { token, text, kind, taskId } = req.body || {};
+    if (!capAuth(token)) return res.status(401).json({ error: 'bad token' });
+    const body = String(text || '').trim();
+    if (!body) return res.status(400).json({ error: 'text required' });
+    if (body.length > 8000) return res.status(413).json({ error: 'too long' });
+
+    // Work out what it is, but never let that decide whether it is kept — a
+    // capture that cannot be interpreted is still a capture, and losing it
+    // because the model was unavailable would defeat the whole point.
+    let read = null;
+    try { if (kind !== 'note' && !taskId) read = await interpretNote(body, new Date().toISOString()); }
+    catch (e) { console.log('[CAPTURE] interpret failed, keeping raw:', e.message); }
+
+    const item = {
+      id: 'cap' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'),
+      at: new Date().toISOString(),
+      text: body,
+      kind: taskId ? 'note' : (kind || (read && read.intent) || 'task'),
+      taskId: taskId || null,
+      interpreted: read ? { intent: read.intent, text: read.text || '', at: read.at || null, atLocal: read.atLocal || '' } : null
+    };
+    const d = capRead();
+    d.items = (d.items || []).filter(x => x && x.id);
+    d.items.push(item);
+    if (d.items.length > 500) d.items = d.items.slice(-500);
+    capWrite(d);
+    console.log('[CAPTURE] queued', item.kind, JSON.stringify(body.slice(0, 60)));
+    res.json({ ok: true, id: item.id, kind: item.kind, queued: d.items.length });
+  } catch (e) { console.log('[CAPTURE] failed', e.message); res.status(500).json({ error: e.message }); }
+});
+
+app.get('/capture/inbox', (req, res) => {
+  if (!capAuth(req.query.token)) return res.status(401).json({ error: 'bad token' });
+  res.json({ items: (capRead().items || []) });
+});
+
+app.post('/capture/inbox/ack', (req, res) => {
+  const { token, ids } = req.body || {};
+  if (!capAuth(token)) return res.status(401).json({ error: 'bad token' });
+  const take = new Set(Array.isArray(ids) ? ids : []);
+  const d = capRead();
+  const before = (d.items || []).length;
+  d.items = (d.items || []).filter(x => x && !take.has(x.id));
+  capWrite(d);
+  res.json({ ok: true, removed: before - d.items.length, left: d.items.length });
+});
+
+/* Audio for a note lives on the volume, never in the synced blob — the same
+   rule the slip photographs follow, and for the same reason. */
+const NOTE_DIR = DATA_DIR + '/note-audio';
+app.post('/notes/audio', (req, res) => {
+  try {
+    const { id, audio, media_type } = req.body || {};
+    const nid = safeSlipId(id);
+    if (!nid || !audio) return res.status(400).json({ error: 'id and audio required' });
+    fs.mkdirSync(NOTE_DIR, { recursive: true });
+    fs.writeFileSync(NOTE_DIR + '/' + nid + '.json', JSON.stringify({ audio, media_type: media_type || 'audio/webm' }));
+    res.json({ ok: true, id: nid });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/notes/audio/:id', (req, res) => {
+  const id = safeSlipId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'bad id' });
+  try {
+    const f = NOTE_DIR + '/' + id + '.json';
+    if (!fs.existsSync(f)) return res.status(404).json({ error: 'not found' });
+    res.json(JSON.parse(fs.readFileSync(f, 'utf8')));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/notes/audio/:id', (req, res) => {
+  const id = safeSlipId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'bad id' });
+  try { const f = NOTE_DIR + '/' + id + '.json'; if (fs.existsSync(f)) fs.unlinkSync(f); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ============================================================
    PWA SHELL — manifest + service worker + icons.
    iOS only delivers Web Push to a site installed to the Home
    Screen as a real web app, which needs all three of these. A
@@ -2767,6 +2892,8 @@ app.post('/voice', async (req, res) => {
     const transcript = (JSON.parse(wtext).text || '').trim();
     if (!transcript) return res.json({ transcript: '', intent: 'unclear', reply: "I couldn't hear anything in that." });
 
+    // A note pinned to a task wants the words, not a reading of them.
+    if (req.body && req.body.raw) return res.json({ transcript });
     const out = await interpretNote(transcript, now);
     res.json({ transcript, ...out });
   } catch (e) { console.log('[VOICE] failed', e.message); res.status(e.status || 500).json({ error: e.message }); }
