@@ -163,6 +163,24 @@ Line decisions live inside the statement and are **merged by recency** on both
 sides of the sync (`mergeUserdata` on the server, `_mergeLost` in the browser) — an afternoon of reconciling on the laptop must not die the
 next time the phone pushes. A slip's match merges the same way.
 
+## What the coach is given
+`buildCoachContext()` is the only builder, and it assembles four sections: the
+About profile, the 3X4 DNA blueprint, blood results, and a live snapshot of
+WHOOP, tasks and net worth.
+
+Blood is the latest reading per marker with its reference range, an explicit
+BELOW/ABOVE RANGE flag, and the previous reading so direction is visible — a
+marker moving the wrong way inside its range says more than one sitting still
+outside it.
+
+There were, for a long time, **two** coach implementations in this file: ten
+functions defined twice, and because function declarations hoist and the last
+one wins, the older and thinner set was the one running. It sent WHOOP, tasks
+and a net-worth line, and nothing else — so asking the coach about the DNA
+report or the bloods produced a truthful "I can't see any", while the richer
+builder sat above it as dead code. If you add a coach function, check it is not
+already defined.
+
 ## Cropping a slip
 Drag a box over the photograph and everything outside it is discarded. Crop
 before saving, from the add-slip sheet, and the extractor reads the tighter
