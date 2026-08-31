@@ -2380,7 +2380,7 @@ app.get('/capture/token', (req, res) => {
 
 app.post('/capture', async (req, res) => {
   try {
-    const { token, text, kind, taskId } = req.body || {};
+    const { token, text, kind, taskId, project } = req.body || {};
     if (!capAuth(token)) return res.status(401).json({ error: 'bad token' });
     const body = String(text || '').trim();
     if (!body) return res.status(400).json({ error: 'text required' });
@@ -2399,6 +2399,7 @@ app.post('/capture', async (req, res) => {
       text: body,
       kind: taskId ? 'note' : (kind || (read && read.intent) || 'task'),
       taskId: taskId || null,
+      project: project ? String(project).slice(0, 80) : null,
       interpreted: read ? { intent: read.intent, text: read.text || '', at: read.at || null, atLocal: read.atLocal || '' } : null
     };
     const d = capRead();

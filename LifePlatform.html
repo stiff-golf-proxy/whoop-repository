@@ -1739,6 +1739,38 @@ async function capTokenGet(){
   try{ const r=await fetch(base+'/capture/token'); if(!r.ok) return null;
        _capToken=(await r.json()).token; return _capToken; }catch(e){ return null; }
 }
+/* Which project does a captured thought belong to?
+   Inbox is the honest default — a thought spoken at a traffic light carries no
+   project with it, and filing it somewhere wrong is worse than filing it
+   nowhere. But when the words name a project outright ("chase Nicolwood for
+   the quote" against a project called Nicolwood) leaving it in the Inbox is
+   just making you sort your own post. So: an explicit project from the
+   Shortcut wins; otherwise match the spoken words against your project names,
+   conservatively — the whole name, or a distinctive word of four letters or
+   more from it. Anything less certain stays in the Inbox. */
+function captureProject(it,M){
+  const projects=(M.projects||[]).filter(p=>p&&p.id&&p.name);
+  if(!projects.length) return null;
+  const said=String(it.text||'').toLowerCase();
+  const norm=v=>String(v||'').toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+  // 1. the Shortcut named one outright
+  if(it.project){
+    const want=norm(it.project);
+    const hit=projects.find(p=>norm(p.name)===want)||projects.find(p=>norm(p.name).includes(want));
+    if(hit) return hit.id;
+  }
+  // 2. the words name one
+  const hay=' '+norm(said)+' ';
+  let best=null;
+  projects.forEach(p=>{
+    const full=norm(p.name);
+    if(full && hay.includes(' '+full+' ')){ if(!best||full.length>best.len) best={id:p.id,len:full.length+100}; return; }
+    full.split(' ').forEach(w=>{
+      if(w.length>=4 && hay.includes(' '+w+' ')){ if(!best||w.length>best.len) best={id:p.id,len:w.length}; }
+    });
+  });
+  return best?best.id:null;
+}
 async function drainCapture(){
   const base=proxyBase(); if(!base) return 0;
   const tok=await capTokenGet(); if(!tok) return 0;
@@ -1758,7 +1790,8 @@ async function drainCapture(){
       }
       const got=it.interpreted||{};
       const t={id:'t'+when+Math.random().toString(36).slice(2,5),
-        text:String(got.text||it.text).slice(0,180),done:false,projectId:null,
+        text:String(got.text||it.text).slice(0,180),done:false,
+        projectId:captureProject(it,M),
         priority:2,due:got.atLocal?String(got.atLocal).slice(0,10):null,
         createdAt:when,source:'capture',notes:[]};
       // Keep the words as spoken alongside the tidied title — the title is a

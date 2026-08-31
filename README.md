@@ -199,6 +199,14 @@ with a shared token. The words are interpreted into a task if they look like
 one, queued in `capture-inbox.json`, and the app drains the inbox on its next
 sync and acknowledges only what it took.
 
+Captures land in the **Inbox** unless the words name one of your projects, in
+which case they are filed there — the whole project name, or a distinctive word
+of four letters or more from it. Anything less certain stays in the Inbox: a
+thought spoken at a traffic light carries no project with it, and filing it
+somewhere wrong is worse than filing it nowhere. A Shortcut can also name a
+project outright by posting a `project` field, which wins over the guess; an
+unrecognised name falls back to the Inbox rather than failing.
+
 Nothing is written into the userdata blob from the server side — the browser
 owns that file and two writers would race. `Tasks → Back Tap` shows the recipe
 with the real URL and token filled in.
