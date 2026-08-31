@@ -215,6 +215,11 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .nt-x:hover{color:var(--bad)}
 .cap-steps{margin:8px 0 0 18px;font-family:var(--serif);font-size:13.5px;line-height:1.7}
 .cap-steps li{margin-bottom:10px}
+.cap-tbl{width:100%;border-collapse:collapse;margin:8px 0;font-family:var(--mono);font-size:11.5px}
+.cap-tbl th{text-align:left;font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;
+  color:var(--ink-faint);border-bottom:1px solid var(--line);padding:0 8px 5px 0;font-weight:400}
+.cap-tbl td{padding:6px 8px 6px 0;border-bottom:1px solid var(--line);vertical-align:top;word-break:break-all}
+.cap-tbl code{background:var(--paper2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
 .cap-code{font-family:var(--mono);font-size:11.5px;background:var(--paper2);border:1px solid var(--line);
   border-radius:8px;padding:8px 10px;margin:5px 0;white-space:pre-wrap;word-break:break-all}
 .crop-wrap{position:relative;display:inline-block;max-width:100%;line-height:0;touch-action:none;cursor:crosshair;
@@ -1782,9 +1787,16 @@ async function openCaptureSetup(){
         <li><b>Dictate Text</b> — language English, stop listening After Pause.</li>
         <li><b>Get Contents of URL</b>
           <div class="cap-code">${tkEsc(base)}/capture</div>
-          Method <b>POST</b>, Request Body <b>JSON</b>, with two fields:
-          <div class="cap-code">token &nbsp;(Text)&nbsp; ${tok?tkEsc(tok):'— sign in to see it —'}
-text &nbsp;&nbsp;(Text)&nbsp; Dictated Text</div>
+          Method <b>POST</b>, Request Body <b>JSON</b>. Then add <b>two</b> fields. In each
+          one the <b>name</b> is on the left and the <b>value</b> on the right — the names are
+          literal, they are what the server looks for.
+          <table class="cap-tbl">
+            <tr><th>Field name</th><th>Type</th><th>Value</th></tr>
+            <tr><td><code>token</code></td><td>Text</td><td>${tok?tkEsc(tok):'— sign in to see it —'}</td></tr>
+            <tr><td><code>text</code></td><td>Text</td><td>the <b>Dictated Text</b> variable</td></tr>
+          </table>
+          <div class="ms" style="margin-top:4px">Getting <code>bad token</code> back means the field is not
+          named <code>token</code> — using the token itself as the field name is the easy mistake.</div>
         </li>
         <li><b>Show Notification</b> — optional, so you know it landed.</li>
       </ol>
