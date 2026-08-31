@@ -203,6 +203,25 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 #expReport.show{display:block}
 .exp-rep-row{break-inside:avoid;page-break-inside:avoid;border-bottom:1px solid var(--line);padding:16px 0;display:flex;gap:18px;align-items:flex-start}
 .exp-rep-img{width:170px;flex:0 0 170px;border:1px solid var(--line);border-radius:8px}
+.tk-tools{margin-left:auto;display:inline-flex;gap:6px}
+.tk-note{font-family:var(--mono);font-size:10.5px;min-width:20px;height:20px;line-height:19px;text-align:center;
+  border:1px solid var(--line2);border-radius:7px;color:var(--ink-faint);cursor:pointer;padding:0 5px;flex:0 0 auto}
+.tk-note:hover{border-color:var(--terra);color:var(--terra)}
+.tk-note.has{color:var(--terra-deep);border-color:var(--terra)}
+.nt-item{position:relative;border-left:2px solid var(--line2);padding:6px 22px 10px 12px;margin-bottom:8px}
+.nt-when{font-family:var(--mono);font-size:10.5px;letter-spacing:.4px;color:var(--ink-faint);margin-bottom:3px}
+.nt-body{font-family:var(--serif);font-size:13.5px;line-height:1.6;white-space:pre-wrap}
+.nt-x{position:absolute;right:2px;top:4px;cursor:pointer;color:var(--ink-faint);font-size:15px;line-height:1}
+.nt-x:hover{color:var(--bad)}
+.cap-steps{margin:8px 0 0 18px;font-family:var(--serif);font-size:13.5px;line-height:1.7}
+.cap-steps li{margin-bottom:10px}
+.cap-code{font-family:var(--mono);font-size:11.5px;background:var(--paper2);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;margin:5px 0;white-space:pre-wrap;word-break:break-all}
+.crop-wrap{position:relative;display:inline-block;max-width:100%;line-height:0;touch-action:none;cursor:crosshair;
+  user-select:none;-webkit-user-select:none}
+.crop-wrap img{max-width:100%;max-height:62vh;border-radius:10px;border:1px solid var(--line);pointer-events:none}
+.crop-sel{position:absolute;border:2px solid var(--terra);background:rgba(14,124,134,.14);
+  box-shadow:0 0 0 9999px rgba(12,18,20,.42);pointer-events:none;border-radius:2px}
 .rec-head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:14px}
 .rec-totals{display:flex;flex-wrap:wrap;gap:16px;font-family:var(--mono);font-size:12px;color:var(--ink-faint);
   border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0;margin-bottom:16px}
@@ -789,6 +808,8 @@ async function pullFromServer(){
       save();
     }
   }catch(e){ console.log('[SYNC] pull failed', e.message); }
+  // Anything the Back Tap posted while the app was shut is waiting server-side.
+  try{ if(typeof drainCapture==='function') await drainCapture(); }catch(e){}
 }
 pullFromServer(); // startup
 // Re-pull when the app regains focus (key for mobile, where tabs live for days) and periodically
@@ -1469,6 +1490,8 @@ function cardTasks(){
         <span class="tk-check ${t.done?'on':''}" onclick="toggleTask('${t.id}')">${t.done?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</span>
         ${!t.done?`<span class="tk-flag" onclick="cyclePriority('${t.id}')" title="${TK_PRIO[t.priority||2].l} priority — click to change" style="background:${TK_PRIO[t.priority||2].c}"></span>`:''}
         <span class="tk-txt ${t.done?'done':''}" onclick="editTask('${t.id}')">${tkEsc(t.text)}</span>
+        <span class="tk-note${(t.notes&&t.notes.length)?' has':''}" onclick="openTaskNotes('${t.id}')"
+          title="Notes">${(t.notes&&t.notes.length)?t.notes.length:'+'}</span>
         ${tkDueCell(t)}
         <span class="tk-x" onclick="delTask('${t.id}')">×</span></div>`;
     const goalLine = tgt
@@ -1493,7 +1516,11 @@ function cardTasks(){
 
   return `<div class="card card-pad" style="margin-bottom:18px">
     <div class="kicker">Get it done</div>
-    <div class="h-sec">Tasks<span class="sub">${openAll.length} open · ${doneWeek} done this week</span></div>
+    <div class="h-sec">Tasks<span class="sub">${openAll.length} open · ${doneWeek} done this week</span>
+      <span class="tk-tools">
+        <button class="btn rec-b" onclick="openKnowledge('')">Knowledge</button>
+        <button class="btn rec-b" onclick="openCaptureSetup()">Back Tap</button>
+      </span></div>
     <div class="tk-over">
       <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
         ${tkRing(pctWeek,108,11,'var(--terra)')}
@@ -1530,6 +1557,250 @@ function addTaskTo(pid){
 function toggleTask(id){ const t=tasksCfg().tasks.find(x=>x.id===id); if(t){ t.done=!t.done; t.doneAt=t.done?Date.now():null; save(); renderHome(); } }
 function delTask(id){ const m=tasksCfg(); m.tasks=m.tasks.filter(x=>x.id!==id); save(); renderHome(); }
 function cyclePriority(id){ const t=tasksCfg().tasks.find(x=>x.id===id); if(t){ t.priority=(t.priority||2)%3+1; save(); renderHome(); } }
+
+/* --- notes on a task, and the knowledge they build ---------------------------
+   A task is a line of text; what you actually know about it is everything you
+   said while doing it. Notes hang off the task, carry their date, and stay
+   after the task is done — so the archive grows into something worth searching
+   rather than being deleted with the tick.
+
+   Dictation: the box is a plain textarea, deliberately. Wispr Flow, iOS
+   dictation and a keyboard all write into it identically, so the best
+   transcription you have is always available without this app integrating with
+   any of them. The Record button is the fallback for when your hands are full
+   — it captures audio, sends it for transcription, and drops the words in the
+   same box for correction before anything is saved. --- */
+function noteId(){ return 'n'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function taskNotes(t){ if(!Array.isArray(t.notes)) t.notes=[]; return t.notes; }
+function taskAddNote(t,n){
+  taskNotes(t).push(Object.assign({id:noteId(),at:new Date().toISOString(),source:'typed'},n||{}));
+}
+function allNotes(){
+  const M=tasksCfg(); const out=[];
+  (M.tasks||[]).forEach(t=>taskNotes(t).forEach(n=>out.push({n,t})));
+  out.sort((a,b)=>String(b.n.at||'').localeCompare(String(a.n.at||'')));
+  return out;
+}
+let _noteRec=null,_noteChunks=[],_noteStream=null,_noteTimer=null;
+function noteRecOn(){ return !!_noteRec; }
+async function noteRecStart(){
+  if(!voiceSupported()){ toast('Recording needs a secure connection'); return; }
+  try{
+    _noteStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const mt=vMime();
+    const rec=mt?new MediaRecorder(_noteStream,{mimeType:mt}):new MediaRecorder(_noteStream);
+    _noteRec=rec; _noteChunks=[];
+    rec.ondataavailable=e=>{ if(e.data&&e.data.size) _noteChunks.push(e.data); };
+    rec.onstop=()=>{
+      const blob=new Blob(_noteChunks,{type:rec.mimeType||'audio/webm'});
+      try{ _noteStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+      _noteStream=null;
+      if(blob.size) noteTranscribe(blob); else noteStatus('Nothing was recorded');
+    };
+    rec.start();
+    const t0=Date.now();
+    _noteTimer=setInterval(()=>{
+      noteStatus('Recording… '+Math.floor((Date.now()-t0)/1000)+'s');
+      if(Date.now()-t0>180000) noteRecStop();
+    },250);
+    noteBtn(true);
+  }catch(e){ toast(e&&e.name==='NotAllowedError'?'Microphone access was denied':'Could not start recording'); }
+}
+function noteRecStop(){
+  clearInterval(_noteTimer); _noteTimer=null;
+  if(_noteRec&&_noteRec.state!=='inactive'){ try{_noteRec.stop();}catch(e){} }
+  _noteRec=null; noteBtn(false);
+}
+function noteBtn(on){
+  const b=document.getElementById('nRecBtn'); if(!b) return;
+  b.textContent=on?'Stop':'Record';
+  b.className='btn'+(on?' primary':'');
+}
+function noteStatus(m){ const e=document.getElementById('nStatus'); if(e) e.textContent=m||''; }
+async function noteTranscribe(blob){
+  noteStatus('Transcribing…');
+  const base=proxyBase();
+  if(!base){ noteStatus('No proxy configured'); return; }
+  try{
+    const b64=await blobB64(blob);
+    const r=await fetch(base+'/voice',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({audio:b64,media_type:blob.type||'audio/webm',raw:true})});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'Transcription failed');
+    const box=document.getElementById('nText');
+    if(box){ box.value=(box.value?box.value.replace(/\s*$/,'')+'\n\n':'')+(d.transcript||''); box.focus(); }
+    window._notePendingAudio={b64,mt:blob.type||'audio/webm'};
+    noteStatus(d.transcript?'Transcribed — check it before saving':'Nothing was heard');
+  }catch(e){ noteStatus('⚠ '+e.message); }
+}
+function openTaskNotes(id){
+  const t=tasksCfg().tasks.find(x=>x.id===id); if(!t) return;
+  window._notePendingAudio=null;
+  const list=taskNotes(t).slice().sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+  showModal(`<div class="modal-head"><div><h2>Notes</h2><div class="ms">${tkEsc(t.text)}</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <textarea id="nText" class="exp-in" rows="5" style="width:100%;line-height:1.55"
+        placeholder="Dictate or type. Wispr Flow writes straight in here."></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap">
+        <button class="btn primary" onclick="saveTaskNote('${t.id}')">Save note</button>
+        ${voiceSupported()?`<button class="btn" id="nRecBtn" onclick="noteRecOn()?noteRecStop():noteRecStart()">Record</button>`:''}
+        <div id="nStatus" class="ms" style="margin-left:auto"></div>
+      </div>
+      ${list.length?`<div style="margin-top:20px">
+        <div class="exp-lbl">${list.length} note${list.length===1?'':'s'}</div>
+        ${list.map(n=>`<div class="nt-item">
+          <div class="nt-when">${fmtDate(String(n.at||'').slice(0,10))}${n.source==='voice'?' · spoken':n.source==='capture'?' · captured':''}</div>
+          <div class="nt-body">${tkEsc(n.text)}</div>
+          <span class="nt-x" onclick="delTaskNote('${t.id}','${n.id}')">×</span>
+        </div>`).join('')}
+      </div>`:''}
+    </div>`);
+  setTimeout(()=>{ const b=document.getElementById('nText'); if(b) b.focus(); },60);
+}
+async function saveTaskNote(id){
+  const t=tasksCfg().tasks.find(x=>x.id===id); if(!t) return;
+  const box=document.getElementById('nText');
+  const text=(box&&box.value||'').trim();
+  if(!text){ noteStatus('Nothing to save'); return; }
+  const audio=window._notePendingAudio;
+  const n={id:noteId(),at:new Date().toISOString(),text,source:audio?'voice':'typed'};
+  if(audio){ n.audioId=n.id; }
+  taskNotes(t).push(n);
+  save();
+  if(audio){
+    const base=proxyBase();
+    if(base) fetch(base+'/notes/audio',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:n.id,audio:audio.b64,media_type:audio.mt})}).catch(()=>{});
+  }
+  window._notePendingAudio=null;
+  closeModal(); renderHome(); toast('Note saved');
+}
+function delTaskNote(taskId,noteId_){
+  const t=tasksCfg().tasks.find(x=>x.id===taskId); if(!t) return;
+  t.notes=taskNotes(t).filter(n=>n.id!==noteId_);
+  save();
+  const base=proxyBase();
+  if(base) fetch(base+'/notes/audio/'+encodeURIComponent(noteId_),{method:'DELETE'}).catch(()=>{});
+  openTaskNotes(taskId);
+}
+/* The archive. Everything ever said against a task, searchable, including the
+   notes on tasks long since ticked off. */
+let _kbQ='';
+function openKnowledge(q){
+  _kbQ=q!==undefined?q:_kbQ;
+  const rows=allNotes().filter(({n,t})=>{
+    if(!_kbQ) return true;
+    const hay=(n.text+' '+t.text).toLowerCase();
+    return _kbQ.toLowerCase().split(/\s+/).filter(Boolean).every(w=>hay.includes(w));
+  });
+  const body=`<div class="modal-head"><div><h2>Knowledge</h2>
+      <div class="ms">${allNotes().length} note${allNotes().length===1?'':'s'} across every task, open and done</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <input id="kbQ" class="exp-in" style="width:100%" placeholder="Search everything you have said…"
+        value="${tkEsc(_kbQ)}" oninput="kbFilter(this.value)">
+      <div id="kbList" style="margin-top:14px">${kbRows(rows)}</div>
+    </div>`;
+  showModal(body);
+  setTimeout(()=>{ const el=document.getElementById('kbQ'); if(el){ el.focus(); el.setSelectionRange(el.value.length,el.value.length); } },60);
+}
+function kbRows(rows){
+  if(!rows.length) return '<div class="ms" style="padding:18px 0">Nothing yet.</div>';
+  return rows.map(({n,t})=>`<div class="nt-item">
+    <div class="nt-when">${fmtDate(String(n.at||'').slice(0,10))} · ${tkEsc(t.text)}${t.done?' · done':''}</div>
+    <div class="nt-body">${tkEsc(n.text)}</div>
+  </div>`).join('');
+}
+function kbFilter(v){
+  _kbQ=v||'';
+  const rows=allNotes().filter(({n,t})=>{
+    if(!_kbQ) return true;
+    const hay=(n.text+' '+t.text).toLowerCase();
+    return _kbQ.toLowerCase().split(/\s+/).filter(Boolean).every(w=>hay.includes(w));
+  });
+  const el=document.getElementById('kbList'); if(el) el.innerHTML=kbRows(rows);
+}
+
+/* --- quick capture from outside the app -------------------------------------
+   An iOS Back Tap runs a Shortcut, the Shortcut posts the words to /capture,
+   and they wait in an inbox until the app next syncs. Nothing is written into
+   the userdata blob by the server — the browser owns that file — so this drains
+   the inbox and acknowledges only what it actually took. --- */
+let _capToken=null;
+async function capTokenGet(){
+  if(_capToken) return _capToken;
+  const base=proxyBase(); if(!base) return null;
+  try{ const r=await fetch(base+'/capture/token'); if(!r.ok) return null;
+       _capToken=(await r.json()).token; return _capToken; }catch(e){ return null; }
+}
+async function drainCapture(){
+  const base=proxyBase(); if(!base) return 0;
+  const tok=await capTokenGet(); if(!tok) return 0;
+  try{
+    const r=await fetch(base+'/capture/inbox?token='+encodeURIComponent(tok));
+    if(!r.ok) return 0;
+    const items=(await r.json()).items||[];
+    if(!items.length) return 0;
+    const M=tasksCfg(); const took=[]; let n=0;
+    items.forEach(it=>{
+      if(!it||!it.id) return;
+      took.push(it.id);
+      const when=Date.parse(it.at)||Date.now();
+      if(it.taskId){
+        const t=M.tasks.find(x=>x.id===it.taskId);
+        if(t){ taskAddNote(t,{text:it.text,source:'capture',at:it.at}); n++; return; }
+      }
+      const got=it.interpreted||{};
+      const t={id:'t'+when+Math.random().toString(36).slice(2,5),
+        text:String(got.text||it.text).slice(0,180),done:false,projectId:null,
+        priority:2,due:got.atLocal?String(got.atLocal).slice(0,10):null,
+        createdAt:when,source:'capture',notes:[]};
+      // Keep the words as spoken alongside the tidied title — the title is a
+      // summary, and the summary is not the record.
+      if(String(got.text||'')!==it.text) t.notes.push({id:noteId(),at:it.at,text:it.text,source:'capture'});
+      M.tasks.push(t); n++;
+    });
+    if(took.length){
+      await fetch(base+'/capture/inbox/ack',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({token:tok,ids:took})}).catch(()=>{});
+    }
+    if(n){ save(); if(typeof renderHome==='function') renderHome(); toast(n+' captured'); }
+    return n;
+  }catch(e){ return 0; }
+}
+/* Show the Shortcut recipe with the real URL and token filled in. */
+async function openCaptureSetup(){
+  const base=proxyBase()||'(set the proxy URL in Settings)';
+  const tok=await capTokenGet();
+  showModal(`<div class="modal-head"><div><h2>Capture from the Back Tap</h2>
+      <div class="ms">Two taps on the back of the phone, speak, done</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div class="exp-lbl">In Shortcuts, make a new shortcut with three actions</div>
+      <ol class="cap-steps">
+        <li><b>Dictate Text</b> — language English, stop listening After Pause.</li>
+        <li><b>Get Contents of URL</b>
+          <div class="cap-code">${tkEsc(base)}/capture</div>
+          Method <b>POST</b>, Request Body <b>JSON</b>, with two fields:
+          <div class="cap-code">token &nbsp;(Text)&nbsp; ${tok?tkEsc(tok):'— sign in to see it —'}
+text &nbsp;&nbsp;(Text)&nbsp; Dictated Text</div>
+        </li>
+        <li><b>Show Notification</b> — optional, so you know it landed.</li>
+      </ol>
+      <div class="exp-lbl" style="margin-top:16px">Then bind it</div>
+      <div class="ms" style="line-height:1.6">Settings → Accessibility → Touch → Back Tap → Double Tap → pick the shortcut.
+        Say the task and it appears here on the next sync. Nothing needs to be open.</div>
+      <div class="exp-lbl" style="margin-top:16px">The token</div>
+      <div class="cap-code">${tok?tkEsc(tok):'sign in to see it'}</div>
+      <div class="ms">Anyone holding it can add a task. Treat it like a password; it never expires on its own.</div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn" onclick="drainCapture().then(n=>toast(n?n+' captured':'Nothing waiting'))">Check for captures now</button>
+        <button class="btn" onclick="closeModal()">Close</button>
+      </div>
+    </div>`);
+}
+
 
 function editTask(id){
   const m=tasksCfg(); const t=m.tasks.find(x=>x.id===id); if(!t)return;
@@ -7482,6 +7753,8 @@ function expSlipForm(d,url,warn){
       <div style="width:112px;flex:0 0 112px">
         <img src="${url}" style="width:100%;border-radius:10px;border:1px solid var(--line)">
         <button class="btn" style="width:100%;justify-content:center;margin-top:6px;padding:5px;font-size:12px"
+          onclick="expCropPending()">Crop</button>
+        <button class="btn" style="width:100%;justify-content:center;margin-top:5px;padding:5px;font-size:12px"
           onclick="expRetake()">Retake</button>
       </div>
       <div style="flex:1;min-width:0">
@@ -7542,6 +7815,93 @@ async function commitSlip(){
     currency:'ZAR', why, match:null, createdAt:Date.now()
   });
   save(); closeModal(); toast('Slip saved'); renderExpenses();
+}
+
+
+/* --- cropping ---------------------------------------------------------------
+   A photographed slip is mostly table, hand and floor. Cropping to the paper
+   before the extractor reads it is the single cheapest way to improve what
+   comes back, and it is also how you rescue a slip that read badly without
+   walking back to the restaurant. Drag a box, apply, and the image is
+   re-encoded from the original pixels — so cropping twice does not compound
+   the JPEG loss, because we always cut from the source we were handed. --- */
+let _cropState=null;
+function expCropOpen(src,onApply,title){
+  _cropState={src,onApply,sel:null};
+  showModal(`<div class="modal-head"><div><h2>${expEsc(title||'Crop the slip')}</h2>
+      <div class="ms">Drag a box around the slip. Everything outside it is discarded.</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      <div id="cropWrap" class="crop-wrap"><img id="cropImg" src="${src}" draggable="false"><div id="cropSel" class="crop-sel" hidden></div></div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn primary" id="cropGo" onclick="expCropApply()" disabled style="opacity:.45">Use this crop</button>
+        <button class="btn" onclick="expCropClear()">Whole image</button>
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <div id="cropHint" class="ms" style="margin-left:auto;align-self:center"></div>
+      </div>
+    </div>`);
+  const wrap=document.getElementById('cropWrap');
+  const sel=document.getElementById('cropSel');
+  let sx=0,sy=0,drag=false;
+  const at=e=>{ const r=wrap.getBoundingClientRect();
+    const p=e.touches?e.touches[0]:e;
+    return {x:Math.max(0,Math.min(r.width,p.clientX-r.left)),y:Math.max(0,Math.min(r.height,p.clientY-r.top))}; };
+  const paint=(a,b)=>{
+    const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.abs(a.x-b.x),h=Math.abs(a.y-b.y);
+    sel.hidden=false; sel.style.left=x+'px'; sel.style.top=y+'px'; sel.style.width=w+'px'; sel.style.height=h+'px';
+    _cropState.sel={x,y,w,h};
+    const ok=w>14&&h>14;
+    const g=document.getElementById('cropGo');
+    g.disabled=!ok; g.style.opacity=ok?'1':'.45';
+    document.getElementById('cropHint').textContent=ok?Math.round(w)+'×'+Math.round(h):'too small';
+  };
+  const down=e=>{ e.preventDefault(); drag=true; const p=at(e); sx=p.x; sy=p.y; paint({x:sx,y:sy},{x:sx,y:sy}); };
+  const move=e=>{ if(!drag) return; e.preventDefault(); paint({x:sx,y:sy},at(e)); };
+  const up=()=>{ drag=false; };
+  wrap.addEventListener('mousedown',down); wrap.addEventListener('touchstart',down,{passive:false});
+  window.addEventListener('mousemove',move); wrap.addEventListener('touchmove',move,{passive:false});
+  window.addEventListener('mouseup',up); wrap.addEventListener('touchend',up);
+}
+function expCropClear(){
+  const s=document.getElementById('cropSel'); if(s) s.hidden=true;
+  _cropState.sel=null;
+  const g=document.getElementById('cropGo'); g.disabled=false; g.style.opacity='1';
+  document.getElementById('cropHint').textContent='whole image';
+}
+function expCropApply(){
+  const st=_cropState; if(!st) return;
+  const img=document.getElementById('cropImg');
+  const shown=img.getBoundingClientRect();
+  const scale=img.naturalWidth/shown.width;          // displayed px -> source px
+  const s=st.sel;
+  const box=s?{x:Math.round(s.x*scale),y:Math.round(s.y*scale),w:Math.round(s.w*scale),h:Math.round(s.h*scale)}
+             :{x:0,y:0,w:img.naturalWidth,h:img.naturalHeight};
+  const c=document.createElement('canvas');
+  c.width=Math.max(1,box.w); c.height=Math.max(1,box.h);
+  c.getContext('2d').drawImage(img,box.x,box.y,box.w,box.h,0,0,c.width,c.height);
+  const url=c.toDataURL('image/jpeg',0.85);
+  closeModal();
+  st.onApply({url,b64:url.split(',')[1],mt:'image/jpeg'});
+}
+/* Crop the shot that is sitting in the add-slip sheet, then read it again —
+   a tighter frame usually turns a "hard to read" slip into a clean one. */
+function expCropPending(){
+  const p=window._expPending; if(!p){ toast('No slip image'); return; }
+  const why=(document.getElementById('sWhy')||{}).value||'';
+  expCropOpen(p.url,shot=>{ window._expRetakeWhy=why; expUseShot(shot); });
+}
+/* Crop a slip already on file: re-uploads the image in place, keeping the id,
+   the match and everything else about it. */
+async function expCropSaved(slipId){
+  const url=await expLoadImg(slipId);
+  if(!url){ toast('Image unavailable'); return; }
+  expCropOpen(url,async shot=>{
+    try{
+      await expSaveImg(slipId,shot.b64,shot.mt);
+      toast('Slip cropped');
+      renderExpenses();
+    }catch(e){ toast(e.message); }
+  },'Crop this slip');
 }
 
 /* --- statement --- */
@@ -8113,6 +8473,7 @@ function renderExpenses(){
       <div class="exp-amt">${expMoney(s.amount,s.currency)}
         <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
           ${s.match?`<button class="btn" style="padding:4px 9px;font-size:12px" onclick="expUnmatch('${s.id}')">Unmatch</button>`:''}
+          <button class="btn" style="padding:4px 9px;font-size:12px" onclick="expCropSaved('${s.id}')">Crop</button>
           <button class="btn" style="padding:4px 9px;font-size:12px" onclick="expDeleteSlip('${s.id}')">Delete</button>
         </div>
       </div>
