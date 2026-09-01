@@ -203,6 +203,9 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 #expReport.show{display:block}
 .exp-rep-row{break-inside:avoid;page-break-inside:avoid;border-bottom:1px solid var(--line);padding:16px 0;display:flex;gap:18px;align-items:flex-start}
 .exp-rep-img{width:170px;flex:0 0 170px;border:1px solid var(--line);border-radius:8px}
+.tk-file{font-family:var(--mono);font-size:10px;letter-spacing:.5px;text-transform:uppercase;
+  border:1px solid var(--terra);color:var(--terra);border-radius:7px;padding:2px 7px;cursor:pointer;flex:0 0 auto}
+.tk-file:hover{background:var(--terra);color:#fff}
 .tk-tools{margin-left:auto;display:inline-flex;gap:6px}
 .tk-note{font-family:var(--mono);font-size:10.5px;min-width:20px;height:20px;line-height:19px;text-align:center;
   border:1px solid var(--line2);border-radius:7px;color:var(--ink-faint);cursor:pointer;padding:0 5px;flex:0 0 auto}
@@ -1495,6 +1498,7 @@ function cardTasks(){
         <span class="tk-check ${t.done?'on':''}" onclick="toggleTask('${t.id}')">${t.done?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</span>
         ${!t.done?`<span class="tk-flag" onclick="cyclePriority('${t.id}')" title="${TK_PRIO[t.priority||2].l} priority — click to change" style="background:${TK_PRIO[t.priority||2].c}"></span>`:''}
         <span class="tk-txt ${t.done?'done':''}" onclick="editTask('${t.id}')">${tkEsc(t.text)}</span>
+        ${(p.id==='__inbox'&&!t.done&&m.projects.length)?`<span class="tk-file" onclick="tkFileOpen('${t.id}')" title="File into a project">file</span>`:''}
         <span class="tk-note${(t.notes&&t.notes.length)?' has':''}" onclick="openTaskNotes('${t.id}')"
           title="Notes">${(t.notes&&t.notes.length)?t.notes.length:'+'}</span>
         ${tkDueCell(t)}
@@ -1553,6 +1557,32 @@ function cardTasks(){
 }
 function tkEsc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+/* Filing an Inbox task used to mean knowing that tapping its words opened an
+   edit sheet with a project dropdown in it. Fine when the Inbox held the odd
+   stray; not fine now that every Back Tap capture lands there. One tap, one
+   list, done. */
+function tkFileOpen(id){
+  const m=tasksCfg(); const t=m.tasks.find(x=>x.id===id); if(!t) return;
+  showModal(`<div class="modal-head"><div><h2>File this task</h2>
+      <div class="ms">${tkEsc(t.text)}</div></div>
+    <button class="x" onclick="closeModal()">${xSvg()}</button></div>
+    <div class="modal-body">
+      ${m.projects.map(pr=>`<div class="rec-pick" onclick="tkFileTo('${t.id}','${pr.id}')">
+        <span style="width:10px;height:10px;border-radius:50%;background:${pr.color||'var(--terra)'};flex:0 0 10px;margin-top:5px"></span>
+        <div style="flex:1;min-width:0">
+          <div class="exp-mer">${tkEsc(pr.name)}</div>
+          ${pr.weekGoal?`<div class="ms">${tkEsc(pr.weekGoal)}</div>`:''}
+        </div>
+      </div>`).join('')}
+      <div style="margin-top:14px"><button class="btn" onclick="closeModal();addProject()">+ New project</button></div>
+    </div>`);
+}
+function tkFileTo(id,pid){
+  const t=tasksCfg().tasks.find(x=>x.id===id); if(!t) return;
+  t.projectId=pid; save(); closeModal(); renderHome();
+  const pr=tasksCfg().projects.find(x=>x.id===pid);
+  toast('Filed into '+((pr&&pr.name)||'project'));
+}
 function addTaskTo(pid){
   const i=document.getElementById('tkin_'+pid); if(!i)return; const v=i.value.trim(); if(!v)return;
   tasksCfg().tasks.push({id:'t'+Date.now(),text:v,done:false,projectId:pid,priority:2,due:null,createdAt:Date.now()});
