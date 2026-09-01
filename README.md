@@ -225,6 +225,27 @@ secret out — stays behind the session like everything else.
 If interpretation fails, the capture is still kept. Losing a thought because a
 model was unavailable would defeat the point of the feature.
 
+## Tasks resolve by recency, not by existence
+Merging tasks by id alone preserved whether a task existed and nothing else. A
+task present on both devices was left exactly as the local copy had it, so
+every field change made elsewhere — ticked done, re-prioritised, given a due
+date, filed into a project — was discarded whenever the local copy happened to
+be the newer of the two. Tick it on the phone, open the laptop, and the laptop
+pushed its own un-ticked copy back over it.
+
+Deletion had the mirror problem: a union can only add, so a task deleted on one
+device was restored by the other.
+
+Now every mutation stamps `updatedAt`; a task on both sides resolves to the
+newer stamp (`updatedAt`, else `doneAt`, else `createdAt`); and a deletion
+leaves a tombstone in `morning.deletedTasks` that outranks any copy older than
+itself — while an edit made *after* the delete still wins, so the two orderings
+are distinguishable. Tombstones are pruned at 90 days. Projects merge the same
+way, so a rename sticks.
+
+Tasks ticked before this change heal themselves: `doneAt` is later than
+`createdAt`, so the ticked copy already outranks the un-ticked one.
+
 ## Notes on a task, and the knowledge they build
 A task is a line of text; what you know about it is everything you said while
 doing it. Notes hang off the task, carry their date, and survive the task being

@@ -746,10 +746,10 @@ function _mergeLost(into, from){
   (fg.shots||[]).forEach(s=>{ if(s&&!haveS.has(sig(s))){ into.golf.shots=into.golf.shots||[]; into.golf.shots.push(s); } });
   // tasks + projects by id (under morning)
   into.morning=into.morning||{}; const fm=from.morning||{};
-  const haveT=new Set((into.morning.tasks||[]).map(t=>t&&t.id));
-  (fm.tasks||[]).forEach(t=>{ if(t&&t.id&&!haveT.has(t.id)){ into.morning.tasks=into.morning.tasks||[]; into.morning.tasks.push(t); } });
-  const haveP=new Set((into.morning.projects||[]).map(p=>p&&p.id));
-  (fm.projects||[]).forEach(p=>{ if(p&&p.id&&!haveP.has(p.id)){ into.morning.projects=into.morning.projects||[]; into.morning.projects.push(p); } });
+  const tombs=[].concat(into.morning.deletedTasks||[], fm.deletedTasks||[]);
+  into.morning.tasks=mergeStamped(into.morning.tasks, fm.tasks, tombs);
+  into.morning.deletedTasks=tombs.filter(d=>d&&d.id&&d.at>Date.now()-90*86400000).slice(-400);
+  into.morning.projects=mergeStamped(into.morning.projects, fm.projects, null);
   // today's manual calendar entries by time+title
   const haveC=new Set((into.morning.calendar||[]).map(e=>e&&((e.time||'')+'|'+(e.title||''))));
   (fm.calendar||[]).forEach(e=>{ if(e&&e._manual&&!haveC.has((e.time||'')+'|'+(e.title||''))){ into.morning.calendar=into.morning.calendar||[]; into.morning.calendar.push(e); } });
@@ -1438,7 +1438,7 @@ function tkDueCell(t){
   return `<span class="${cls}" style="color:${fg};border-color:${bd}" title="${t.due?('Due '+t.due+' — tap to change'):'Set a due date'}">${lab}<input type="date" value="${t.due||''}" onchange="setTaskDue('${t.id}',this.value)" onclick="event.stopPropagation()"></span>`;
 }
 function setTaskDue(id,val){ const t=tasksCfg().tasks.find(x=>x.id===id); if(!t)return;
-  t.due=val||null; save(); renderHome(); }
+  t.due=val||null; t.updatedAt=Date.now(); save(); renderHome(); }
 function tkSortOpen(a,b){
   const t=todayISO();
   const rank=x=> x.due ? (x.due<t?0:x.due===t?1:2) : 3;
@@ -1561,6 +1561,44 @@ function tkEsc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/
    edit sheet with a project dropdown in it. Fine when the Inbox held the odd
    stray; not fine now that every Back Tap capture lands there. One tap, one
    list, done. */
+/* Merging tasks by id alone preserved their existence and nothing else. A task
+   present on both devices was left exactly as the local copy had it, so every
+   field change made elsewhere — ticked done, re-prioritised, given a due date,
+   filed into a project — was silently discarded whenever the local copy
+   happened to be the newer of the two. Tick a task on the phone, open the
+   laptop, and the laptop pushed its own un-ticked copy straight back over it.
+
+   Deletion had the mirror problem: a union can only add, so a task deleted on
+   one device was helpfully restored by the other.
+
+   So: every mutation stamps updatedAt, a task on both sides resolves to the
+   newer stamp, and a deletion leaves a tombstone that outranks any copy older
+   than itself. */
+function taskStamp(t){ return Math.max(+((t||{}).updatedAt)||0, +((t||{}).doneAt)||0, +((t||{}).createdAt)||0); }
+function tkTombstone(m,id){
+  if(!Array.isArray(m.deletedTasks)) m.deletedTasks=[];
+  m.deletedTasks=m.deletedTasks.filter(d=>d&&d.id!==id);
+  m.deletedTasks.push({id,at:Date.now()});
+  const cut=Date.now()-90*86400000;
+  m.deletedTasks=m.deletedTasks.filter(d=>d&&d.at>cut).slice(-400);
+}
+function mergeStamped(intoList,fromList,tombs){
+  const out=Array.isArray(intoList)?intoList.slice():[];
+  const byId=new Map(out.map((x,i)=>[x&&x.id,i]));
+  (fromList||[]).forEach(x=>{
+    if(!x||!x.id) return;
+    const i=byId.get(x.id);
+    if(i===undefined){ byId.set(x.id,out.length); out.push(x); return; }
+    if(taskStamp(x)>taskStamp(out[i])) out[i]=x;
+  });
+  const dead=new Map();
+  (tombs||[]).forEach(d=>{ if(d&&d.id) dead.set(d.id,Math.max(dead.get(d.id)||0,+d.at||0)); });
+  return out.filter(x=>{
+    if(!x||!x.id) return false;
+    const at=dead.get(x.id);
+    return at===undefined || taskStamp(x)>at;   // an edit after the delete wins
+  });
+}
 function tkFileOpen(id){
   const m=tasksCfg(); const t=m.tasks.find(x=>x.id===id); if(!t) return;
   showModal(`<div class="modal-head"><div><h2>File this task</h2>
@@ -1579,7 +1617,7 @@ function tkFileOpen(id){
 }
 function tkFileTo(id,pid){
   const t=tasksCfg().tasks.find(x=>x.id===id); if(!t) return;
-  t.projectId=pid; save(); closeModal(); renderHome();
+  t.projectId=pid; t.updatedAt=Date.now(); save(); closeModal(); renderHome();
   const pr=tasksCfg().projects.find(x=>x.id===pid);
   toast('Filed into '+((pr&&pr.name)||'project'));
 }
@@ -1589,9 +1627,9 @@ function addTaskTo(pid){
   save(); renderHome();
   setTimeout(()=>{ const el=document.getElementById('tkin_'+pid); if(el)el.focus(); },50);
 }
-function toggleTask(id){ const t=tasksCfg().tasks.find(x=>x.id===id); if(t){ t.done=!t.done; t.doneAt=t.done?Date.now():null; save(); renderHome(); } }
-function delTask(id){ const m=tasksCfg(); m.tasks=m.tasks.filter(x=>x.id!==id); save(); renderHome(); }
-function cyclePriority(id){ const t=tasksCfg().tasks.find(x=>x.id===id); if(t){ t.priority=(t.priority||2)%3+1; save(); renderHome(); } }
+function toggleTask(id){ const t=tasksCfg().tasks.find(x=>x.id===id); if(t){ t.done=!t.done; t.doneAt=t.done?Date.now():null; t.updatedAt=Date.now(); save(); renderHome(); } }
+function delTask(id){ const m=tasksCfg(); m.tasks=m.tasks.filter(x=>x.id!==id); tkTombstone(m,id); save(); renderHome(); }
+function cyclePriority(id){ const t=tasksCfg().tasks.find(x=>x.id===id); if(t){ t.priority=(t.priority||2)%3+1; t.updatedAt=Date.now(); save(); renderHome(); } }
 
 /* --- notes on a task, and the knowledge they build ---------------------------
    A task is a line of text; what you actually know about it is everything you
@@ -1702,7 +1740,7 @@ async function saveTaskNote(id){
   const n={id:noteId(),at:new Date().toISOString(),text,source:audio?'voice':'typed'};
   if(audio){ n.audioId=n.id; }
   taskNotes(t).push(n);
-  save();
+  t.updatedAt=Date.now(); save();
   if(audio){
     const base=proxyBase();
     if(base) fetch(base+'/notes/audio',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1714,7 +1752,7 @@ async function saveTaskNote(id){
 function delTaskNote(taskId,noteId_){
   const t=tasksCfg().tasks.find(x=>x.id===taskId); if(!t) return;
   t.notes=taskNotes(t).filter(n=>n.id!==noteId_);
-  save();
+  t.updatedAt=Date.now(); save();
   const base=proxyBase();
   if(base) fetch(base+'/notes/audio/'+encodeURIComponent(noteId_),{method:'DELETE'}).catch(()=>{});
   openTaskNotes(taskId);
@@ -1901,7 +1939,7 @@ function saveTaskEdit(id){
   const tx=document.getElementById('et_text').value.trim(); if(!tx){toast('Task needs text');return;}
   t.text=tx; t.projectId=document.getElementById('et_proj').value||null;
   t.priority=+document.getElementById('et_prio').value; t.due=document.getElementById('et_due').value||null;
-  save(); closeModal(); renderHome();
+  t.updatedAt=Date.now(); save(); closeModal(); renderHome();
 }
 
 function addProject(){ projectModal(null); }

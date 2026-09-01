@@ -1802,12 +1802,34 @@ function mergeUserdata(incoming, existing) {
   // morning: tasks + projects by id, manual calendar entries by time+title
   into.morning = into.morning || {};
   const em = existing.morning || {};
-  into.morning.tasks = into.morning.tasks || [];
-  const haveT = new Set(into.morning.tasks.map(t => t && t.id));
-  (em.tasks || []).forEach(t => { if (t && t.id && !haveT.has(t.id)) into.morning.tasks.push(t); });
-  into.morning.projects = into.morning.projects || [];
-  const haveP = new Set(into.morning.projects.map(p => p && p.id));
-  (em.projects || []).forEach(p => { if (p && p.id && !haveP.has(p.id)) into.morning.projects.push(p); });
+  /* Tasks resolve by recency, not by existence. A union alone kept whichever
+     copy the pushing device happened to hold, so ticking a task on the phone
+     and then opening the laptop pushed the un-ticked copy straight back. Every
+     mutation stamps updatedAt; the newer stamp wins. Deletions leave a
+     tombstone, because a union can only add and would otherwise resurrect
+     anything deleted on another device. */
+  const taskStamp = t => Math.max(+((t || {}).updatedAt) || 0, +((t || {}).doneAt) || 0, +((t || {}).createdAt) || 0);
+  const mergeStamped = (a, b, tombs) => {
+    const out = Array.isArray(a) ? a.slice() : [];
+    const byId = new Map(out.map((x, i) => [x && x.id, i]));
+    (b || []).forEach(x => {
+      if (!x || !x.id) return;
+      const i = byId.get(x.id);
+      if (i === undefined) { byId.set(x.id, out.length); out.push(x); return; }
+      if (taskStamp(x) > taskStamp(out[i])) out[i] = x;
+    });
+    const dead = new Map();
+    (tombs || []).forEach(d => { if (d && d.id) dead.set(d.id, Math.max(dead.get(d.id) || 0, +d.at || 0)); });
+    return out.filter(x => {
+      if (!x || !x.id) return false;
+      const at = dead.get(x.id);
+      return at === undefined || taskStamp(x) > at;
+    });
+  };
+  const tombs = [].concat(into.morning.deletedTasks || [], em.deletedTasks || []);
+  into.morning.tasks = mergeStamped(into.morning.tasks, em.tasks, tombs);
+  into.morning.deletedTasks = tombs.filter(d => d && d.id && d.at > Date.now() - 90 * 86400000).slice(-400);
+  into.morning.projects = mergeStamped(into.morning.projects, em.projects, null);
   into.morning.calendar = into.morning.calendar || [];
   const haveC = new Set(into.morning.calendar.map(e => e && ((e.time || '') + '|' + (e.title || ''))));
   (em.calendar || []).forEach(e => { if (e && e._manual && !haveC.has((e.time || '') + '|' + (e.title || ''))) into.morning.calendar.push(e); });
