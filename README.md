@@ -207,6 +207,11 @@ somewhere wrong is worse than filing it nowhere. A Shortcut can also name a
 project outright by posting a `project` field, which wins over the guess; an
 unrecognised name falls back to the Inbox rather than failing.
 
+Whatever lands in the Inbox carries a **file** button, which opens the project
+list directly. Moving a task was previously only possible by knowing that
+tapping its words opened an edit sheet with a project dropdown inside — fine
+when the Inbox held the odd stray, not fine once every capture lands there.
+
 Nothing is written into the userdata blob from the server side — the browser
 owns that file and two writers would race. `Tasks → Back Tap` shows the recipe
 with the real URL and token filled in.
