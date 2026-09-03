@@ -80,8 +80,14 @@ app.use(express.urlencoded({ extended: false })); // login form posts
    to a derived key so a missing secret never locks Stuart out, though
    setting SESSION_SECRET is strongly recommended).
    =================================================================== */
-const APP_PASSWORD   = process.env.APP_PASSWORD || 'stiff-golf-2026';
+/* Trimmed, because a password pasted into a hosting dashboard picks up a
+   trailing space or newline far more often than anyone intends one, and the
+   resulting failure is indistinguishable from having the wrong password. */
+const APP_PASSWORD_RAW = process.env.APP_PASSWORD || 'stiff-golf-2026';
+const APP_PASSWORD   = APP_PASSWORD_RAW.trim();
 const APP_PASSWORD_IS_DEFAULT = !process.env.APP_PASSWORD;
+const APP_PASSWORD_WAS_PADDED = APP_PASSWORD_RAW !== APP_PASSWORD;
+const APP_PASSWORD_QUOTED = /^(".*"|'.*')$/.test(APP_PASSWORD) && APP_PASSWORD.length > 1;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.createHash('sha256').update('lp::' + APP_PASSWORD).digest('hex');
 /* A month was short for a single-user dashboard behind a shared password: the
    cookie lapsing is indistinguishable, from the outside, from the password
@@ -150,9 +156,23 @@ app.get('/login', (req, res) => {
 app.post('/login', (req, res) => {
   const pw = (req.body && req.body.password) || '';
   const next = (req.body && typeof req.body.next === 'string' && req.body.next.startsWith('/')) ? req.body.next : '/';
-  const ok = pw.length === APP_PASSWORD.length &&
-    crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(APP_PASSWORD));
-  if (!ok) return res.status(401).set('Content-Type', 'text/html').send(loginPage({ next }));
+  /* Compare on BYTES, not characters. timingSafeEqual throws outright when the
+     two buffers differ in byte length, and a character count is not a byte
+     count the moment anything non-ASCII is involved: "Café2026!" and
+     "Cafe2026!" are both nine characters but ten and nine bytes. That threw a
+     RangeError out of the handler and answered a wrong password with a 500
+     instead of a refusal. */
+  const a = Buffer.from(String(pw), 'utf8'), b = Buffer.from(APP_PASSWORD, 'utf8');
+  const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (!ok) {
+    // Say how far off it was, never what was typed. A password rejected at one
+    // character short of the stored one is a stray space in the variable, and
+    // that is otherwise invisible from both ends.
+    console.log(`[AUTH] login refused — submitted ${a.length} bytes, expected ${b.length}`
+      + (APP_PASSWORD_WAS_PADDED ? ' (APP_PASSWORD had surrounding whitespace, which was trimmed)' : '')
+      + (APP_PASSWORD_QUOTED ? ' (APP_PASSWORD looks wrapped in quotes — the quotes are part of the password)' : ''));
+    return res.status(401).set('Content-Type', 'text/html').send(loginPage({ next }));
+  }
   const exp = Date.now() + SESSION_DAYS * 864e5;
   const secure = (req.headers['x-forwarded-proto'] || '').includes('https') ? '; Secure' : '';
   res.set('Set-Cookie', `${COOKIE_NAME}=${signSession(exp)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_DAYS * 86400}${secure}`);
@@ -1770,7 +1790,10 @@ app.listen(PORT, () => {
      the public source, and the cookie signing key is derived from it — so
      setting a password later silently signs every device out. */
   console.log(`[AUTH] session ${SESSION_DAYS} days | password ${APP_PASSWORD_IS_DEFAULT ? 'DEFAULT — the one in server.js, set APP_PASSWORD' : 'from APP_PASSWORD'}`
-    + ` | signing key ${process.env.SESSION_SECRET ? 'from SESSION_SECRET' : 'derived from the password (set SESSION_SECRET before changing it, or every device is logged out)'}`);
+    + ` | signing key ${process.env.SESSION_SECRET ? 'from SESSION_SECRET' : 'derived from the password (set SESSION_SECRET before changing it, or every device is logged out)'}`
+    + ` | ${Buffer.from(APP_PASSWORD, 'utf8').length} bytes`);
+  if (APP_PASSWORD_WAS_PADDED) console.log('[AUTH] NOTE APP_PASSWORD had leading or trailing whitespace; it was trimmed.');
+  if (APP_PASSWORD_QUOTED) console.log('[AUTH] WARNING APP_PASSWORD starts and ends with a quote. Hosting dashboards do not strip quotes — they are part of the password.');
 });
 
 /* ============================================================

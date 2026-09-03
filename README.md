@@ -239,7 +239,21 @@ One shared password, a signed HttpOnly cookie, no server-side session store.
 
 The deploy log states which of these are in force on every boot, so a login
 screen that appears out of nowhere can be explained from the log rather than
-guessed at.
+guessed at. It also prints the password's byte length, and a refused login logs
+how many bytes were submitted against how many were expected — never what was
+typed. A password rejected one byte short of the stored one is a stray space in
+the variable, which is otherwise invisible from both ends.
+
+`APP_PASSWORD` is trimmed, because a value pasted into a hosting dashboard
+picks up trailing whitespace far more often than anyone intends it. Surrounding
+quotes are **not** stripped — they would be a legitimate part of a password —
+but they are warned about, since dashboards do not strip them either.
+
+The comparison is on bytes rather than characters. `timingSafeEqual` throws
+when buffers differ in length, and a character count is not a byte count once
+anything non-ASCII is involved: `Café2026!` and `Cafe2026!` are both nine
+characters but ten and nine bytes, which used to answer a wrong password with
+a 500 instead of a refusal.
 
 ## Tasks resolve by recency, not by existence
 Merging tasks by id alone preserved whether a task existed and nothing else. A
