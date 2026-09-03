@@ -225,6 +225,22 @@ secret out — stays behind the session like everything else.
 If interpretation fails, the capture is still kept. Losing a thought because a
 model was unavailable would defeat the point of the feature.
 
+## The login gate
+One shared password, a signed HttpOnly cookie, no server-side session store.
+
+- `APP_PASSWORD` — unset means the fallback printed in `server.js`, which is
+  public. Set it.
+- `SESSION_SECRET` — unset means the cookie signing key is **derived from the
+  password**, so changing the password logs every device out the moment it
+  redeploys. Set this one *first*, redeploy, then change the password.
+- `SESSION_DAYS` — defaults to 365, clamped to 1–3650. A month was too short
+  for a single-user dashboard: from the outside, a lapsed cookie is
+  indistinguishable from the password having been changed.
+
+The deploy log states which of these are in force on every boot, so a login
+screen that appears out of nowhere can be explained from the log rather than
+guessed at.
+
 ## Tasks resolve by recency, not by existence
 Merging tasks by id alone preserved whether a task existed and nothing else. A
 task present on both devices was left exactly as the local copy had it, so
