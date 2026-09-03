@@ -81,8 +81,14 @@ app.use(express.urlencoded({ extended: false })); // login form posts
    setting SESSION_SECRET is strongly recommended).
    =================================================================== */
 const APP_PASSWORD   = process.env.APP_PASSWORD || 'stiff-golf-2026';
+const APP_PASSWORD_IS_DEFAULT = !process.env.APP_PASSWORD;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.createHash('sha256').update('lp::' + APP_PASSWORD).digest('hex');
-const SESSION_DAYS   = 30;
+/* A month was short for a single-user dashboard behind a shared password: the
+   cookie lapsing is indistinguishable, from the outside, from the password
+   having been changed — you simply meet a login screen you had stopped
+   thinking about. A year, overridable, and clamped so a typo in the variable
+   cannot produce a session that expires immediately or never. */
+const SESSION_DAYS   = Math.min(3650, Math.max(1, Number(process.env.SESSION_DAYS) || 365));
 const COOKIE_NAME    = 'lp_session';
 
 const signSession = (expMs) => {
@@ -1757,7 +1763,15 @@ app.get('/status', (req, res) => {
     connect: '/auth/login'
   });
 });
-app.listen(PORT, () => console.log(`LifePlatform proxy listening on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`LifePlatform proxy listening on port ${PORT}`);
+  /* Say what the gate is actually set to. Both of these being unset is not an
+     error, but it is worth knowing: the password is then the one printed in
+     the public source, and the cookie signing key is derived from it — so
+     setting a password later silently signs every device out. */
+  console.log(`[AUTH] session ${SESSION_DAYS} days | password ${APP_PASSWORD_IS_DEFAULT ? 'DEFAULT — the one in server.js, set APP_PASSWORD' : 'from APP_PASSWORD'}`
+    + ` | signing key ${process.env.SESSION_SECRET ? 'from SESSION_SECRET' : 'derived from the password (set SESSION_SECRET before changing it, or every device is logged out)'}`);
+});
 
 /* ============================================================
    USER DATA SYNC — cross-device persistence for golf rounds,
