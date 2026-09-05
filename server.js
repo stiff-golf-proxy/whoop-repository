@@ -986,6 +986,11 @@ async function researchJson({ label, prompt, model, maxTokens, effort, searchUse
         model: model || 'claude-opus-5',
         max_tokens: maxTokens || 24000,
         output_config: { effort: effort || 'high' },
+        /* Every hop resends the whole conversation, and after a few web fetches
+           that conversation contains the full text of several articles. Paid at
+           full input rates each time, a single refresh re-buys the same tokens
+           four or five times over. Cache the prefix. */
+        cache_control: { type: 'ephemeral' },
         tools: [
           { type: 'web_search_20260209', name: 'web_search', max_uses: searchUses || 14 },
           { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: fetchUses || 10 }
@@ -1672,9 +1677,21 @@ async function refreshTopic(id, reason) {
     // diagnosis, and the daily auto-run fails with nobody watching at all.
     const latest = readMag();
     const prev = latest.issues[id] || {};
-    latest.issues[id] = Object.assign({}, prev, { lastError: e.message, lastErrorAt: new Date().toISOString() });
+    /* Back off, and record WHEN to try again. Without this the failure kept the
+       old updatedAt, the topic therefore stayed "older than 20 hours", and the
+       15-minute tick relaunched the same doomed research turn all morning. Nine
+       attempts before breakfast, each one a full multi-hop turn that was billed
+       in full and then thrown away, because a turn that times out has still
+       been generated. Backing off is a cost control, not a politeness. */
+    const fails = (+prev.fails || 0) + 1;
+    const waitH = Math.min(24, Math.pow(2, fails));      // 2h, 4h, 8h, 16h, then daily
+    latest.issues[id] = Object.assign({}, prev, {
+      lastError: e.message, lastErrorAt: new Date().toISOString(),
+      fails, nextTryAt: new Date(Date.now() + waitH * 3600 * 1000).toISOString()
+    });
     writeMag(latest);
-    console.log('[MAG] "' + topic.label + '" FAILED — ' + e.message);
+    console.log('[MAG] "' + topic.label + '" FAILED (' + fails + ' in a row) — ' + e.message +
+      ' — no auto-retry for ' + waitH + 'h');
     throw e;
   } finally { MAG_RUNNING = false; }
 }
@@ -1733,7 +1750,12 @@ setInterval(async () => {
     const mag = readMag();
     const stale = mag.topics.find(t => {
       const iss = mag.issues[t.id];
-      return !iss || (Date.now() - new Date(iss.updatedAt).getTime()) > 20 * 3600 * 1000;
+      if (!iss) return true;
+      // Still serving a backoff from an earlier failure — leave it alone.
+      if (iss.nextTryAt && Date.now() < Date.parse(iss.nextTryAt)) return false;
+      const at = Date.parse(iss.updatedAt || '');
+      if (!at) return true;
+      return (Date.now() - at) > 20 * 3600 * 1000;
     });
     if (!stale) return;
     await refreshTopic(stale.id, 'daily-auto');

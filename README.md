@@ -77,7 +77,16 @@ the tab is instant.
   hard-coded except the two it ships with (AI & Claude, Golf · mindset).
 - `POST /magazine/refresh {id}` fetches a new issue on demand. One at a time.
 - Auto-refresh runs from 05:00 local, one topic per 15-minute tick, for anything
-  older than 20 hours.
+  older than 20 hours — **unless it is backing off**. A failed run keeps the
+  previous `updatedAt`, so without a backoff the topic stayed "older than 20
+  hours" and the tick relaunched the same doomed research turn every quarter of
+  an hour. Nine attempts before breakfast, each one a full multi-hop turn billed
+  in full and thrown away, because a turn that times out has still been
+  generated. Failures now wait 2h, 4h, 8h, 16h, then a day; a success clears the
+  count. The manual button ignores the backoff.
+- Every hop resends the whole conversation, which after a few web fetches holds
+  the full text of several articles. The prefix is cached, so a refresh stops
+  re-buying the same tokens four or five times over.
 - Titles already published to a shelf are remembered (last 60) so a refresh
   brings new reading rather than yesterday's list reordered.
 - `MAG_MODEL` overrides the model used for editorial judgement.
