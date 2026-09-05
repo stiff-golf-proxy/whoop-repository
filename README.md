@@ -84,6 +84,35 @@ the tab is instant.
 
 Briefs work best when they say what to leave out as well as what to look for.
 
+## The art watch (Kentridge)
+`POST /kentridge` has always accepted listings from "a weekly scheduled task
+that scours SA sites". That task did not exist. Nothing in this repository, or
+anywhere else, ever posted to it — so the card sat empty, and its refresh button
+re-read the same empty file, for as long as the feature had existed.
+
+The search now lives here. `POST /kentridge/refresh` runs it on demand and a
+Monday 06:00 tick runs it weekly, skipping if the shelf is under six days old so
+a redeploy does not re-trigger it.
+
+It searches SA galleries and salerooms first (Goodman, Strauss & Co, Aspire,
+Stephan Welz) then the international houses SA collectors buy through, **opens
+each candidate page** and reads it, and is told never to report a price it has
+not seen and never to estimate or convert one.
+
+The distinction the feature turns on: **a past auction result is not something
+you can buy.** Every item carries `available`, `upcoming` or `sold`; the card
+sorts and labels them that way and greys the past results, which are capped at
+three and kept only as price evidence.
+
+A failed run stores `lastError` and the card shows it. An art watch that cannot
+say why it is empty is the thing this replaces.
+
+## Shared research turns
+The magazine and the art watch use one `researchJson()` helper — same tools,
+same budgets, same `pause_turn` resume loop. They had drifted apart once
+already; the cap that cut the magazine off mid-research would have done exactly
+the same here.
+
 ## Insurance (Cover tab)
 Drop a policy schedule (PDF or photo) and the proxy extracts it into a structured
 policy: insurer, period, premium and frequency, then one row per insured item

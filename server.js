@@ -898,6 +898,131 @@ app.get('/kentridge', (req, res) => {
   res.json({ listings: [], updatedAt: null });
 });
 
+/* Shared research turn: search, open what matters, come back with JSON.
+   The magazine and the art watch both need exactly this, and they need it with
+   the same budgets — the cap that cut the magazine off mid-research would have
+   done the same here. One implementation, so a fix to the loop is a fix to
+   both. */
+async function researchJson({ label, prompt, model, maxTokens, effort, searchUses, fetchUses, hops }) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw Object.assign(new Error('ANTHROPIC_API_KEY not set on the proxy'), { status: 501 });
+  const convo = [{ role: 'user', content: prompt }];
+  let j = null;
+  for (let hop = 0; hop < (hops || 10); hop++) {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: model || 'claude-opus-5',
+        max_tokens: maxTokens || 24000,
+        output_config: { effort: effort || 'high' },
+        tools: [
+          { type: 'web_search_20260209', name: 'web_search', max_uses: searchUses || 14 },
+          { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: fetchUses || 10 }
+        ],
+        messages: convo
+      })
+    });
+    const text = await r.text();
+    if (!r.ok) { console.log('[' + label + '] API error', r.status, text.slice(0, 400)); throw Object.assign(new Error('Claude API ' + r.status + ' — ' + text.slice(0, 160)), { status: 502 }); }
+    j = JSON.parse(text);
+    console.log('[' + label + '] hop ' + hop + ' stop=' + j.stop_reason +
+      ' in=' + (j.usage && j.usage.input_tokens) + ' out=' + (j.usage && j.usage.output_tokens));
+    if (j.stop_reason !== 'pause_turn') break;
+    convo.push({ role: 'assistant', content: j.content });
+  }
+  if (j.stop_reason === 'refusal') throw new Error('The request was declined. Reword it and try again.');
+  if (j.stop_reason === 'max_tokens') throw new Error('The answer was cut off before it finished — narrow the brief and try again.');
+  const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+  const m = reply.match(/\[[\s\S]*\]/);
+  if (!m) { console.log('[' + label + '] no JSON in reply (stop=' + j.stop_reason + '):', reply.slice(0, 300)); throw new Error('Nothing usable came back (stopped: ' + j.stop_reason + ').'); }
+  try { return JSON.parse(m[0]); }
+  catch (e) { console.log('[' + label + '] JSON parse failed:', m[0].slice(-200)); throw new Error('The reply came back malformed — try again.'); }
+}
+
+/* ---- the art watch's own search ---------------------------------------- */
+const KENT_MODEL = process.env.KENTRIDGE_MODEL || 'claude-opus-5';
+async function searchKentridge() {
+  const dateStr = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+  const prompt = 'You are an art researcher finding William Kentridge works a South African collector could actually buy right now. Today is ' + dateStr + '.'
+    + '\n\nWHERE TO LOOK: South African galleries and auction houses first — Goodman Gallery, Strauss & Co, Aspire Art, Stephan Welz & Co, '
+    + 'Russell Kaplan, 5th Avenue Auctioneers — then the international houses and platforms where SA collectors buy: Phillips, Christie\'s, '
+    + 'Sotheby\'s, Artsy, Artnet, David Krut Projects.'
+    + '\n\nHOW TO WORK:'
+    + '\n1. Search several angles, not one query: current gallery stock, upcoming auction lots, editions and prints available now.'
+    + '\n2. OPEN each candidate page with the fetch tool and read it. Do not report a price, a medium or an availability you have not seen on the page.'
+    + '\n3. Keep only what a buyer could act on.'
+    + '\n\nTHE DISTINCTION THAT MATTERS MOST: a past auction RESULT is not something he can buy. Separate them honestly:'
+    + '\n- "available"  — on sale now, gallery stock or a listed edition.'
+    + '\n- "upcoming"   — a lot in an announced sale that has not happened yet. Give the sale date in the note.'
+    + '\n- "sold"       — a past result. Include at most 3, only as recent price evidence, and never dressed up as available.'
+    + '\n\nUp to 12 items, "available" and "upcoming" first. Prices exactly as published — if a page says "price on application", '
+    + 'write "POA"; if it is an estimate range, write it as the range and say so. Never convert a currency and never estimate a price yourself.'
+    + '\n\nRespond with ONLY a raw JSON array, no markdown fences and no commentary, each item being: '
+    + '{"title":"<work title>","year":"<year or empty>","medium":"<medium, edition size if stated>",'
+    + '"price":"<exactly as published, or POA>","status":"available|upcoming|sold","source":"<gallery or auction house>",'
+    + '"url":"<direct link to the listing>","note":"<sale date, edition, condition or provenance worth knowing — one short line>"}';
+
+  const parsed = await researchJson({ label: 'KENTRIDGE', prompt, model: KENT_MODEL, maxTokens: 24000, effort: 'high', searchUses: 16, fetchUses: 12 });
+  const ok = new Set(['available', 'upcoming', 'sold']);
+  const rank = { available: 0, upcoming: 1, sold: 2 };
+  const listings = parsed
+    .map(x => ({
+      title: String(x.title || '').slice(0, 240),
+      year: String(x.year || '').slice(0, 20),
+      medium: String(x.medium || '').slice(0, 200),
+      price: String(x.price || '').slice(0, 80),
+      status: ok.has(String(x.status)) ? String(x.status) : 'available',
+      source: String(x.source || '').slice(0, 120),
+      url: String(x.url || x.link || '').slice(0, 600),
+      note: String(x.note || '').slice(0, 300)
+    }))
+    .filter(x => x.title && /^https?:\/\//.test(x.url))
+    .sort((a, b) => rank[a.status] - rank[b.status]);
+  if (!listings.length) throw new Error('Nothing found for sale right now.');
+  return listings;
+}
+
+async function refreshKentridge(reason) {
+  const prev = (() => { try { return JSON.parse(fs.readFileSync(KENT_FILE, 'utf8')); } catch (e) { return {}; } })();
+  try {
+    const listings = await searchKentridge();
+    const payload = { listings, updatedAt: new Date().toISOString(), source: 'search', lastError: null };
+    if (DATA_DIR && DATA_DIR !== '.') fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(KENT_FILE, JSON.stringify(payload));
+    console.log('[KENTRIDGE] ' + reason + ' — ' + listings.length + ' listings (' +
+      listings.filter(l => l.status === 'available').length + ' available)');
+    return payload;
+  } catch (e) {
+    // Keep whatever was on the shelf, but record why this run found nothing —
+    // an empty card that cannot say why is what this feature was before.
+    const payload = Object.assign({ listings: [], updatedAt: null }, prev,
+      { lastError: e.message, lastErrorAt: new Date().toISOString() });
+    try { fs.writeFileSync(KENT_FILE, JSON.stringify(payload)); } catch (e2) {}
+    console.log('[KENTRIDGE] ' + reason + ' failed:', e.message);
+    throw e;
+  }
+}
+
+app.post('/kentridge/refresh', async (req, res) => {
+  try { res.json(await refreshKentridge('on-demand')); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+/* Weekly, on the Monday the card has always claimed. One run a week, and only
+   if the shelf is more than six days old, so a redeploy does not re-run it. */
+setInterval(() => {
+  const now = new Date();
+  const local = new Date(now.toLocaleString('en-US', { timeZone: APP_TZ }));
+  if (local.getDay() !== 1 || local.getHours() !== 6) return;
+  let cur = {};
+  try { cur = JSON.parse(fs.readFileSync(KENT_FILE, 'utf8')); } catch (e) {}
+  const age = cur.updatedAt ? (Date.now() - Date.parse(cur.updatedAt)) : Infinity;
+  if (age < 6 * 864e5) return;
+  if (!process.env.ANTHROPIC_API_KEY) return;
+  refreshKentridge('weekly').catch(() => {});
+}, 60 * 60 * 1000).unref();
+
 /* ============================================================
    PORTFOLIO INTELLIGENCE — a weekly research task compiles tailored,
    insight-led items (mostly AI, plus market/industry intel) for the
@@ -1421,55 +1546,18 @@ async function fetchTopicIssue(topic, prevIssue) {
     + '{"title":"<the real headline>","source":"<publication>","author":"<author or empty>","date":"<YYYY-MM-DD published>",'
     + '"url":"<direct link to the article>","readMinutes":<integer estimate>,"summary":"<2-3 sentences>","takeaway":"<one sentence>"}';
 
-  /* The model searches, reads and then writes the issue, so the turn can pause
-     for more tool rounds (stop_reason "pause_turn") — resuming is not an error
-     path, it's the normal shape of a long server-tool turn. max_tokens has to
-     cover thinking AND the written issue: thinking is on by default on Opus 5,
-     and a budget sized for the text alone truncates the JSON mid-array. */
-  const model = process.env.MAG_MODEL || 'claude-opus-5';
-  const convo = [{ role: 'user', content: prompt }];
-  let j = null;
-  // Searching and then opening what it shortlists takes more server-tool rounds
-  // than searching alone — a cap of 4 cut the turn off mid-research.
-  for (let hop = 0; hop < 10; hop++) {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        // Editorial judgement is the whole job here — what is worth his time, and
-        // what is filler dressed up as news — so this one gets the better model.
-        model,
-        max_tokens: 24000,
-        // Editorial judgement over a wide field and then reading is an agentic job;
-        // 'medium' was buying a shallower version of exactly what was being asked for.
-        output_config: { effort: 'high' },
-        // Search alone only ever returned snippets, which is why the summaries read
-        // thin — nothing in the loop could open an article. Fetch lets it read what
-        // it shortlists before writing about it.
-        tools: [
-          { type: 'web_search_20260209', name: 'web_search', max_uses: 14 },
-          { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 10 }
-        ],
-        messages: convo
-      })
-    });
-    const text = await r.text();
-    if (!r.ok) { console.log('[MAG] API error', r.status, text.slice(0, 400)); throw Object.assign(new Error('Claude API ' + r.status + ' — ' + text.slice(0, 160)), { status: 502 }); }
-    j = JSON.parse(text);
-    console.log('[MAG] "' + topic.label + '" hop ' + hop + ' stop=' + j.stop_reason +
-      ' in=' + (j.usage && j.usage.input_tokens) + ' out=' + (j.usage && j.usage.output_tokens));
-    if (j.stop_reason !== 'pause_turn') break;
-    // Server-side tool loop hit its iteration cap — hand the turn back to resume.
-    convo.push({ role: 'assistant', content: j.content });
-  }
-  if (j.stop_reason === 'refusal') throw new Error('The editor declined that brief. Reword the topic and try again.');
-  if (j.stop_reason === 'max_tokens') throw new Error('The issue was cut off before it finished — the brief may be too broad. Narrow it and try again.');
-  const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
-  const m = reply.match(/\[[\s\S]*\]/);
-  if (!m) { console.log('[MAG] no JSON in reply (stop=' + j.stop_reason + '):', reply.slice(0, 300)); throw new Error('That topic returned nothing usable (stopped: ' + j.stop_reason + ').'); }
-  let parsed;
-  try { parsed = JSON.parse(m[0]); }
-  catch (e) { console.log('[MAG] JSON parse failed:', m[0].slice(-200)); throw new Error('The issue came back malformed — try again.'); }
+  /* Same research turn as the art watch — search, open what it shortlists, come
+     back with JSON — so the budgets and the resume loop live in one place and a
+     fix to either is a fix to both. */
+  const parsed = await researchJson({
+    label: 'MAG "' + topic.label + '"',
+    prompt,
+    model: process.env.MAG_MODEL || 'claude-opus-5',
+    maxTokens: 24000,
+    effort: 'high',
+    searchUses: 14,
+    fetchUses: 10
+  });
   let items = parsed
     .map(x => ({
       title: String(x.title || '').slice(0, 300),
