@@ -898,6 +898,78 @@ app.get('/kentridge', (req, res) => {
   res.json({ listings: [], updatedAt: null });
 });
 
+/* One streamed turn against the Messages API, reassembled into the same shape a
+   non-streamed reply has.
+
+   Why stream at all: without it the response headers do not arrive until the
+   whole generation is finished, and Node's fetch abandons the socket at 300
+   seconds with a bare "fetch failed". A research turn that searches, opens
+   several articles and then writes goes past five minutes easily — so the
+   feature worked when it was shallow and started failing the moment it was
+   asked to do the job properly. Streaming makes the headers immediate and the
+   body incremental, and the timeout stops applying.
+
+   The reassembly has to be faithful, not just good enough for the text: on a
+   pause_turn the whole content array is handed back to continue the turn, and
+   that includes the server-tool blocks. Drop those and the model loses its own
+   search results. */
+async function anthropicTurn({ key, label, body }) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify(Object.assign({}, body, { stream: true }))
+  });
+  if (!r.ok) {
+    const text = await r.text();
+    console.log('[' + label + '] API error', r.status, text.slice(0, 400));
+    throw Object.assign(new Error('Claude API ' + r.status + ' — ' + text.slice(0, 160)), { status: 502 });
+  }
+  const content = [];
+  const partialJson = [];
+  let stop_reason = null, usage = null;
+
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const raw = line.slice(5).trim();
+      if (!raw || raw === '[DONE]') continue;
+      let ev;
+      try { ev = JSON.parse(raw); } catch (e) { continue; }
+      if (ev.type === 'error') throw new Error((ev.error && ev.error.message) || 'stream error');
+      if (ev.type === 'message_start' && ev.message) usage = ev.message.usage || usage;
+      else if (ev.type === 'content_block_start') {
+        content[ev.index] = JSON.parse(JSON.stringify(ev.content_block));
+        partialJson[ev.index] = '';
+      } else if (ev.type === 'content_block_delta') {
+        const b = content[ev.index], d = ev.delta || {};
+        if (!b) continue;
+        if (d.type === 'text_delta') b.text = (b.text || '') + d.text;
+        else if (d.type === 'thinking_delta') b.thinking = (b.thinking || '') + d.thinking;
+        else if (d.type === 'signature_delta') b.signature = (b.signature || '') + d.signature;
+        else if (d.type === 'input_json_delta') partialJson[ev.index] += d.partial_json || '';
+      } else if (ev.type === 'content_block_stop') {
+        const b = content[ev.index];
+        if (b && partialJson[ev.index]) {
+          try { b.input = JSON.parse(partialJson[ev.index]); } catch (e) { /* leave what the start event carried */ }
+        }
+      } else if (ev.type === 'message_delta') {
+        if (ev.delta && ev.delta.stop_reason) stop_reason = ev.delta.stop_reason;
+        if (ev.usage) usage = Object.assign({}, usage, ev.usage);
+      }
+    }
+  }
+  return { content: content.filter(Boolean), stop_reason, usage };
+}
+
 /* Shared research turn: search, open what matters, come back with JSON.
    The magazine and the art watch both need exactly this, and they need it with
    the same budgets — the cap that cut the magazine off mid-research would have
@@ -909,10 +981,8 @@ async function researchJson({ label, prompt, model, maxTokens, effort, searchUse
   const convo = [{ role: 'user', content: prompt }];
   let j = null;
   for (let hop = 0; hop < (hops || 10); hop++) {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
+    try {
+      j = await anthropicTurn({ key, label, body: {
         model: model || 'claude-opus-5',
         max_tokens: maxTokens || 24000,
         output_config: { effort: effort || 'high' },
@@ -921,11 +991,15 @@ async function researchJson({ label, prompt, model, maxTokens, effort, searchUse
           { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: fetchUses || 10 }
         ],
         messages: convo
-      })
-    });
-    const text = await r.text();
-    if (!r.ok) { console.log('[' + label + '] API error', r.status, text.slice(0, 400)); throw Object.assign(new Error('Claude API ' + r.status + ' — ' + text.slice(0, 160)), { status: 502 }); }
-    j = JSON.parse(text);
+      } });
+    } catch (e) {
+      // "fetch failed" is what Node says for any transport problem, and it tells
+      // you nothing. Say which it was.
+      if (!e.status && /fetch failed|terminated|socket|ECONN|network/i.test(e.message || '')) {
+        throw Object.assign(new Error('Lost the connection to Claude partway through the research (' + e.message + '). Try again.'), { status: 502 });
+      }
+      throw e;
+    }
     console.log('[' + label + '] hop ' + hop + ' stop=' + j.stop_reason +
       ' in=' + (j.usage && j.usage.input_tokens) + ' out=' + (j.usage && j.usage.output_tokens));
     if (j.stop_reason !== 'pause_turn') break;

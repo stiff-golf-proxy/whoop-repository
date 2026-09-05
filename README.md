@@ -113,6 +113,19 @@ same budgets, same `pause_turn` resume loop. They had drifted apart once
 already; the cap that cut the magazine off mid-research would have done exactly
 the same here.
 
+**The turn is streamed, and has to be.** Without streaming the response headers
+do not arrive until generation finishes, and Node's fetch abandons the socket at
+300 seconds with a bare `fetch failed`. A turn that searches, opens several
+articles and then writes passes five minutes easily — so the feature worked
+while it was shallow and began failing the moment it was asked to do the job
+properly.
+
+Reassembly from the stream is faithful rather than text-only: on a `pause_turn`
+the entire content array is handed back to continue the turn, including the
+`server_tool_use` blocks (whose inputs arrive as split JSON deltas) and the
+`web_search_tool_result` blocks. Drop those and the model loses its own search
+results mid-research.
+
 ## Insurance (Cover tab)
 Drop a policy schedule (PDF or photo) and the proxy extracts it into a structured
 policy: insurer, period, premium and frequency, then one row per insured item
