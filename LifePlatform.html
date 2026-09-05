@@ -206,6 +206,11 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .tk-file{font-family:var(--mono);font-size:10px;letter-spacing:.5px;text-transform:uppercase;
   border:1px solid var(--terra);color:var(--terra);border-radius:7px;padding:2px 7px;cursor:pointer;flex:0 0 auto}
 .tk-file:hover{background:var(--terra);color:#fff}
+.kent-chip{font-family:var(--mono);font-size:9px;letter-spacing:.6px;text-transform:uppercase;
+  border:1px solid var(--line2);border-radius:5px;padding:1px 5px;margin-left:4px;white-space:nowrap}
+.kent-chip.av{color:var(--good);border-color:var(--good)}
+.kent-chip.up{color:var(--gold);border-color:var(--gold)}
+.kent-chip.sold{color:var(--ink-faint)}
 .tk-tools{margin-left:auto;display:inline-flex;gap:6px}
 .tk-note{font-family:var(--mono);font-size:10.5px;min-width:20px;height:20px;line-height:19px;text-align:center;
   border:1px solid var(--line2);border-radius:7px;color:var(--ink-faint);cursor:pointer;padding:0 5px;flex:0 0 auto}
@@ -2032,13 +2037,19 @@ function cardKentridge(){
   const k=DB._kentridge||{listings:[],updatedAt:null}; const items=k.listings||[];
   const body= items.length
     ? items.slice(0,10).map(x=>{ const u=(x.url||'').replace(/'/g,"\\'"), t=(x.title||'').replace(/'/g,"\\'");
-        return `<div onclick="openArticle('${u}','${tkEsc(t)}')" style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer" onmouseover="this.style.background='var(--paper2)'" onmouseout="this.style.background=''">
-          <div><div style="font-family:var(--serif);font-size:14px;color:var(--ink)">${tkEsc(x.title)}</div>
-            <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:2px">${tkEsc(x.source||'')}${x.medium?(' · '+tkEsc(x.medium)):''}</div></div>
+        const st=x.status||'available';
+        const chip=st==='sold'?'<span class="kent-chip sold">past result</span>'
+          :st==='upcoming'?'<span class="kent-chip up">upcoming lot</span>':'<span class="kent-chip av">available</span>';
+        return `<div onclick="openArticle('${u}','${tkEsc(t)}')" style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer${st==='sold'?';opacity:.6':''}" onmouseover="this.style.background='var(--paper2)'" onmouseout="this.style.background=''">
+          <div><div style="font-family:var(--serif);font-size:14px;color:var(--ink)">${tkEsc(x.title)}${x.year?(' <span style="color:var(--ink-faint)">'+tkEsc(x.year)+'</span>'):''} ${chip}</div>
+            <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:2px">${tkEsc(x.source||'')}${x.medium?(' · '+tkEsc(x.medium)):''}</div>
+            ${x.note?`<div style="font-family:var(--serif);font-size:12px;color:var(--ink-soft);margin-top:2px">${tkEsc(x.note)}</div>`:''}</div>
           <div style="font-family:var(--mono);font-size:12.5px;color:var(--terra-deep);white-space:nowrap;font-weight:500">${tkEsc(x.price||'')}</div></div>`; }).join('')
-    : `<div class="empty" style="padding:20px 0">No listings yet — the weekly SA search runs Mondays and will fill this in.${proxyBase()?'':' (Connect your proxy.)'}</div>`;
+    : (k.lastError
+        ? `<div class="empty" style="padding:20px 0;color:var(--bad)">The last search failed — ${tkEsc(k.lastError)}<div class="ms" style="margin-top:6px">Press refresh to try again.</div></div>`
+        : `<div class="empty" style="padding:20px 0">Nothing on the shelf yet. Press refresh to search the galleries and salerooms now; after that it runs itself on Mondays.${proxyBase()?'':' (Connect your proxy.)'}</div>`);
   const when=k.updatedAt? 'updated '+fmtDate(k.updatedAt.slice(0,10)) : '';
-  return `<div class="card card-pad">${cardRefresh('refreshKentridgeCard()','Re-pull stored Kentridge listings')}<div class="kicker">Art watch · weekly</div><div class="h-sec">William Kentridge — for sale<span class="sub">South Africa · ${when}</span></div>
+  return `<div class="card card-pad">${cardRefresh('refreshKentridgeCard()','Search now for Kentridge works for sale')}<div class="kicker">Art watch · weekly</div><div class="h-sec">William Kentridge — for sale<span class="sub">South Africa · ${when}</span></div>
     <div id="kentBox">${body}</div></div>`;
 }
 
@@ -2215,7 +2226,7 @@ async function saveResearchBrief(andRun){
 async function fetchKentridge(){
   const base=proxyBase(); if(!base)return;
   try{ const r=await fetch(`${base}/kentridge`); if(!r.ok)throw 0; const j=await r.json();
-    DB._kentridge={listings:j.listings||[],updatedAt:j.updatedAt||null}; save(); renderHomeIfActive();
+    DB._kentridge={listings:j.listings||[],updatedAt:j.updatedAt||null,lastError:j.lastError||null}; save(); renderHomeIfActive();
   }catch(e){}
 }
 async function fetchTraffic(){
@@ -2245,7 +2256,29 @@ function cardRefresh(fn,title){ return `<a onclick="${fn}" title="${title||'Refr
 function refreshWhoopCard(){ if(!proxyBase()){toast('Connect your proxy first.');return;} toast('Syncing WHOOP…'); fetchWhoopMorning(); }
 function refreshCalendarCard(){ if(!proxyBase()){toast('Connect your proxy first.');return;} toast('Refreshing calendar…'); fetchCalendar(); }
 function refreshFxCard(){ toast('Refreshing rates…'); fetchCurrency(); }
-function refreshKentridgeCard(){ if(!proxyBase()){toast('Connect your proxy first.');return;} toast('Refreshing art watch…'); fetchKentridge(); }
+/* This used to re-read the stored file, which was empty and always would be:
+   nothing ever wrote to it. It now runs the search. */
+let _kentBusy=false;
+async function refreshKentridgeCard(){
+  const base=proxyBase();
+  if(!base){ toast('Connect your proxy first.'); return; }
+  if(_kentBusy){ toast('Already searching…'); return; }
+  _kentBusy=true; toast('Searching galleries and salerooms — this takes a minute…');
+  try{
+    const r=await fetch(base+'/kentridge/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Search failed');
+    DB._kentridge={listings:j.listings||[],updatedAt:j.updatedAt||null,lastError:j.lastError||null};
+    save(); renderHomeIfActive();
+    const avail=(j.listings||[]).filter(x=>x.status==='available').length;
+    toast((j.listings||[]).length+' works · '+avail+' available now');
+  }catch(e){
+    DB._kentridge=Object.assign({},DB._kentridge||{},{lastError:e.message});
+    save(); renderHomeIfActive();
+    toast(e.message||'Could not search');
+  }
+  _kentBusy=false;
+}
 async function fetchWhoopMorning(){ if(proxyBase()&&typeof syncWhoop==='function'){ try{await syncWhoop();}catch(e){} renderHomeIfActive(); } }
 function renderHomeIfActive(){ const el=document.getElementById('pane-home'); if(el&&el.classList.contains('active')) renderHome(); }
 function fmtDate(d){ if(!d)return'—'; const x=new Date(d); return x.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'}); }
