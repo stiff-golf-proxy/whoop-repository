@@ -64,6 +64,15 @@ keyword. Once a day the proxy turns each brief into a small issue using Claude's
 web search, and keeps the last issue in `magazine.json` on the volume so opening
 the tab is instant.
 
+- Five pieces a topic, and the editor is told to **read** them. Search alone
+  returns snippets, and a summary written off a snippet reads exactly as thin as
+  it is — the loop now has web fetch as well as web search, and the brief says to
+  open what it shortlists before writing about it.
+- The turn runs at `effort: 'high'`. Judging a wide field and then reading it is
+  agentic work; `medium` bought a shallower version of the thing being asked for.
+- Up to 10 server-tool rounds. Search-then-read legitimately needs more than a
+  handful, and the previous cap of 4 cut the turn off mid-research — which
+  surfaced as "that topic returned nothing usable" rather than as a timeout.
 - Topics are added, edited and removed from inside the app; nothing is
   hard-coded except the two it ships with (AI & Claude, Golf · mindset).
 - `POST /magazine/refresh {id}` fetches a new issue on demand. One at a time.

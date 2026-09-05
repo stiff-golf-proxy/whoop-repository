@@ -1365,7 +1365,7 @@ const MAG_DEFAULT_TOPICS = [
   { id: 'golf-mind', label: 'Golf · mindset', accent: 'sage',
     brief: 'The mental side of golf: focus and attention, playing under pressure, pre-shot routine, course management, confidence and self-talk, practice psychology, and how the best players think. Coaching and sports-psychology writing, and tour players talking about the mental game. Not equipment reviews, not tournament results, not swing mechanics.' }
 ];
-const MAG_ARTICLES = 6;
+const MAG_ARTICLES = 5;
 
 function readMag() {
   try {
@@ -1400,16 +1400,23 @@ async function fetchTopicIssue(topic, prevIssue) {
     + 'who reads to think better, not to keep up with a feed. Today is ' + dateStr + '.'
     + '\n\nTHIS SECTION: ' + topic.label
     + '\n\nWHAT HE WANTS FROM IT:\n' + topic.brief
+    + '\n\nHOW TO WORK:'
+    + '\n1. Search widely first — several different angles on the brief, not one query. See 15-20 candidates before choosing.'
+    + '\n2. Then OPEN the ones you shortlist and READ them, using the fetch tool. A summary written off a search snippet is worthless to him and he will be able to tell.'
+    + '\n3. Choose the ' + MAG_ARTICLES + ' best. Reject anything you could not open, anything thin, anything that only restates a press release.'
     + '\n\nEDITORIAL STANDARDS:'
-    + '\n- ' + MAG_ARTICLES + ' pieces, each genuinely worth 5-10 minutes of a busy person\'s attention.'
-    + '\n- Substance over recency, but nothing stale: prefer the last 30 days, and never anything that has simply been rewritten from a press release.'
-    + '\n- Real, reachable articles from named publications with working URLs. Never invent a title, an author, a date or a link. If you cannot verify a piece exists, leave it out and return fewer.'
-    + '\n- Mix registers: something substantial and analytical, something practical he can apply this week, something that challenges a comfortable assumption.'
-    + '\n- No listicles, no SEO filler, no sponsored content, no "top 10" round-ups.'
+    + '\n- Exactly ' + MAG_ARTICLES + ' pieces, each genuinely worth 5-10 minutes of a busy person\'s attention. If the first shortlist does not yield '
+    + MAG_ARTICLES + ' that clear the bar, search again on a different angle — do not pad with something weak, and do not come back short.'
+    + '\n- Substance over recency, but nothing stale: prefer the last 30 days, and never anything rewritten from a press release.'
+    + '\n- Real, reachable articles from named publications with working URLs, each one you have actually opened. Never invent a title, an author, a date or a link.'
+    + '\n- Mix registers across the five: something substantial and analytical, something practical he can apply this week, something that challenges a comfortable assumption.'
+    + '\n- No listicles, no SEO filler, no sponsored content, no "top 10" round-ups, no vendor blogs selling something.'
     + (seen.length ? ('\n\nALREADY ON HIS SHELF — do not repeat these or close variants:\n- ' + seen.slice(-40).join('\n- ')) : '')
-    + '\n\nFor each piece write, in your own words and in plain English:'
-    + '\n- "summary": 2-3 sentences on what it actually says. Not a teaser — he should get the substance even if he never opens it.'
-    + '\n- "takeaway": one sentence on what it means for him specifically, given who he is.'
+    + '\n\nFor each piece write, in your own words and in plain English, FROM THE ARTICLE YOU READ:'
+    + '\n- "summary": 3-5 sentences carrying the actual argument — the claim, the evidence behind it, and the part a skim would miss. '
+    + 'He should come away genuinely informed even if he never opens the link. Name the specific figure, study, player or company where there is one. '
+    + 'No throat-clearing about why the topic matters.'
+    + '\n- "takeaway": one sentence on what it means for him specifically, given who he is. Concrete, not "food for thought".'
     + '\n\nRespond with ONLY a raw JSON array, no markdown fences and no commentary, each item being: '
     + '{"title":"<the real headline>","source":"<publication>","author":"<author or empty>","date":"<YYYY-MM-DD published>",'
     + '"url":"<direct link to the article>","readMinutes":<integer estimate>,"summary":"<2-3 sentences>","takeaway":"<one sentence>"}';
@@ -1422,7 +1429,9 @@ async function fetchTopicIssue(topic, prevIssue) {
   const model = process.env.MAG_MODEL || 'claude-opus-5';
   const convo = [{ role: 'user', content: prompt }];
   let j = null;
-  for (let hop = 0; hop < 4; hop++) {
+  // Searching and then opening what it shortlists takes more server-tool rounds
+  // than searching alone — a cap of 4 cut the turn off mid-research.
+  for (let hop = 0; hop < 10; hop++) {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
@@ -1430,9 +1439,17 @@ async function fetchTopicIssue(topic, prevIssue) {
         // Editorial judgement is the whole job here — what is worth his time, and
         // what is filler dressed up as news — so this one gets the better model.
         model,
-        max_tokens: 16000,
-        output_config: { effort: 'medium' },
-        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 8 }],
+        max_tokens: 24000,
+        // Editorial judgement over a wide field and then reading is an agentic job;
+        // 'medium' was buying a shallower version of exactly what was being asked for.
+        output_config: { effort: 'high' },
+        // Search alone only ever returned snippets, which is why the summaries read
+        // thin — nothing in the loop could open an article. Fetch lets it read what
+        // it shortlists before writing about it.
+        tools: [
+          { type: 'web_search_20260209', name: 'web_search', max_uses: 14 },
+          { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 10 }
+        ],
         messages: convo
       })
     });
