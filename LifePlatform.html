@@ -579,6 +579,8 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .mag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:22px}
 .mag-art .t{font-family:var(--disp);font-weight:700;font-size:16.5px;line-height:1.3;letter-spacing:-.3px}
 .mag-art .s{font-family:var(--serif);font-size:13.5px;line-height:1.6;color:var(--ink-soft);margin-top:7px}
+.mag-go{margin-top:11px}
+.mag-go .btn{padding:5px 12px;font-size:12.5px}
 .mag-line{font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:7px}
 .mag-take{font-family:var(--serif);font-style:italic;font-size:13px;line-height:1.55;color:var(--ink);
   border-left:2px solid var(--terra);padding-left:11px;margin-top:11px}
@@ -7595,7 +7597,8 @@ function magArticleHtml(a,lead){
     : `<div class="mag-art"><div class="mag-line">${cEsc(line)}</div>
         <a href="${href}" target="_blank" rel="noopener noreferrer"><div class="t">${cEsc(a.title)}</div>
         <div class="s">${cEsc(a.summary)}</div></a>
-        ${a.takeaway?`<div class="mag-take">${cEsc(a.takeaway)}</div>`:''}</div>`;
+        ${a.takeaway?`<div class="mag-take">${cEsc(a.takeaway)}</div>`:''}
+        <div class="mag-go"><a class="btn" href="${href}" target="_blank" rel="noopener noreferrer">Read it →</a></div></div>`;
 }
 function magSectionHtml(t){
   const iss=_mag.issues[t.id];
