@@ -983,7 +983,7 @@ async function researchJson({ label, prompt, model, maxTokens, effort, searchUse
   for (let hop = 0; hop < (hops || 10); hop++) {
     try {
       j = await anthropicTurn({ key, label, body: {
-        model: model || 'claude-opus-5',
+        model: model || 'claude-sonnet-5-5',
         max_tokens: maxTokens || 24000,
         output_config: { effort: effort || 'high' },
         /* Every hop resends the whole conversation, and after a few web fetches
@@ -1020,7 +1020,7 @@ async function researchJson({ label, prompt, model, maxTokens, effort, searchUse
 }
 
 /* ---- the art watch's own search ---------------------------------------- */
-const KENT_MODEL = process.env.KENTRIDGE_MODEL || 'claude-opus-5';
+const KENT_MODEL = process.env.KENTRIDGE_MODEL || 'claude-sonnet-5-5';
 async function searchKentridge() {
   const dateStr = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
   const prompt = 'You are an art researcher finding William Kentridge works a South African collector could actually buy right now. Today is ' + dateStr + '.'
@@ -1631,7 +1631,7 @@ async function fetchTopicIssue(topic, prevIssue) {
   const parsed = await researchJson({
     label: 'MAG "' + topic.label + '"',
     prompt,
-    model: process.env.MAG_MODEL || 'claude-opus-5',
+    model: process.env.MAG_MODEL || 'claude-sonnet-5-5',
     maxTokens: 24000,
     effort: 'high',
     searchUses: 14,
@@ -1770,7 +1770,7 @@ setInterval(async () => {
    buried inside a sentence the model wrote about it.
    ============================================================ */
 const INS_FILE = DATA_DIR + '/insurance.json';
-const INS_MODEL = process.env.INSURANCE_MODEL || 'claude-opus-5';
+const INS_MODEL = process.env.INSURANCE_MODEL || 'claude-sonnet-5-5';
 
 const POLICY_SCHEMA = {
   type: 'object',
@@ -2178,7 +2178,7 @@ app.post('/refswings', (req, res) => {
    POST   /expenses/statement    → Claude reads a statement PDF
    ============================================================ */
 const EXP_DIR = DATA_DIR + '/expense-slips';
-const EXP_MODEL = process.env.EXPENSE_MODEL || 'claude-opus-5';
+const EXP_MODEL = process.env.EXPENSE_MODEL || 'claude-sonnet-5-5';
 const safeSlipId = id => /^[A-Za-z0-9_-]{1,64}$/.test(String(id || '')) ? String(id) : null;
 
 app.get('/expenses/slips', (req, res) => {
@@ -3102,7 +3102,7 @@ async function interpretNote(transcript, now) {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': akey, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: process.env.VOICE_MODEL || 'claude-opus-5',
+      model: process.env.VOICE_MODEL || 'claude-sonnet-5-5',
       max_tokens: 2000,
       thinking: { type: 'disabled' },
       output_config: { effort: 'low', format: { type: 'json_schema', schema: VOICE_SCHEMA } },
