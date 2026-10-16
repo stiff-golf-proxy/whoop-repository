@@ -975,6 +975,11 @@ async function anthropicTurn({ key, label, body }) {
    the same budgets — the cap that cut the magazine off mid-research would have
    done the same here. One implementation, so a fix to the loop is a fix to
    both. */
+/* Kentridge, the magazine and the weekly deep dive run ONLY when Stuart presses
+   their button. Their timers stay switched off unless AUTO_RESEARCH=on is set on
+   the server — they were the bulk of the Anthropic bill. */
+const AUTO_RESEARCH = process.env.AUTO_RESEARCH === 'on';
+
 async function researchJson({ label, prompt, model, maxTokens, effort, searchUses, fetchUses, hops }) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw Object.assign(new Error('ANTHROPIC_API_KEY not set on the proxy'), { status: 501 });
@@ -1090,7 +1095,7 @@ app.post('/kentridge/refresh', async (req, res) => {
 
 /* Weekly, on the Monday the card has always claimed. One run a week, and only
    if the shelf is more than six days old, so a redeploy does not re-run it. */
-setInterval(() => {
+if (AUTO_RESEARCH) setInterval(() => {
   const now = new Date();
   const local = new Date(now.toLocaleString('en-US', { timeZone: APP_TZ }));
   if (local.getDay() !== 1 || local.getHours() !== 6) return;
@@ -1541,7 +1546,7 @@ app.post('/research/run', async (req, res) => {
    can be deleted — its POST /research pushes would overwrite this with the old
    focus). Fires Mondays between 06:00-07:00 SAST; once per day max. */
 const RES_LAST_AUTO = DATA_DIR + '/research-last-auto.txt';
-setInterval(async () => {
+if (AUTO_RESEARCH) setInterval(async () => {
   try {
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Johannesburg' }));
     if (now.getDay() !== 1 || now.getHours() !== 6) return; // Mondays, 06:00-06:59 SAST
@@ -1742,7 +1747,7 @@ app.post('/magazine/refresh', async (req, res) => {
 /* Daily refresh, one topic at a time so a shelf of six doesn't fire six
    searches at once. Anything older than 20 hours is fair game; the first
    eligible topic per tick keeps it gentle. Fires from 05:00 SAST. */
-setInterval(async () => {
+if (AUTO_RESEARCH) setInterval(async () => {
   try {
     if (MAG_RUNNING) return;
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: APP_TZ }));
