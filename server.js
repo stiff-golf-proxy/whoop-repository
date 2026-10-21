@@ -2229,8 +2229,10 @@ app.delete('/expenses/slips/:id', (req, res) => {
 
 /* Shared caller for the two extraction endpoints. Structured outputs pin the
    reply to the schema, so the response is always parseable — no regex rescue.
-   Thinking is off at low effort: these are transcription jobs, and the schema
-   (not reasoning depth) is what keeps them honest. */
+   Low effort: these are transcription jobs, and the schema (not reasoning
+   depth) is what keeps them honest. Thinking is left unset unless a caller
+   asks for it — Sonnet 5.5 rejects { type: 'disabled' } with a 400, which is
+   what made every statement upload fail with a 502. */
 async function claudeExtract({ content, schema, max_tokens, model, effort, thinking }) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) { const e = new Error('ANTHROPIC_API_KEY not set on the proxy'); e.status = 501; throw e; }
@@ -2240,7 +2242,7 @@ async function claudeExtract({ content, schema, max_tokens, model, effort, think
     body: JSON.stringify({
       model: model || EXP_MODEL,
       max_tokens,
-      thinking: thinking || { type: 'disabled' },
+      ...(thinking ? { thinking } : {}),
       output_config: { effort: effort || 'low', format: { type: 'json_schema', schema } },
       messages: [{ role: 'user', content }]
     })
@@ -3109,7 +3111,6 @@ async function interpretNote(transcript, now) {
     body: JSON.stringify({
       model: process.env.VOICE_MODEL || 'claude-sonnet-5-5',
       max_tokens: 2000,
-      thinking: { type: 'disabled' },
       output_config: { effort: 'low', format: { type: 'json_schema', schema: VOICE_SCHEMA } },
       system: 'You turn a short note from Stuart into a structured reminder for his personal dashboard. ' +
               'It is currently ' + localNow + ' in ' + APP_TZ + '. Resolve relative times ("tomorrow", "in an hour", ' +
