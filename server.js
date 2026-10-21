@@ -2248,7 +2248,7 @@ async function claudeExtract({ content, schema, max_tokens, model, effort, think
     })
   });
   const text = await r.text();
-  if (!r.ok) { console.log('[EXPENSES] API error', r.status, text.slice(0, 400)); const e = new Error(`Claude API ${r.status}`); e.status = 502; throw e; }
+  if (!r.ok) { console.log('[EXPENSES] API error', r.status, text.slice(0, 400)); let why = ''; try { why = (JSON.parse(text).error || {}).message || ''; } catch (_) {} const e = new Error(`Claude API ${r.status}` + (why ? ': ' + why : '')); e.status = 502; throw e; }
   const j = JSON.parse(text);
   if (j.stop_reason === 'refusal') { const e = new Error('request declined'); e.status = 502; throw e; }
   const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
