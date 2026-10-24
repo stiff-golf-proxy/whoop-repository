@@ -2280,7 +2280,7 @@ app.post('/expenses/extract-slip', async (req, res) => {
       schema: SLIP_SCHEMA,
       content: [
         { type: 'image', source: { type: 'base64', media_type, data: image } },
-        { type: 'text', text: 'This is a photograph of a credit-card slip or till receipt. Transcribe exactly what is printed — do not infer, round, or invent values. If a field is genuinely not legible, return the empty/zero default for it rather than a guess. The amount must be the final total paid, not a subtotal.' }
+        { type: 'text', text: 'This is a photograph of a credit-card slip or till receipt. Transcribe exactly what is printed — do not infer, round, or invent values. If a field is genuinely not legible, return the empty/zero default for it rather than a guess. The amount must be the final total paid, not a subtotal. Today is ' + expToday() + ': if the slip prints a two-digit year or none, use the most recent year that does not put the date after today.' }
       ]
     });
     res.json(out);
@@ -2314,6 +2314,11 @@ const STATEMENT_SCHEMA = {
   additionalProperties: false
 };
 
+/* Today's date in the app's timezone. Statements print "05 Sep" with no year,
+   and without a reference date the model guessed — usually a year too early,
+   so nothing matched the slips. */
+const expToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ }).format(new Date());
+
 app.post('/expenses/statement', async (req, res) => {
   try {
     const { pdf } = req.body || {};
@@ -2323,7 +2328,7 @@ app.post('/expenses/statement', async (req, res) => {
       schema: STATEMENT_SCHEMA,
       content: [
         { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf } },
-        { type: 'text', text: 'This is a credit-card statement. Extract every transaction line exactly as printed — do not summarise, merge, skip, or reorder lines. Use the statement year to resolve dates printed without one.\n\nAmounts: always report the figure as a POSITIVE number, exactly as printed, and put the direction in the direction field. Statements differ — some print credits with a minus, some with "Cr", some in a separate column, some show purchases as negative because they increase a negative balance. Read the layout and decide; do not assume a sign convention.' }
+        { type: 'text', text: 'This is a credit-card statement. Extract every transaction line exactly as printed — do not summarise, merge, skip, or reorder lines. Use the statement year to resolve dates printed without one. If the statement prints no year anywhere, today is ' + expToday() + ': give each date the most recent year that does not put it after today. Resolve periodStart and periodEnd the same way.\n\nAmounts: always report the figure as a POSITIVE number, exactly as printed, and put the direction in the direction field. Statements differ — some print credits with a minus, some with "Cr", some in a separate column, some show purchases as negative because they increase a negative balance. Read the layout and decide; do not assume a sign convention.' }
       ]
     });
     res.json(out);
